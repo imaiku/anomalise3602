@@ -115,30 +115,34 @@ async function processUserImport() {
   btn.disabled = true;
   btn.textContent = 'Memproses...';
 
+  let successCount = 0;
+  let failCount    = 0;
+  const chunkSize  = 40; // 40 users per request to fit within Supabase's statement timeout
+
   try {
-    const payload = parsedUsersData.map(u => ({
-      sobatid: u.sobatid,
-      nik: u.nik,
-      nama: u.nama,
-      role: u.role,
-      email: u.email || ''
-    }));
+    for (let i = 0; i < parsedUsersData.length; i += chunkSize) {
+      const chunk = parsedUsersData.slice(i, i + chunkSize);
+      btn.textContent = `Memproses (${i} / ${parsedUsersData.length})...`;
 
-    const { data, error } = await db.rpc('register_users_batch', { p_users: payload });
+      const payload = chunk.map(u => ({
+        sobatid: u.sobatid,
+        nik: u.nik,
+        nama: u.nama,
+        role: u.role,
+        email: u.email || ''
+      }));
 
-    if (error) {
-      if (error.message.includes('function') && error.message.includes('does not exist')) {
-        throw new Error('Fungsi register_users_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
+      const { data, error } = await db.rpc('register_users_batch', { p_users: payload });
+
+      if (error) {
+        if (error.message.includes('function') && error.message.includes('does not exist')) {
+          throw new Error('Fungsi register_users_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
+        }
+        throw error;
       }
-      throw error;
-    }
 
-    const successCount = data.success_count || 0;
-    const failCount = data.fail_count || 0;
-    const errors = data.errors || [];
-
-    if (errors.length > 0) {
-      console.warn('Beberapa baris gagal diimpor:', errors);
+      successCount += data.success_count || 0;
+      failCount    += data.fail_count || 0;
     }
 
     showToast(`Impor selesai. ${successCount} berhasil, ${failCount} gagal.`, successCount > 0 ? 'success' : 'error');
