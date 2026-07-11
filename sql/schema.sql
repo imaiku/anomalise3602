@@ -313,6 +313,7 @@ BEGIN
         user_id,
         identity_data,
         provider,
+        provider_id,
         last_sign_in_at,
         created_at,
         updated_at
@@ -321,6 +322,7 @@ BEGIN
         v_user_id,
         jsonb_build_object('sub', v_user_id::text, 'email', (v_user->>'sobatid') || '@anomali3602.se'),
         'email',
+        v_user_id::text,
         now(),
         now(),
         now()
