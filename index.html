@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Monitoring Anomali SE2026</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    (async () => {
+      const session = await getSession();
+      if (!session || !session.profile) {
+        window.location.replace('/login.html');
+      } else if (session.profile.role === 'superadmin') {
+        window.location.replace('/admin.html');
+      } else {
+        window.location.replace('/dashboard.html');
+      }
+    })();
+  </script>
+</head>
+<body style="background:#1A1208;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:sans-serif;color:#8A6840">
+  Memuat...
+</body>
+</html>
