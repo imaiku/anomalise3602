@@ -1,5 +1,6 @@
 // ============================================================
 // MODAL.JS — Bottom Sheet Detail & Tindak Lanjut
+// Depends on: config.js, utils.js (escHtml, showToast, formatDate), auth.js
 // ============================================================
 
 let currentAssignmentId = null;
@@ -215,11 +216,3 @@ function closeDetailModal() {
   currentAssignmentId = null; currentGroup = null; pendingChanges = {};
 }
 function handleOverlayClick(e) { if (e.target === document.getElementById('detailModal')) closeDetailModal(); }
-
-function formatDate(dateStr, withTime = false) {
-  if (!dateStr) return '\u2014';
-  const d = new Date(dateStr);
-  const opts = { day: '2-digit', month: 'short', year: 'numeric' };
-  if (withTime) { opts.hour = '2-digit'; opts.minute = '2-digit'; }
-  return d.toLocaleDateString('id-ID', opts);
-}

@@ -164,6 +164,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
           SLS Tanpa PPL
         </button>
+        <button class="sidebar-item" onclick="showSection('import-sls')" id="nav-import-sls">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+          Import SLS & PML
+        </button>
       </div>
     </aside>
 
@@ -363,7 +367,7 @@
           </button>
           <button class="btn btn-secondary btn-sm" onclick="showSection('import-users')">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-            Import CSV Massal
+            Import Excel Massal
           </button>
           <input type="text" class="filter-select" id="userSearch" placeholder="Cari nama / sobatid..." oninput="filterUsers()" style="max-width:220px">
           <select class="filter-select" id="userRoleFilter" onchange="filterUsers()" style="max-width:140px">
@@ -384,6 +388,124 @@
             </tr></thead>
             <tbody id="userTableBody"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>
+        </div>
+      </div>
+
+      <!-- ============ KELOLA PENGGUNA IMPORT ============ -->
+      <div class="section-panel" id="panel-import-users">
+        <div class="section-title">Import Pengguna Massal</div>
+        <div class="section-sub">Upload file Excel daftar pengguna untuk didaftarkan secara massal.</div>
+
+        <div class="card card-body mb-4" style="max-width:600px">
+          <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom data pengguna sesuai dan terhindar dari error impor.</div>
+          <button class="btn btn-secondary btn-sm" onclick="generateUserTemplate()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Download Template Excel Pengguna
+          </button>
+        </div>
+
+        <div class="upload-card mb-4" style="max-width:600px">
+          <div class="upload-card-title">File Excel Pengguna</div>
+          <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
+          <div class="upload-zone" id="zoneUsers" onclick="document.getElementById('fileUsers').click()"
+               ondragover="handleDragOver(event,'zoneUsers')" ondragleave="handleDragLeave('zoneUsers')" ondrop="handleUserDrop(event)">
+            <input type="file" id="fileUsers" accept=".xlsx,.xls" onchange="handleUserFileSelect(event)">
+            <div class="upload-zone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="upload-zone-title" id="usersImportLabel">Pilih atau seret file di sini</div>
+            <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
+          </div>
+          <div id="usersValidation" class="mt-2"></div>
+        </div>
+
+        <!-- Preview Impor -->
+        <div id="importUsersPreviewArea" class="hidden">
+          <div class="table-wrapper mb-4">
+            <div class="table-header">
+              <div class="table-title">Preview Data Pengguna</div>
+              <div class="table-count" id="importUsersCount">0 pengguna ditemukan</div>
+            </div>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Sobat ID</th>
+                  <th>NIK (Password)</th>
+                  <th>Nama Lengkap</th>
+                  <th>Role</th>
+                  <th>Email</th>
+                </tr>
+              </thead>
+              <tbody id="importUsersTableBody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;gap:0.75rem">
+            <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
+            <button class="btn btn-primary" id="processImportBtn" onclick="processUserImport()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              Proses Impor Massal
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ============ IMPORT SLS & RELATIONSHIP ============ -->
+      <div class="section-panel" id="panel-import-sls">
+        <div class="section-title">Import SLS & Hubungan PML-PPL</div>
+        <div class="section-sub">Upload file Excel berisi data Kode SLS, Email PML, dan Email PPL untuk di-mapping secara massal.</div>
+
+        <div class="card card-body mb-4" style="max-width:600px">
+          <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Mapping SLS</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom SLS, PML, dan PPL sesuai.</div>
+          <button class="btn btn-secondary btn-sm" onclick="generateSLSTemplate()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Download Template Excel SLS
+          </button>
+        </div>
+
+        <div class="upload-card mb-4" style="max-width:600px">
+          <div class="upload-card-title">File Excel Mapping SLS</div>
+          <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
+          <div class="upload-zone" id="zoneSLS" onclick="document.getElementById('fileSLS').click()"
+               ondragover="handleDragOver(event,'zoneSLS')" ondragleave="handleDragLeave('zoneSLS')" ondrop="handleSLSDrop(event)">
+            <input type="file" id="fileSLS" accept=".xlsx,.xls" onchange="handleSLSFileSelect(event)">
+            <div class="upload-zone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="upload-zone-title" id="slsImportLabel">Pilih atau seret file di sini</div>
+            <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
+          </div>
+          <div id="slsValidation" class="mt-2"></div>
+        </div>
+
+        <!-- Preview Impor SLS -->
+        <div id="importSLSPreviewArea" class="hidden">
+          <div class="table-wrapper mb-4">
+            <div class="table-header">
+              <div class="table-title">Preview Mapping SLS</div>
+              <div class="table-count" id="importSLSCount">0 baris ditemukan</div>
+            </div>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Kode SLS</th>
+                  <th>Email PML</th>
+                  <th>Email PPL</th>
+                </tr>
+              </thead>
+              <tbody id="importSLSTableBody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;gap:0.75rem">
+            <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
+            <button class="btn btn-primary" id="processSLSImportBtn" onclick="processSLSImport()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              Proses Impor SLS & PML
+            </button>
+          </div>
         </div>
       </div>
 
@@ -476,6 +598,8 @@
             <select id="userRole" class="form-select">
               <option value="ppl">PPL</option>
               <option value="pml">PML</option>
+              <option value="admin">Admin</option>
+              <option value="superadmin">Super Admin</option>
             </select>
           </div>
           <div class="form-group">
@@ -498,8 +622,10 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
   <script src="js/auth.js"></script>
   <script src="js/upload.js"></script>
+  <script src="js/import.js"></script>
   <script src="js/admin.js"></script>
 </body>
 </html>
