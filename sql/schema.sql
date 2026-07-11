@@ -180,21 +180,17 @@ CREATE POLICY "pml_ppl_admin" ON public.pml_ppl FOR ALL TO authenticated
   USING (get_my_role() IN ('superadmin', 'admin'));
 
 -- ANOMALI_REF: all can read, only superadmin manages
-CREATE POLICY "anomali_ref_select" ON public.anomali_ref FOR SELECT TO authenticated USING (true);
+CREATE POLICY "anomali_ref_select" ON public.anomali_ref FOR SELECT USING (true);
 CREATE POLICY "anomali_ref_admin" ON public.anomali_ref FOR ALL TO authenticated
   USING (get_my_role() = 'superadmin');
 
 -- UPLOAD_BATCHES: all can read, superadmin manages
-CREATE POLICY "batches_select" ON public.upload_batches FOR SELECT TO authenticated USING (true);
+CREATE POLICY "batches_select" ON public.upload_batches FOR SELECT USING (true);
 CREATE POLICY "batches_admin" ON public.upload_batches FOR ALL TO authenticated
   USING (get_my_role() = 'superadmin');
 
 -- ASSIGNMENT_ANOMALI: read based on role, update based on SLS access
-CREATE POLICY "aa_select_all" ON public.assignment_anomali FOR SELECT TO authenticated
-  USING (
-    get_my_role() IN ('superadmin', 'admin', 'pml')
-    OR kode_sls_gabungan IN (SELECT kode_sls FROM public.get_my_sls())
-  );
+CREATE POLICY "aa_select_all" ON public.assignment_anomali FOR SELECT USING (true);
 
 CREATE POLICY "aa_insert_admin" ON public.assignment_anomali FOR INSERT TO authenticated
   WITH CHECK (get_my_role() IN ('superadmin', 'admin'));
@@ -211,8 +207,8 @@ CREATE POLICY "aa_update" ON public.assignment_anomali FOR UPDATE TO authenticat
 CREATE POLICY "aa_delete_admin" ON public.assignment_anomali FOR DELETE TO authenticated
   USING (get_my_role() IN ('superadmin', 'admin'));
 
--- STATUS_HISTORY: all authenticated can read, insert on update
-CREATE POLICY "history_select" ON public.status_history FOR SELECT TO authenticated USING (true);
+-- STATUS_HISTORY: all can read, insert on update
+CREATE POLICY "history_select" ON public.status_history FOR SELECT USING (true);
 CREATE POLICY "history_insert" ON public.status_history FOR INSERT TO authenticated WITH CHECK (true);
 
 -- ============================================================

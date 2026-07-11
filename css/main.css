@@ -9,30 +9,29 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* ---- CSS Variables ---- */
 :root {
-  --bg:           #FFF3EB;
-  --bg-card:      #FFFAF5;
-  --bg-card-2:    #FFF0E0;
-  --border:       #F0DEC8;
-  --border-strong:#D4A87A;
-  --text:         #1A1208;
-  --text-muted:   #7A6040;
-  --text-subtle:  #A08060;
-  --primary:      #F97316;
+  --bg:           #FFFFFF;
+  --bg-card:      #FAFAFA;
+  --bg-card-2:    #F8FAFC;
+  --border:       #E2E8F0;
+  --border-strong:#CBD5E1;
+  --text:         #0F172A;
+  --text-muted:   #475569;
+  --text-subtle:  #64748B;
+  --primary:      #F97316; /* Orange accent */
   --primary-dark: #EA6C00;
-  --primary-light:#FED7AA;
+  --primary-light:#FFEDD5;
   --success:      #22C55E;
   --success-bg:   #DCFCE7;
-  --warning:      #EAB308;
-  --warning-bg:   #FEF9C3;
+  --warning:      #FACC15; /* Yellow highlight */
+  --warning-bg:   #FEF08A; /* Light yellow highlight */
   --error:        #EF4444;
   --error-bg:     #FEE2E2;
   --info:         #3B82F6;
   --info-bg:      #DBEAFE;
-  --shadow-sm:    0 1px 3px rgba(26,18,8,0.08);
-  --shadow-md:    0 4px 12px rgba(26,18,8,0.10);
-  --shadow-lg:    0 8px 24px rgba(26,18,8,0.12);
+  --shadow-sm:    0 1px 3px rgba(15,23,42,0.05);
+  --shadow-md:    0 4px 12px rgba(15,23,42,0.08);
+  --shadow-lg:    0 8px 24px rgba(15,23,42,0.1);
   --radius-sm:    6px;
   --radius-md:    10px;
   --radius-lg:    14px;
@@ -40,22 +39,22 @@
 }
 
 .dark {
-  --bg:           #1A1208;
-  --bg-card:      #2A1C0E;
-  --bg-card-2:    #341F0A;
-  --border:       #3D2D18;
-  --border-strong:#5A3D20;
-  --text:         #F5EFE8;
-  --text-muted:   #C4A882;
-  --text-subtle:  #8A6840;
+  --bg:           #000000;
+  --bg-card:      #121212;
+  --bg-card-2:    #1E1E1E;
+  --border:       #262626;
+  --border-strong:#404040;
+  --text:         #F8FAFC;
+  --text-muted:   #94A3B8;
+  --text-subtle:  #64748B;
   --primary-light:#7C2D12;
   --success-bg:   #14532D;
   --warning-bg:   #713F12;
   --error-bg:     #7F1D1D;
   --info-bg:      #1E3A5F;
-  --shadow-sm:    0 1px 3px rgba(0,0,0,0.3);
-  --shadow-md:    0 4px 12px rgba(0,0,0,0.35);
-  --shadow-lg:    0 8px 24px rgba(0,0,0,0.4);
+  --shadow-sm:    0 1px 3px rgba(0,0,0,0.4);
+  --shadow-md:    0 4px 12px rgba(0,0,0,0.5);
+  --shadow-lg:    0 8px 24px rgba(0,0,0,0.6);
 }
 
 /* ---- Reset & Base ---- */

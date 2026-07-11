@@ -15,16 +15,45 @@ let debounceTimer = null;
 
 // ---- Init ----
 async function initDashboard() {
-  const session = await requireAuth(['superadmin', 'admin', 'pml', 'ppl']);
-  if (!session) return;
-  currentProfile = session.profile;
+  const session = await getSession();
+  currentProfile = session ? session.profile : null;
 
-  // Set user info in navbar
-  const name = getSessionName(currentProfile);
-  document.getElementById('userDisplayName').textContent = name;
-  const roleEl = document.getElementById('userRoleBadge');
-  roleEl.textContent = currentProfile.role.toUpperCase();
-  roleEl.className = `type-badge type-${currentProfile.role === 'ppl' ? 'keluarga' : currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+  const userDisplayName = document.getElementById('userDisplayName');
+  const userRoleBadge = document.getElementById('userRoleBadge');
+  const loginNavBtn = document.getElementById('loginNavBtn');
+  const logoutNavBtn = document.getElementById('logoutNavBtn');
+  const adminNavBtn = document.getElementById('adminNavBtn');
+
+  if (currentProfile) {
+    // Set user info in navbar
+    const name = getSessionName(currentProfile);
+    if (userDisplayName) userDisplayName.textContent = name;
+    if (userRoleBadge) {
+      userRoleBadge.textContent = currentProfile.role.toUpperCase();
+      userRoleBadge.className = `type-badge type-${currentProfile.role === 'ppl' ? 'keluarga' : currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+      userRoleBadge.style.display = 'inline-block';
+    }
+    if (loginNavBtn) loginNavBtn.classList.add('hidden');
+    if (logoutNavBtn) logoutNavBtn.classList.remove('hidden');
+    
+    // Show admin page button if admin/superadmin
+    if (adminNavBtn) {
+      if (['superadmin', 'admin'].includes(currentProfile.role)) {
+        adminNavBtn.classList.remove('hidden');
+      } else {
+        adminNavBtn.classList.add('hidden');
+      }
+    }
+  } else {
+    // Guest mode
+    if (userDisplayName) userDisplayName.textContent = 'Guest';
+    if (userRoleBadge) {
+      userRoleBadge.style.display = 'none';
+    }
+    if (loginNavBtn) loginNavBtn.classList.remove('hidden');
+    if (logoutNavBtn) logoutNavBtn.classList.add('hidden');
+    if (adminNavBtn) adminNavBtn.classList.add('hidden');
+  }
 
   await loadStats();
   await loadAnomalinomorOptions();
@@ -37,7 +66,7 @@ async function loadStats() {
     // Get all unique assignment IDs and their completion status
     let query = db.from('assignment_anomali').select('assignment_id, status');
 
-    if (currentProfile.role === 'ppl') {
+    if (currentProfile && currentProfile.role === 'ppl') {
       const { data: mySlsList } = await db.rpc('get_my_sls');
       const slsCodes = (mySlsList || []).map(r => r.kode_sls);
       if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
@@ -106,7 +135,7 @@ async function loadData() {
       .order('first_seen', { ascending: false });
 
     // PPL: only their SLS
-    if (currentProfile.role === 'ppl') {
+    if (currentProfile && currentProfile.role === 'ppl') {
       const { data: mySlsList } = await db.rpc('get_my_sls');
       const slsCodes = (mySlsList || []).map(r => r.kode_sls);
       if (slsCodes.length > 0) {
@@ -616,10 +645,9 @@ function toggleTheme() {
 // ---- Init on load ----
 initTheme();
 document.addEventListener('DOMContentLoaded', () => {
-  const session = (async () => {
+  (async () => {
     const s = await getSession();
-    if (!s || !s.profile) { window.location.href = '/login.html'; return; }
-    if (s.profile.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
+    if (s && s.profile && s.profile.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
       document.getElementById('adminNameModal').classList.add('open');
     } else {
       initDashboard();
