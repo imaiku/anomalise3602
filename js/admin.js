@@ -554,7 +554,6 @@ function changeUserPageSize() {
   currentUserPage = 1;
   renderUsers();
 }
-}
 
 function openAddUserModal() {
   ['userSobatid', 'userNIK', 'userName', 'userEmail'].forEach(id => { document.getElementById(id).value = ''; });
