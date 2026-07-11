@@ -524,12 +524,18 @@ tbody td {
   background: rgba(0,0,0,0.5);
   z-index: 300;
   opacity: 0;
-  transition: opacity 0.2s;
+  pointer-events: none;
+  visibility: hidden;
+  transition: opacity 0.2s, visibility 0.2s;
   display: flex;
   align-items: flex-end;
   justify-content: center;
 }
-.modal-overlay.open { opacity: 1; }
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
 
 .bottom-sheet {
   background: var(--bg-card);
