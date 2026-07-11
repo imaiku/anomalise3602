@@ -8,6 +8,9 @@ let parsedKK     = null;   // { rows, records }
 let parsedUsaha  = null;   // { rows, records }
 let batchId      = null;
 let allUsers     = [];
+let filteredUsers = [];
+let currentUserPage = 1;
+let userPageSize    = 25;
 let editingRefId = null;
 
 // ============================================================
@@ -374,63 +377,183 @@ async function deleteAnomaliRef(id) {
 // ============================================================
 // USER MANAGEMENT
 // ============================================================
+// ============================================================
+// USER MANAGEMENT
+// ============================================================
 async function loadUsers() {
-  const { data, error } = await db
-    .from('profiles')
-    .select('id, sobatid, nama, role, email_ref, is_active')
-    .in('role', ['ppl', 'pml'])
-    .order('role').order('nama');
+  let all = [];
+  let from = 0;
+  const step = 1000;
+  let hasMore = true;
 
-  if (error) { console.error(error); return; }
-  allUsers = data || [];
-  renderUsers(allUsers);
+  while (hasMore) {
+    const { data, error } = await db
+      .from('profiles')
+      .select('id, sobatid, nama, role, email_ref, is_active')
+      .in('role', ['ppl', 'pml'])
+      .order('role').order('nama')
+      .range(from, from + step - 1);
+
+    if (error) { console.error(error); break; }
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      all = all.concat(data);
+      if (data.length < step) {
+        hasMore = false;
+      } else {
+        from += step;
+      }
+    }
+  }
+
+  allUsers = all;
+  filterUsers();
 }
 
 function filterUsers() {
   const search = document.getElementById('userSearch').value.toLowerCase();
   const role   = document.getElementById('userRoleFilter').value;
-  renderUsers(allUsers.filter(u =>
+  filteredUsers = allUsers.filter(u =>
     (!role   || u.role === role) &&
     (!search || u.nama.toLowerCase().includes(search) || (u.sobatid || '').toLowerCase().includes(search))
-  ));
+  );
+  currentUserPage = 1;
+  renderUsers();
 }
 
-async function renderUsers(users) {
-  document.getElementById('userTableCount').textContent = `${users.length} pengguna`;
-  const tbody = document.getElementById('userTableBody');
+async function renderUsers() {
+  const total = filteredUsers.length;
+  let pageData = filteredUsers;
+  
+  if (userPageSize !== 'all') {
+    const start = (currentUserPage - 1) * parseInt(userPageSize);
+    pageData = filteredUsers.slice(start, start + parseInt(userPageSize));
+  }
 
-  if (users.length === 0) {
+  const pmlCount = allUsers.filter(u => u.role === 'pml').length;
+  const pplCount = allUsers.filter(u => u.role === 'ppl').length;
+  document.getElementById('userTableCount').textContent = `Total: ${allUsers.length} pengguna (${pplCount} PPL, ${pmlCount} PML) | Menampilkan ${pageData.length} data`;
+
+  const tbody = document.getElementById('userTableBody');
+  if (pageData.length === 0) {
     tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
+    const pag = document.getElementById('userPagination');
+    if (pag) pag.innerHTML = '';
     return;
   }
 
-  const { data: slsData } = await db
-    .from('user_sls')
-    .select('user_id')
-    .in('user_id', users.map(u => u.id))
-    .eq('status', 'aktif');
+  const { data: slsData } = await db.from('user_sls').select('user_id, kode_sls').eq('status', 'aktif');
+  const { data: relData } = await db.from('pml_ppl').select('pml_id, ppl_id');
 
-  const slsCount = {};
-  (slsData || []).forEach(s => { slsCount[s.user_id] = (slsCount[s.user_id] || 0) + 1; });
+  const pplSlsMap = {};
+  (slsData || []).forEach(s => {
+    if (!pplSlsMap[s.user_id]) pplSlsMap[s.user_id] = new Set();
+    pplSlsMap[s.user_id].add(s.kode_sls);
+  });
 
-  tbody.innerHTML = users.map(u => `
-    <tr>
-      <td><strong>${escHtml(u.nama)}</strong></td>
-      <td class="mono">${escHtml(u.sobatid || '—')}</td>
-      <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : 'usaha'}">${u.role.toUpperCase()}</span></td>
-      <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
-      <td>${slsCount[u.id] || 0} SLS</td>
-      <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-ghost btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
-          SLS
-        </button>
-        <button class="btn btn-ghost btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
-          ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-        </button>
-      </td>
-    </tr>`).join('');
+  const pmlPplsMap = {};
+  (relData || []).forEach(r => {
+    if (!pmlPplsMap[r.pml_id]) pmlPplsMap[r.pml_id] = new Set();
+    pmlPplsMap[r.pml_id].add(r.ppl_id);
+  });
+
+  tbody.innerHTML = pageData.map(u => {
+    let slsCountVal = 0;
+    if (u.role === 'ppl') {
+      slsCountVal = pplSlsMap[u.id]?.size || 0;
+    } else if (u.role === 'pml') {
+      const supervised = pmlPplsMap[u.id];
+      if (supervised) {
+        const uniqueSls = new Set();
+        supervised.forEach(pplId => {
+          pplSlsMap[pplId]?.forEach(s => uniqueSls.add(s));
+        });
+        slsCountVal = uniqueSls.size;
+      }
+    }
+
+    return `
+      <tr>
+        <td><strong>${escHtml(u.nama)}</strong></td>
+        <td class="mono">${escHtml(u.sobatid || '—')}</td>
+        <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
+        <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
+        <td><span class="chip">${slsCountVal} SLS</span></td>
+        <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+            SLS
+          </button>
+          <button class="btn btn-ghost btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
+            ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
+        </td>
+      </tr>`;
+  }).join('');
+
+  renderUserPagination();
+}
+
+function renderUserPagination() {
+  const pag = document.getElementById('userPagination');
+  if (!pag) return;
+
+  if (userPageSize === 'all') {
+    pag.innerHTML = '';
+    return;
+  }
+
+  const totalPages = Math.ceil(filteredUsers.length / parseInt(userPageSize));
+  if (totalPages <= 1) {
+    pag.innerHTML = '';
+    return;
+  }
+
+  let html = `<button class="page-btn" onclick="goUserPage(${currentUserPage - 1})" ${currentUserPage === 1 ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>`;
+
+  const delta = 3;
+  const range = [];
+  for (let i = Math.max(1, currentUserPage - delta); i <= Math.min(totalPages, currentUserPage + delta); i++) {
+    range.push(i);
+  }
+
+  if (range[0] > 1) {
+    html += `<button class="page-btn" onclick="goUserPage(1)">1</button>`;
+    if (range[0] > 2) html += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+  }
+
+  range.forEach(p => {
+    html += `<button class="page-btn ${p === currentUserPage ? 'active' : ''}" onclick="goUserPage(${p})">${p}</button>`;
+  });
+
+  if (range[range.length - 1] < totalPages) {
+    if (range[range.length - 1] < totalPages - 1) html += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    html += `<button class="page-btn" onclick="goUserPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  html += `<button class="page-btn" onclick="goUserPage(${currentUserPage + 1})" ${currentUserPage === totalPages ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>`;
+
+  pag.innerHTML = html;
+}
+
+function goUserPage(p) {
+  const totalPages = Math.ceil(filteredUsers.length / (userPageSize === 'all' ? 1 : parseInt(userPageSize)));
+  if (p < 1 || p > totalPages) return;
+  currentUserPage = p;
+  renderUsers();
+}
+
+function changeUserPageSize() {
+  userPageSize = document.getElementById('userPageSizeSelect').value;
+  currentUserPage = 1;
+  renderUsers();
+}
 }
 
 function openAddUserModal() {

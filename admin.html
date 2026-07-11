@@ -388,6 +388,19 @@
             </tr></thead>
             <tbody id="userTableBody"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>
+          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="userPageSizeSelect" class="filter-select" onchange="changeUserPageSize()" style="width:80px;padding:0.25rem">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="userPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
         </div>
       </div>
 
@@ -615,6 +628,40 @@
       <div class="bottom-sheet-footer">
         <button class="btn btn-secondary" onclick="closeUserModal()">Batal</button>
         <button class="btn btn-primary" onclick="createUser()" id="createUserBtn">Buat Akun</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm User Overwrite Modal -->
+  <div class="modal-overlay" id="confirmOverwriteModal" onclick="if(event.target===this)closeOverwriteModal()">
+    <div class="bottom-sheet" style="max-width:650px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title" style="color:var(--primary)">Konfirmasi Perubahan Data</div>
+      </div>
+      <div class="bottom-sheet-body">
+        <div style="font-size:0.875rem;color:var(--text-muted);margin-bottom:1rem">
+          Sistem mendeteksi adanya perbedaan data antara file Excel yang diunggah dengan profil pengguna yang sudah ada di database. Silakan tinjau perubahan berikut sebelum melanjutkan:
+        </div>
+        <div class="table-wrapper" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md)">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Nama</th>
+                <th>Sobat ID</th>
+                <th>Detail Perubahan</th>
+              </tr>
+            </thead>
+            <tbody id="overwriteModalTableBody"></tbody>
+          </table>
+        </div>
+        <div style="font-size:0.8125rem;color:var(--text-subtle);margin-top:0.75rem">
+          * Catatan: Jika disetujui, data pengguna di atas akan diperbarui mengikuti isi file Excel terbaru. Akun lainnya yang tidak konflik akan langsung diimpor.
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeOverwriteModal()">Batal</button>
+        <button class="btn btn-primary" onclick="proceedWithUserImport(true)">Ya, Timpa & Lanjutkan</button>
       </div>
     </div>
   </div>

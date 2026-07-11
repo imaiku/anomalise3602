@@ -12,6 +12,7 @@ const EXPECTED_USER_COLS = [
   'Sobat ID', 'NIK (Password)', 'Nama Lengkap', 'Role (ppl/pml/admin/superadmin)', 'Email (Opsional)'
 ];
 let parsedUsersData = null;
+let detectedUserChanges = [];
 
 function generateUserTemplate() {
   const wb = XLSX.utils.book_new();
@@ -40,31 +41,80 @@ function handleUserFileSelect(e) {
 async function processUserFile(file) {
   setZoneFile('zoneUsers', 'usersImportLabel', file.name, false);
   document.getElementById('usersValidation').innerHTML = '<div class="chip">Memvalidasi...</div>';
+  detectedUserChanges = [];
 
   try {
     const rows = await parseExcelFile(file);
     const result = validateUserExcel(rows);
 
-    renderValidationResult('usersValidation', result);
     if (!result.valid) {
+      renderValidationResult('usersValidation', result);
       document.getElementById('importUsersPreviewArea')?.classList.add('hidden');
       parsedUsersData = null;
       return;
     }
 
-    setZoneFile('zoneUsers', 'usersImportLabel', file.name, true);
     parsedUsersData = result.dataRows;
 
+    // Fetch existing profiles to check for changes
+    const sobatids = parsedUsersData.map(u => u.sobatid);
+    
+    // Chunk fetch existing profiles if count is large to prevent SQL expression limits
+    let existing = [];
+    const chunkSize = 500;
+    for (let i = 0; i < sobatids.length; i += chunkSize) {
+      const chunk = sobatids.slice(i, i + chunkSize);
+      const { data } = await db.from('profiles').select('sobatid, nama, role, email_ref').in('sobatid', chunk);
+      if (data) existing = existing.concat(data);
+    }
+
+    const existingMap = {};
+    existing.forEach(p => {
+      if (p.sobatid) existingMap[p.sobatid] = p;
+    });
+
+    const conflicts = [];
+    parsedUsersData.forEach(u => {
+      const match = existingMap[u.sobatid];
+      if (match) {
+        const diffs = [];
+        if (match.nama !== u.nama) diffs.push(`Nama: "${match.nama}" → "${u.nama}"`);
+        if (match.role !== u.role) diffs.push(`Role: "${match.role}" → "${u.role}"`);
+        const oldEmail = match.email_ref || '';
+        const newEmail = u.email || '';
+        if (oldEmail !== newEmail) diffs.push(`Email: "${oldEmail || '—'}" → "${newEmail || '—'}"`);
+
+        if (diffs.length > 0) {
+          conflicts.push({
+            sobatid: u.sobatid,
+            nama: u.nama,
+            oldNama: match.nama,
+            diffs: diffs
+          });
+        }
+      }
+    });
+
+    detectedUserChanges = conflicts;
+
+    setZoneFile('zoneUsers', 'usersImportLabel', file.name, true);
+    
+    let validMsg = `<div class="chip success">Format file valid (${parsedUsersData.length} baris)</div>`;
+    if (detectedUserChanges.length > 0) {
+      validMsg += ` <div class="chip warning" style="margin-left:0.5rem">${detectedUserChanges.length} perubahan profil dideteksi</div>`;
+    }
+    document.getElementById('usersValidation').innerHTML = validMsg;
+
     document.getElementById('importUsersCount').textContent = `${parsedUsersData.length} pengguna ditemukan`;
-    document.getElementById('importUsersTableBody').innerHTML = parsedUsersData.map(u => `
+    document.getElementById('importUsersTableBody').innerHTML = parsedUsersData.slice(0, 50).map(u => `
       <tr>
         <td class="mono">${escHtml(u.sobatid)}</td>
         <td class="mono">${escHtml(u.nik)}</td>
         <td><strong>${escHtml(u.nama)}</strong></td>
-        <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : 'usaha'}">${u.role.toUpperCase()}</span></td>
+        <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
         <td style="color:var(--text-muted)">${escHtml(u.email || '—')}</td>
       </tr>
-    `).join('');
+    `).join('') + (parsedUsersData.length > 50 ? `<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">...dan ${parsedUsersData.length - 50} baris lainnya...</td></tr>` : '');
 
     document.getElementById('importUsersPreviewArea')?.classList.remove('hidden');
   } catch (err) {
@@ -108,8 +158,30 @@ function validateUserExcel(rows) {
   return { valid: true, errors: [], dataRows: validRows };
 }
 
-async function processUserImport() {
+async function processUserImport(confirm = false) {
   if (!parsedUsersData?.length) return;
+
+  // Jika terdeteksi perubahan data dan belum dikonfirmasi oleh Super Admin
+  if (!confirm && detectedUserChanges.length > 0) {
+    const tbody = document.getElementById('overwriteModalTableBody');
+    tbody.innerHTML = detectedUserChanges.map(c => `
+      <tr>
+        <td>
+          <strong>${escHtml(c.nama)}</strong>
+          ${c.oldNama !== c.nama ? `<br><span style="font-size:0.75rem;color:var(--text-subtle)">Sebelumnya: ${escHtml(c.oldNama)}</span>` : ''}
+        </td>
+        <td class="mono">${escHtml(c.sobatid)}</td>
+        <td style="font-size:0.8125rem;color:var(--primary)">
+          ${c.diffs.map(d => `<div style="margin-bottom:2px">• ${escHtml(d)}</div>`).join('')}
+        </td>
+      </tr>
+    `).join('');
+    document.getElementById('confirmOverwriteModal').classList.add('open');
+    return;
+  }
+
+  // Jika dikonfirmasi atau tidak ada perubahan, langsung jalankan
+  closeOverwriteModal();
 
   const btn = document.getElementById('processImportBtn');
   btn.disabled = true;
@@ -154,6 +226,7 @@ async function processUserImport() {
       document.getElementById('importUsersPreviewArea')?.classList.add('hidden');
       document.getElementById('fileUsers').value = '';
       parsedUsersData = null;
+      detectedUserChanges = [];
 
       showSection('users');
       await loadUsers();
@@ -165,6 +238,14 @@ async function processUserImport() {
     btn.disabled = false;
     btn.textContent = 'Proses Impor Massal';
   }
+}
+
+function closeOverwriteModal() {
+  document.getElementById('confirmOverwriteModal')?.classList.remove('open');
+}
+
+function proceedWithUserImport(confirm) {
+  processUserImport(confirm);
 }
 
 // ============================================================

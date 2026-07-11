@@ -250,7 +250,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- VALUES ('YOUR-SUPERADMIN-UUID-HERE', 'superadmin', 'Super Admin', 'superadmin', 'superadmin@anomali3602.se');
 
 -- ============================================================
-// BATCH USER CREATION FUNCTION (ADMIN ONLY)
+-- BATCH USER CREATION FUNCTION (ADMIN ONLY)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.register_users_batch(
   p_users jsonb
@@ -274,76 +274,107 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- 2. Loop through users
+  -- 2. Loop data pengguna
   FOR v_user IN SELECT * FROM jsonb_array_elements(p_users) LOOP
     BEGIN
-      v_user_id := gen_random_uuid();
-      v_encrypted_pw := extensions.crypt(v_user->>'nik', extensions.gen_salt('bf', 10));
+      -- Cek apakah user dengan Sobat ID tersebut sudah memiliki akun auth
+      SELECT id INTO v_user_id 
+      FROM auth.users 
+      WHERE email = (v_user->>'sobatid') || '@anomali3602.se';
 
-      -- Insert into auth.users
-      INSERT INTO auth.users (
-        id,
-        instance_id,
-        email,
-        encrypted_password,
-        email_confirmed_at,
-        raw_app_meta_data,
-        raw_user_meta_data,
-        aud,
-        role,
-        created_at,
-        updated_at
-      ) VALUES (
-        v_user_id,
-        '00000000-0000-0000-0000-000000000000',
-        (v_user->>'sobatid') || '@anomali3602.se',
-        v_encrypted_pw,
-        now(),
-        '{"provider": "email", "providers": ["email"]}'::jsonb,
-        '{}'::jsonb,
-        'authenticated',
-        'authenticated',
-        now(),
-        now()
-      );
+      IF v_user_id IS NOT NULL THEN
+        -- A. User sudah ada, lakukan update profile saja (Timpah Data)
+        INSERT INTO public.profiles (
+          id,
+          sobatid,
+          nama,
+          role,
+          email_ref,
+          is_active
+        ) VALUES (
+          v_user_id,
+          v_user->>'sobatid',
+          v_user->>'nama',
+          v_user->>'role',
+          NULLIF(v_user->>'email', ''),
+          true
+        )
+        ON CONFLICT (sobatid) DO UPDATE SET
+          nama = EXCLUDED.nama,
+          role = EXCLUDED.role,
+          email_ref = EXCLUDED.email_ref,
+          is_active = EXCLUDED.is_active,
+          updated_at = now();
+      ELSE
+        -- B. User belum ada, daftarkan baru
+        v_user_id := gen_random_uuid();
+        v_encrypted_pw := extensions.crypt(v_user->>'nik', extensions.gen_salt('bf', 10));
 
-      -- Insert into auth.identities
-      INSERT INTO auth.identities (
-        id,
-        user_id,
-        identity_data,
-        provider,
-        provider_id,
-        last_sign_in_at,
-        created_at,
-        updated_at
-      ) VALUES (
-        v_user_id,
-        v_user_id,
-        jsonb_build_object('sub', v_user_id::text, 'email', (v_user->>'sobatid') || '@anomali3602.se'),
-        'email',
-        v_user_id::text,
-        now(),
-        now(),
-        now()
-      );
+        -- Insert into auth.users
+        INSERT INTO auth.users (
+          id,
+          instance_id,
+          email,
+          encrypted_password,
+          email_confirmed_at,
+          raw_app_meta_data,
+          raw_user_meta_data,
+          aud,
+          role,
+          created_at,
+          updated_at
+        ) VALUES (
+          v_user_id,
+          '00000000-0000-0000-0000-000000000000',
+          (v_user->>'sobatid') || '@anomali3602.se',
+          v_encrypted_pw,
+          now(),
+          '{"provider": "email", "providers": ["email"]}'::jsonb,
+          '{}'::jsonb,
+          'authenticated',
+          'authenticated',
+          now(),
+          now()
+        );
 
-      -- Insert into public.profiles
-      INSERT INTO public.profiles (
-        id,
-        sobatid,
-        nama,
-        role,
-        email_ref,
-        is_active
-      ) VALUES (
-        v_user_id,
-        v_user->>'sobatid',
-        v_user->>'nama',
-        v_user->>'role',
-        NULLIF(v_user->>'email', ''),
-        true
-      );
+        -- Insert into auth.identities
+        INSERT INTO auth.identities (
+          id,
+          user_id,
+          identity_data,
+          provider,
+          provider_id,
+          last_sign_in_at,
+          created_at,
+          updated_at
+        ) VALUES (
+          v_user_id,
+          v_user_id,
+          jsonb_build_object('sub', v_user_id::text, 'email', (v_user->>'sobatid') || '@anomali3602.se'),
+          'email',
+          v_user_id::text,
+          now(),
+          now(),
+          now()
+        );
+
+        -- Insert into public.profiles
+        INSERT INTO public.profiles (
+          id,
+          sobatid,
+          nama,
+          role,
+          email_ref,
+          is_active
+        ) VALUES (
+          v_user_id,
+          v_user->>'sobatid',
+          v_user->>'nama',
+          v_user->>'role',
+          NULLIF(v_user->>'email', ''),
+          true
+        );
+      END IF;
 
       v_success_count := v_success_count + 1;
     EXCEPTION WHEN OTHERS THEN
@@ -359,4 +390,3 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql;
-
