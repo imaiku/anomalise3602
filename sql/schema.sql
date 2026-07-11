@@ -251,4 +251,4 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 --       then insert profile below with the user's UUID
 -- ============================================================
 -- INSERT INTO public.profiles (id, sobatid, nama, role, email_ref)
--- VALUES ('YOUR-SUPERADMIN-UUID-HERE', 'superadmin', 'Super Admin', 'superadmin', 'admin@anomali.id');
+-- VALUES ('YOUR-SUPERADMIN-UUID-HERE', 'superadmin', 'Super Admin', 'superadmin', 'superadmin@anomali3602.se');
