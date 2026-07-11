@@ -508,7 +508,7 @@ async function createUser() {
   btn.disabled = true; btn.textContent = 'Membuat akun...';
 
   try {
-    // Create auth user: email = sobatid@ppl.anomali3602.se, password = NIK
+    // Create auth user: email = sobatid@anomali3602.se, password = NIK
     const authEmail = toAuthEmail(sobatid);
 
     // Note: Creating users from client side requires admin access

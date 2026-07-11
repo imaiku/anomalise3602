@@ -7,17 +7,7 @@ function toAuthEmail(username) {
   if (trimmed.includes('@')) {
     return trimmed;
   }
-  const isNumeric = /^\d+$/.test(trimmed);
-  if (isNumeric) {
-    // PPL / PML: use sobatid format
-    return `${trimmed}@ppl.anomali3602.se`;
-  } else {
-    // Admin / Superadmin
-    if (trimmed === 'superadmin') {
-      return 'superadmin@anomali3602.se';
-    }
-    return `${trimmed}@admin.anomali3602.se`;
-  }
+  return `${trimmed}@anomali3602.se`;
 }
 
 // Login function
