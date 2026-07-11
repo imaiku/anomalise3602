@@ -378,9 +378,10 @@ async function processSLSImport() {
       if (!pplProfile)           throw new Error(`Email PPL "${item.email_ppl}" tidak ditemukan`);
       if (pplProfile.role !== 'ppl') throw new Error(`Email PPL "${item.email_ppl}" rolenya bukan PPL`);
 
-      const { error: slsErr } = await db.from('user_sls').upsert({
-        user_id: pplProfile.id, kode_sls: item.kode_sls, status: 'aktif'
-      });
+      const { error: slsErr } = await db.from('user_sls').upsert(
+        { user_id: pplProfile.id, kode_sls: item.kode_sls, status: 'aktif' },
+        { onConflict: 'user_id,kode_sls' }
+      );
       if (slsErr) throw slsErr;
       slsSuccess++;
 
