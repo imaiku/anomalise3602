@@ -508,8 +508,8 @@ async function createUser() {
   btn.disabled = true; btn.textContent = 'Membuat akun...';
 
   try {
-    // Create auth user: email = sobatid@ppl.anomali.id, password = NIK
-    const authEmail = `${sobatid}@ppl.anomali.id`;
+    // Create auth user: email = sobatid@ppl.anomali3602.se, password = NIK
+    const authEmail = toAuthEmail(sobatid);
 
     // Note: Creating users from client side requires admin access
     // This uses Supabase's signUp which creates the user

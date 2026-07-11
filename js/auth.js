@@ -2,15 +2,21 @@
 // AUTH MODULE
 // ============================================================
 
-// Convert display username to Supabase email
 function toAuthEmail(username) {
-  const isNumeric = /^\d+$/.test(username.trim());
+  const trimmed = username.trim();
+  if (trimmed.includes('@')) {
+    return trimmed;
+  }
+  const isNumeric = /^\d+$/.test(trimmed);
   if (isNumeric) {
     // PPL / PML: use sobatid format
-    return `${username.trim()}@ppl.anomali.id`;
+    return `${trimmed}@ppl.anomali3602.se`;
   } else {
     // Admin / Superadmin
-    return `${username.trim()}@admin.anomali.id`;
+    if (trimmed === 'superadmin') {
+      return 'superadmin@anomali3602.se';
+    }
+    return `${trimmed}@admin.anomali3602.se`;
   }
 }
 
