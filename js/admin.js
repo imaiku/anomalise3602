@@ -460,18 +460,26 @@ async function createUser() {
   btn.disabled = true; btn.textContent = 'Membuat akun...';
 
   try {
-    const { data: signUpData, error: signUpErr } = await db.auth.signUp({
-      email: toAuthEmail(sobatid), password: nik
-    });
-    if (signUpErr) throw signUpErr;
+    const payload = [{
+      sobatid,
+      nik,
+      nama,
+      role,
+      email: email || ''
+    }];
 
-    const userId = signUpData.user?.id;
-    if (!userId) throw new Error('Gagal mendapatkan User ID dari Supabase');
+    const { data, error } = await db.rpc('register_users_batch', { p_users: payload });
 
-    const { error: profileErr } = await db.from('profiles').insert({
-      id: userId, sobatid, nama, role, email_ref: email || null, is_active: true
-    });
-    if (profileErr) throw profileErr;
+    if (error) {
+      if (error.message.includes('function') && error.message.includes('does not exist')) {
+        throw new Error('Fungsi register_users_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
+      }
+      throw error;
+    }
+
+    if (data.fail_count > 0) {
+      throw new Error(data.errors[0] || 'Gagal membuat akun');
+    }
 
     showToast(`Akun ${nama} berhasil dibuat`, 'success');
     closeUserModal();

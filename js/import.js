@@ -115,43 +115,52 @@ async function processUserImport() {
   btn.disabled = true;
   btn.textContent = 'Memproses...';
 
-  let successCount = 0;
-  let failCount    = 0;
+  try {
+    const payload = parsedUsersData.map(u => ({
+      sobatid: u.sobatid,
+      nik: u.nik,
+      nama: u.nama,
+      role: u.role,
+      email: u.email || ''
+    }));
 
-  for (const user of parsedUsersData) {
-    try {
-      const { data: signUpData, error: signUpErr } = await db.auth.signUp({
-        email: toAuthEmail(user.sobatid), password: user.nik
-      });
-      if (signUpErr) throw signUpErr;
+    const { data, error } = await db.rpc('register_users_batch', { p_users: payload });
 
-      const userId = signUpData.user?.id;
-      if (!userId) throw new Error('Gagal mendapatkan User ID');
-
-      const { error: profileErr } = await db.from('profiles').insert({
-        id: userId, sobatid: user.sobatid, nama: user.nama,
-        role: user.role, email_ref: user.email || null, is_active: true
-      });
-      if (profileErr) throw profileErr;
-      successCount++;
-    } catch (e) {
-      console.error(`Gagal mengimpor user ${user.nama}:`, e);
-      failCount++;
+    if (error) {
+      if (error.message.includes('function') && error.message.includes('does not exist')) {
+        throw new Error('Fungsi register_users_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
+      }
+      throw error;
     }
+
+    const successCount = data.success_count || 0;
+    const failCount = data.fail_count || 0;
+    const errors = data.errors || [];
+
+    if (errors.length > 0) {
+      console.warn('Beberapa baris gagal diimpor:', errors);
+    }
+
+    showToast(`Impor selesai. ${successCount} berhasil, ${failCount} gagal.`, successCount > 0 ? 'success' : 'error');
+
+    if (successCount > 0) {
+      // Reset UI
+      setZoneFile('zoneUsers', 'usersImportLabel', null, false);
+      document.getElementById('usersValidation').innerHTML = '';
+      document.getElementById('importUsersPreviewArea')?.classList.add('hidden');
+      document.getElementById('fileUsers').value = '';
+      parsedUsersData = null;
+
+      showSection('users');
+      await loadUsers();
+    }
+  } catch (e) {
+    console.error('Proses impor gagal:', e);
+    showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Proses Impor Massal';
   }
-
-  showToast(`Impor massal selesai. ${successCount} berhasil, ${failCount} gagal.`,
-    successCount > 0 ? 'success' : 'error');
-
-  // Reset UI
-  setZoneFile('zoneUsers', 'usersImportLabel', null, false);
-  document.getElementById('usersValidation').innerHTML = '';
-  document.getElementById('importUsersPreviewArea')?.classList.add('hidden');
-  document.getElementById('fileUsers').value = '';
-  parsedUsersData = null;
-
-  showSection('users');
-  await loadUsers();
 }
 
 // ============================================================
