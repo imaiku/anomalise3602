@@ -131,27 +131,134 @@ function renderAnomaliItem(row, refMap, historyList) {
     </div>
     ${ref?.penjelasan ? `<div class="anomali-explanation">${escHtml(ref.penjelasan)}</div>` : ''}
     
-    <!-- Relevant Raw Data Display (Show All Non-Empty Raw Columns) -->
+    <!-- Relevant Raw Data Display (Human Readable Narrative) -->
     ${(() => {
       if (!row.raw_data || Object.keys(row.raw_data).length === 0) return '';
       
-      // Ambil seluruh kolom yang memiliki nilai (tidak kosong, null, atau strip)
-      const validEntries = Object.entries(row.raw_data).filter(([k, v]) => {
-        return v !== null && v !== '' && v !== '-' && v !== undefined;
+      const nom = row.nomor_anomali;
+      const raw = {};
+      // Normalisasi key menjadi lowercase untuk kemudahan matching
+      Object.entries(row.raw_data).forEach(([k, v]) => {
+        raw[k.toLowerCase().replace(/_/g, '')] = v;
       });
 
-      if (validEntries.length === 0) return '';
+      let narrative = '';
 
-      return `<div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.6rem 0.8rem; margin: 0.5rem 0 0.875rem 0; font-size:0.8rem">
-        <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem">Data Pendukung (Mentah):</div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:0.4rem 0.75rem">
-          ${validEntries.map(([k, v]) => `<div>
-            <span style="color:var(--text-muted); font-size:0.725rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
-            <strong style="color:var(--primary); font-size:0.85rem">${escHtml(String(v))}</strong>
-          </div>`).join('')}
-        </div>
+      switch (nom) {
+        case 1: {
+          const jmlKk = raw['jmlkkpasangan'] || raw['kkpasangan'] || raw['jmlkk'] || '—';
+          const statusAnom = raw['jmlstatusanomali'] || raw['statusanomali'] || '—';
+          narrative = `Terdeteksi <strong>${jmlKk} kepala keluarga pasangan</strong> dengan status pernikahan cerai/belum kawin (jumlah status anomali: <strong>${statusAnom}</strong>).`;
+          break;
+        }
+        case 3: {
+          const jmlArt = raw['jmlart'] || raw['art'] || '—';
+          const disab = raw['disabilitas'] || raw['jmldisabilitas'] || raw['cacat'] || '—';
+          narrative = `Dari total <strong>${jmlArt} anggota keluarga (ART)</strong>, terdapat <strong>${disab} orang</strong> yang berstatus penyandang disabilitas.`;
+          break;
+        }
+        case 4: {
+          const luas = parseFloat(raw['luaslantai'] || raw['luas'] || 0);
+          const ak = parseInt(raw['jumlahak'] || raw['jmlart'] || raw['art'] || 1);
+          const perKapita = ak > 0 ? (luas / ak).toFixed(2) : 0;
+          narrative = `Luas lantai bangunan <strong>${luas} m²</strong> dihuni oleh <strong>${ak} orang</strong>, sehingga luas per kapita hanya <strong>${perKapita} m²</strong> (di luar batas wajar 3 - 200 m²).`;
+          break;
+        }
+        case 5: {
+          const pen = parseFloat(raw['totalpendapatan'] || raw['pendapatan'] || 0);
+          const peng = parseFloat(raw['totalpengeluaran'] || raw['pengeluaran'] || 0);
+          const selisih = parseFloat(raw['selisih'] || 0);
+          narrative = `Pengeluaran keluarga lebih besar dibanding pendapatan. Pendapatan: <strong>Rp${pen.toLocaleString('id')}</strong>, Pengeluaran: <strong>Rp${peng.toLocaleString('id')}</strong> (Selisih: <strong style="color:var(--error)">-Rp${Math.abs(selisih).toLocaleString('id')}</strong>).`;
+          break;
+        }
+        case 6: {
+          const dayaCode = String(raw['dayalistrik'] || raw['daya'] || '');
+          const dayaMap = {
+            '1': '450 watt',
+            '2': '900 watt',
+            '3': '1.300 watt',
+            '4': '2.200 watt',
+            '5': '> 2.200 watt'
+          };
+          const dayaLabel = dayaMap[dayaCode] || (dayaCode ? `${dayaCode} VA` : '—');
+          
+          const biayaListrikVal = parseFloat(raw['biayalistrik'] || raw['pengeluaranlistrik'] || raw['listrik'] || 0);
+          const biayaText = biayaListrikVal > 0 ? ` (biaya bulanan Rp${biayaListrikVal.toLocaleString('id')})` : '';
+
+          const kulkas = raw['jumlahkulkas'] || raw['kulkas'] || '0';
+          const ac = raw['jumlahac'] || raw['ac'] || '0';
+          const laptop = raw['jumlahlaptop'] || raw['laptop'] || raw['komputer'] || '0';
+          narrative = `Daya listrik terpasang hemat/rendah: <strong>${dayaLabel}</strong>${biayaText}, namun terdata memiliki aset elektronik: <strong>${kulkas} Kulkas</strong>, <strong>${ac} AC</strong>, dan <strong>${laptop} Laptop/Komputer</strong>.`;
+          break;
+        }
+        case 8: {
+          const akhir = raw['kbliakhir'] || raw['kbli'] || '—';
+          const prelist = raw['kbliprelist'] || raw['prelist'] || '—';
+          narrative = `Perbedaan KBLI 2 Digit. KBLI Hasil Pendataan: <strong>${akhir}</strong>, sedangkan KBLI Prelist SBR: <strong>${prelist}</strong>.`;
+          break;
+        }
+        default: {
+          // Fallback umum jika nomor anomali belum didefinisikan narasinya
+          const entries = Object.entries(row.raw_data).filter(([k, v]) => v !== null && v !== '' && v !== '-');
+          if (entries.length > 0) {
+            narrative = `<div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:0.4rem 0.75rem; margin-top:0.35rem">
+              ${entries.map(([k, v]) => {
+                const kLow = k.toLowerCase().replace(/_/g, '');
+                let vDisplay = String(v);
+                
+                // Tambah pelengkap nominal / satuan secara dinamis di fallback
+                if (kLow.includes('biaya') || kLow.includes('pendapatan') || kLow.includes('pengeluaran') || kLow.includes('gaji') || kLow.includes('rupiah') || kLow.includes('selisih')) {
+                  const num = parseFloat(v);
+                  if (!isNaN(num)) vDisplay = `Rp${num.toLocaleString('id')}`;
+                } else if (kLow.includes('luas') || kLow.includes('lantai')) {
+                  vDisplay = `${v} m²`;
+                } else if (kLow.includes('daya') && (v === '1' || v === 1 || v === '2' || v === 2 || v === '3' || v === 3 || v === '4' || v === 4 || v === '5' || v === 5)) {
+                  const dMap = { '1': '450 watt', '2': '900 watt', '3': '1.300 watt', '4': '2.200 watt', '5': '> 2.200 watt' };
+                  vDisplay = dMap[String(v)];
+                } else if (kLow.includes('produksisendiri') || kLow.includes('produkssendiri')) {
+                  const valStr = String(v).trim();
+                  if (valStr === '1') vDisplay = 'Ya (Memproduksi barang di lokasi ini)';
+                  else if (valStr === '2') vDisplay = 'Tidak';
+                } else if (kLow.includes('badanusaha')) {
+                  const valStr = String(v).trim().toLowerCase().replace('.', '');
+                  const buMap = {
+                    '1a': 'Perseroan (PT/NV/Tbk/Daerah)',
+                    '1b': 'Perseroan Perorangan',
+                    '2': 'Yayasan',
+                    '3': 'Koperasi',
+                    '4': 'Dana Pensiun',
+                    '5': 'Perum/Perumda',
+                    '6': 'BUM Desa',
+                    '7': 'CV',
+                    '8': 'Firma (Fa)',
+                    '9': 'Persekutuan Perdata',
+                    '10': 'Kantor Perwakilan Luar Negeri',
+                    '11': 'Badan Usaha Luar Negeri',
+                    '12': 'Badan Usaha Lainnya (BLU, PTN-BH)',
+                    '13': 'Bukan Badan Usaha'
+                  };
+                  vDisplay = buMap[valStr] || vDisplay;
+                }
+                
+                return `<div>
+                  <span style="color:var(--text-muted); font-size:0.75rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
+                  <strong>${escHtml(vDisplay)}</strong>
+                </div>`;
+              }).join('')}
+            </div>`;
+          }
+          break;
+        }
+      }
+
+      if (!narrative) return '';
+
+      return `<div style="background:rgba(249,115,22,0.05); border:1px solid rgba(249,115,22,0.15); border-radius:var(--radius-md); padding:0.75rem 1rem; margin: 0.5rem 0 0.875rem 0; font-size:0.825rem; line-height:1.5; color:var(--text)">
+        <div style="font-weight:700; color:var(--primary); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.25rem">Analisis Data Lapangan:</div>
+        <div>${narrative}</div>
       </div>`;
     })()}
+
 
     <div class="anomali-status-row">
       <div class="form-group">
