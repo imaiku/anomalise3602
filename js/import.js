@@ -406,3 +406,15 @@ async function processSLSImport() {
     btn.textContent = 'Proses Impor SLS & PML';
   }
 }
+
+function generateWilayahTemplate() {
+  const headers = ['kdprov', 'kdkab', 'kdkec', 'kddesa', 'kdsls', 'kdsubsls', 'idsubsls_25_2', 'nmprov', 'nmkab', 'nmkec', 'nmdesa', 'nmsls', 'nmsubsls'];
+  const data = [
+    ['36', '02', '060', '001', '0001', '00', '3602060001000100', 'BANTEN', 'LEBAK', 'BANJARSARI', 'KERTARAHARJA', 'RT 001 RW 001', 'RT 001 RW 001']
+  ];
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 16) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Master Wilayah');
+  XLSX.writeFile(wb, 'template_master_wilayah.xlsx');
+}

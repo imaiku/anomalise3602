@@ -192,8 +192,8 @@ async function loadData() {
       else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
       if (sls)    q = q.ilike('kode_sls_gabungan', `%${sls}%`);
       if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
-      if (kec)    q = q.eq('raw_data->>Nama Kecamatan', kec);
-      if (des)    q = q.eq('raw_data->>Nama Desa/Kel', des);
+      if (des)    q = q.eq('kode_desa', des);
+      else if (kec) q = q.like('kode_desa', `${kec}%`);
       q = q.limit(1000);
       return q;
     };
@@ -609,15 +609,19 @@ function updateFilterChips() {
   const ket    = document.getElementById('filterKeterangan').value;
   const sls    = document.getElementById('filterSLS').value.trim();
   const search = document.getElementById('filterSearch').value.trim();
-  const kec    = document.getElementById('filterKecamatan')?.value;
-  const des    = document.getElementById('filterDesa')?.value;
+  const kecSelect = document.getElementById('filterKecamatan');
+  const kec    = kecSelect?.value;
+  const kecText = kecSelect?.options[kecSelect.selectedIndex]?.text;
+  const desSelect = document.getElementById('filterDesa');
+  const des    = desSelect?.value;
+  const desText = desSelect?.options[desSelect.selectedIndex]?.text;
 
   const chips = [
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
     jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value  = ''; applyFilters(); } },
     nomor  && { label: `Nomor: ${nomor.split(':')[1]} (${nomor.split(':')[0] === 'keluarga' ? 'KK' : 'Usaha'})`, clear: () => { document.getElementById('filterNomor').value = ''; applyFilters(); } },
-    kec    && { label: `Kec: ${kec}`,                              clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); } },
-    des    && { label: `Desa: ${des}`,                             clear: () => { document.getElementById('filterDesa').value = ''; applyFilters(); } },
+    kec    && { label: `Kec: ${kecText}`,                          clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); } },
+    des    && { label: `Desa: ${desText}`,                         clear: () => { document.getElementById('filterDesa').value = ''; applyFilters(); } },
     ket    && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
     sls    && { label: `SLS: ${sls}`,                              clear: () => { document.getElementById('filterSLS').value    = ''; applyFilters(); } },
     search && { label: `Cari: "${search}"`,                        clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
@@ -640,49 +644,24 @@ function showTableLoading() {
 // ============================================================
 // WILAYAH FILTER LOGIC
 // ============================================================
-let wilayahCache = [];
-
 async function loadWilayahOptions() {
   const kecSelect = document.getElementById('filterKecamatan');
   const desSelect = document.getElementById('filterDesa');
   if (!kecSelect || !desSelect) return;
 
   try {
-    // 1. Ambil dari master_wilayah
     const { data, error } = await db
-      .from('master_wilayah')
-      .select('nmkec, nmdesa')
-      .order('nmkec').order('nmdesa');
+      .from('wilayah_kec')
+      .select('kode_kec, nmkec')
+      .order('nmkec');
 
     if (error) throw error;
 
-    if (data && data.length > 0) {
-      wilayahCache = data;
-    } else {
-      // 2. Fallback: Ambil secara dinamis dari data assignment_anomali
-      const { data: rows } = await db
-        .from('assignment_anomali')
-        .select('raw_data')
-        .limit(1000);
-
-      const parsed = [];
-      (rows || []).forEach(r => {
-        const kec = r.raw_data?.['Nama Kecamatan'] || r.raw_data?.['nmkec'] || r.raw_data?.['kecamatan'];
-        const des = r.raw_data?.['Nama Desa/Kel'] || r.raw_data?.['nmdesa'] || r.raw_data?.['desa'];
-        if (kec && des) {
-          parsed.push({ nmkec: kec.toUpperCase(), nmdesa: des.toUpperCase() });
-        }
-      });
-      wilayahCache = parsed;
-    }
-
-    // Populate Kecamatan
-    const kecSet = new Set(wilayahCache.map(w => w.nmkec));
     kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
-    [...kecSet].sort().forEach(kec => {
+    (data || []).forEach(kec => {
       const opt = document.createElement('option');
-      opt.value = kec;
-      opt.textContent = kec;
+      opt.value = kec.kode_kec;
+      opt.textContent = kec.nmkec;
       kecSelect.appendChild(opt);
     });
 
@@ -692,7 +671,7 @@ async function loadWilayahOptions() {
   }
 }
 
-function onKecamatanChange() {
+async function onKecamatanChange() {
   const kecSelect = document.getElementById('filterKecamatan');
   const desSelect = document.getElementById('filterDesa');
   if (!kecSelect || !desSelect) return;
@@ -701,17 +680,24 @@ function onKecamatanChange() {
   desSelect.innerHTML = '<option value="">Semua Desa</option>';
 
   if (selectedKec) {
-    const desSet = new Set(
-      wilayahCache
-        .filter(w => w.nmkec === selectedKec)
-        .map(w => w.nmdesa)
-    );
-    [...desSet].sort().forEach(des => {
-      const opt = document.createElement('option');
-      opt.value = des;
-      opt.textContent = des;
-      desSelect.appendChild(opt);
-    });
+    try {
+      const { data, error } = await db
+        .from('wilayah_desa')
+        .select('kode_desa, nmdesa')
+        .eq('kode_kec', selectedKec)
+        .order('nmdesa');
+
+      if (error) throw error;
+
+      (data || []).forEach(des => {
+        const opt = document.createElement('option');
+        opt.value = des.kode_desa;
+        opt.textContent = des.nmdesa;
+        desSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Error loading desa:', err);
+    }
   }
 
   applyFilters();

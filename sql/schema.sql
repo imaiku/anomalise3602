@@ -47,24 +47,59 @@ CREATE TABLE public.anomali_ref (
   UNIQUE (nomor, tipe)
 );
 
--- 4.b. MASTER WILAYAH (AUTO-POPULATED OR IMPORTED FROM EXCEL)
-CREATE TABLE public.master_wilayah (
-  kode_sls_gabungan VARCHAR(16) PRIMARY KEY,
-  kdprov            VARCHAR(2) NOT NULL,
-  kdkab             VARCHAR(2) NOT NULL,
-  kdkec             VARCHAR(3) NOT NULL,
-  kddesa            VARCHAR(3) NOT NULL,
+-- 4.b. REGIONAL TABLES (NORMALIZED LEVEL 3 - 6)
+CREATE TABLE public.wilayah_kec (
+  kode_kec VARCHAR(7) PRIMARY KEY, -- kdprov (2) + kdkab (2) + kdkec (3)
+  nmkec    VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.wilayah_desa (
+  kode_desa VARCHAR(10) PRIMARY KEY, -- kode_kec (7) + kddesa (3)
+  kode_kec  VARCHAR(7) REFERENCES public.wilayah_kec(kode_kec) ON DELETE CASCADE,
+  nmdesa    VARCHAR(100) NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.wilayah_sls (
+  kode_sls  VARCHAR(14) PRIMARY KEY, -- kode_desa (10) + kdsls (4)
+  kode_desa VARCHAR(10) REFERENCES public.wilayah_desa(kode_desa) ON DELETE CASCADE,
+  nmsls     VARCHAR(255),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE public.wilayah_subsls (
+  kode_sls_gabungan VARCHAR(16) PRIMARY KEY, -- kode_sls (14) + kdsubsls (2)
+  kode_sls          VARCHAR(14) REFERENCES public.wilayah_sls(kode_sls) ON DELETE CASCADE,
   kdsls             VARCHAR(4) NOT NULL,
   kdsubsls          VARCHAR(2) NOT NULL,
-  nmprov            VARCHAR(100),
-  nmkab             VARCHAR(100),
-  nmkec             VARCHAR(100) NOT NULL,
-  nmdesa            VARCHAR(100) NOT NULL,
   nmsls             VARCHAR(255),
   nmsubsls          VARCHAR(255),
-  created_at        TIMESTAMPTZ DEFAULT NOW(),
-  updated_at        TIMESTAMPTZ DEFAULT NOW()
+  created_at        TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- VIEW Master Wilayah (Backward Compatibility)
+CREATE OR REPLACE VIEW public.master_wilayah AS
+SELECT
+  sub.kode_sls_gabungan,
+  substring(sub.kode_sls_gabungan from 1 for 2) as kdprov,
+  substring(sub.kode_sls_gabungan from 3 for 2) as kdkab,
+  substring(kec.kode_kec from 5 for 3) as kdkec,
+  substring(des.kode_desa from 8 for 3) as kddesa,
+  sub.kdsls,
+  sub.kdsubsls,
+  'BANTEN'::varchar as nmprov,
+  'LEBAK'::varchar as nmkab,
+  kec.nmkec,
+  des.nmdesa,
+  sub.nmsls,
+  sub.nmsubsls,
+  sub.created_at as created_at,
+  sub.created_at as updated_at
+FROM public.wilayah_subsls sub
+JOIN public.wilayah_sls sls ON sub.kode_sls = sls.kode_sls
+JOIN public.wilayah_desa des ON sls.kode_desa = des.kode_desa
+JOIN public.wilayah_kec kec ON des.kode_kec = kec.kode_kec;
 
 -- 5. UPLOAD BATCHES
 CREATE TABLE public.upload_batches (
@@ -545,32 +580,44 @@ BEGIN
         VALUES ((v_rec->>'nomor_anomali')::int, p_tipe, v_rec->>'nama_anomali', null, now(), now());
       END IF;
 
-      -- A.b. Auto-register SLS to Kecamatan/Desa mapping in public.master_wilayah
+      -- A.b. Auto-register SLS to regional tables
       IF NOT EXISTS (
-        SELECT 1 FROM public.master_wilayah
+        SELECT 1 FROM public.wilayah_subsls
         WHERE kode_sls_gabungan = (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls')
       ) THEN
-        INSERT INTO public.master_wilayah (
-          kode_sls_gabungan,
-          kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls,
-          nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls
-        )
+        -- Insert Kec
+        INSERT INTO public.wilayah_kec (kode_kec, nmkec)
+        VALUES (
+          substring((v_rec->>'kode_desa') from 1 for 7),
+          upper(COALESCE(v_rec->'raw_data'->>'Nama Kecamatan', '—'))
+        ) ON CONFLICT (kode_kec) DO NOTHING;
+
+        -- Insert Desa
+        INSERT INTO public.wilayah_desa (kode_desa, kode_kec, nmdesa)
+        VALUES (
+          v_rec->>'kode_desa',
+          substring((v_rec->>'kode_desa') from 1 for 7),
+          upper(COALESCE(v_rec->'raw_data'->>'Nama Desa/Kel', '—'))
+        ) ON CONFLICT (kode_desa) DO NOTHING;
+
+        -- Insert SLS
+        INSERT INTO public.wilayah_sls (kode_sls, kode_desa, nmsls)
+        VALUES (
+          (v_rec->>'kode_desa' || v_rec->>'kode_sls'),
+          v_rec->>'kode_desa',
+          COALESCE(v_rec->'raw_data'->>'Nama SLS', '—')
+        ) ON CONFLICT (kode_sls) DO NOTHING;
+
+        -- Insert Sub SLS
+        INSERT INTO public.wilayah_subsls (kode_sls_gabungan, kode_sls, nmsls, nmsubsls, kdsls, kdsubsls)
         VALUES (
           (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls'),
-          COALESCE(v_rec->'raw_data'->>'Kode Prov', SUBSTRING(v_rec->>'kode_desa' FROM 1 FOR 2)),
-          COALESCE(v_rec->'raw_data'->>'Kode Kab/Kota', SUBSTRING(v_rec->>'kode_desa' FROM 3 FOR 2)),
-          COALESCE(v_rec->'raw_data'->>'Kode Kec', SUBSTRING(v_rec->>'kode_desa' FROM 5 FOR 3)),
-          COALESCE(v_rec->'raw_data'->>'Kode Desa', SUBSTRING(v_rec->>'kode_desa' FROM 8 FOR 3)),
-          v_rec->>'kode_sls',
-          v_rec->>'kode_sub_sls',
-          COALESCE(v_rec->'raw_data'->>'Nama Provinsi', 'BANTEN'),
-          COALESCE(v_rec->'raw_data'->>'Nama Kab/Kota', 'LEBAK'),
-          COALESCE(v_rec->'raw_data'->>'Nama Kecamatan', '—'),
-          COALESCE(v_rec->'raw_data'->>'Nama Desa/Kel', '—'),
+          (v_rec->>'kode_desa' || v_rec->>'kode_sls'),
           COALESCE(v_rec->'raw_data'->>'Nama SLS', '—'),
-          COALESCE(v_rec->'raw_data'->>'Sub SLS', '—')
-        )
-        ON CONFLICT (kode_sls_gabungan) DO NOTHING;
+          COALESCE(v_rec->'raw_data'->>'Sub SLS', '—'),
+          v_rec->>'kode_sls',
+          v_rec->>'kode_sub_sls'
+        ) ON CONFLICT (kode_sls_gabungan) DO NOTHING;
       END IF;
 
       -- B. Check if already exists in assignment_anomali
@@ -853,4 +900,75 @@ AS $$
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_anomaly_counts_by_sls() TO anon, authenticated;
+
+
+-- ============================================================
+-- BATCH IMPORT MASTER WILAYAH FUNCTION (ADMIN ONLY)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.import_master_wilayah_batch(
+  p_records jsonb
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  -- Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- 1. Insert Kecamatan
+  INSERT INTO public.wilayah_kec (kode_kec, nmkec)
+  SELECT DISTINCT 
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec'),
+    upper(r->>'nmkec')
+  FROM jsonb_array_elements(p_records) r
+  ON CONFLICT (kode_kec) DO UPDATE 
+  SET nmkec = EXCLUDED.nmkec;
+  
+  -- 2. Insert Desa
+  INSERT INTO public.wilayah_desa (kode_desa, kode_kec, nmdesa)
+  SELECT DISTINCT 
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa'),
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec'),
+    upper(r->>'nmdesa')
+  FROM jsonb_array_elements(p_records) r
+  ON CONFLICT (kode_desa) DO UPDATE 
+  SET nmdesa = EXCLUDED.nmdesa;
+
+  -- 3. Insert SLS
+  INSERT INTO public.wilayah_sls (kode_sls, kode_desa, nmsls)
+  SELECT DISTINCT 
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa' || r->>'kdsls'),
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa'),
+    r->>'nmsls'
+  FROM jsonb_array_elements(p_records) r
+  ON CONFLICT (kode_sls) DO UPDATE 
+  SET nmsls = EXCLUDED.nmsls;
+
+  -- 4. Insert Sub-SLS
+  INSERT INTO public.wilayah_subsls (kode_sls_gabungan, kode_sls, nmsls, nmsubsls, kdsls, kdsubsls)
+  SELECT DISTINCT 
+    r->>'kode_sls_gabungan',
+    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa' || r->>'kdsls'),
+    r->>'nmsls',
+    r->>'nmsubsls',
+    r->>'kdsls',
+    r->>'kdsubsls'
+  FROM jsonb_array_elements(p_records) r
+  ON CONFLICT (kode_sls_gabungan) DO UPDATE 
+  SET nmsls = EXCLUDED.nmsls,
+      nmsubsls = EXCLUDED.nmsubsls,
+      kdsls = EXCLUDED.kdsls,
+      kdsubsls = EXCLUDED.kdsubsls;
+
+  RETURN jsonb_build_object('success', true);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.import_master_wilayah_batch(jsonb) TO authenticated;
 

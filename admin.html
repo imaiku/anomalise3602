@@ -382,10 +382,12 @@
             <thead><tr>
               <th onclick="sortWilayah('nmkec')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sort-icon" id="sort-wil-nmkec" style="opacity:0.4;font-size:0.7rem">▲</span></th>
               <th onclick="sortWilayah('nmdesa')" style="cursor:pointer;white-space:nowrap">Desa / Kelurahan <span class="sort-icon" id="sort-wil-nmdesa" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortWilayah('kdsls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span class="sort-icon" id="sort-wil-kdsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortWilayah('kdsubsls')" style="cursor:pointer;white-space:nowrap">Sub SLS <span class="sort-icon" id="sort-wil-kdsubsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortWilayah('kode_sls_gabungan')" style="cursor:pointer;white-space:nowrap">Kode SLS Gabungan <span class="sort-icon" id="sort-wil-kode" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortWilayah('nmsls')" style="cursor:pointer;white-space:nowrap">Nama SLS <span class="sort-icon" id="sort-wil-nmsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
             </tr></thead>
-            <tbody id="wilayahTableBody"><tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <tbody id="wilayahTableBody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>
           <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
@@ -731,6 +733,12 @@
       <div class="bottom-sheet-body">
         <div class="upload-card">
           <div class="upload-card-sub" style="margin-bottom:0.75rem">Upload file Excel master wilayah yang berisi kode dan nama wilayah.</div>
+          <div style="margin-bottom:1rem">
+            <button class="btn btn-secondary btn-sm" onclick="generateWilayahTemplate()" style="display:flex;align-items:center;gap:0.25rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+              Download Template Excel Wilayah
+            </button>
+          </div>
           <div class="upload-zone" id="zoneWilayah" onclick="document.getElementById('fileWilayah').click()"
                ondragover="handleDragOver(event,'zoneWilayah')" ondragleave="handleDragLeave('zoneWilayah')" ondrop="handleWilayahDrop(event)">
             <input type="file" id="fileWilayah" accept=".xlsx,.xls" onchange="handleWilayahFileSelect(event)">
@@ -738,7 +746,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
             </div>
             <div class="upload-zone-title" id="wilayahImportLabel">Pilih atau seret file di sini</div>
-            <div class="upload-zone-sub">Format header: kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls, nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls</div>
+            <div class="upload-zone-sub">Format header: kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls, idsubsls_25_2, nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls</div>
           </div>
           <div id="wilayahValidation" class="mt-2"></div>
         </div>

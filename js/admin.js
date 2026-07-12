@@ -898,7 +898,7 @@ async function loadWilayah() {
   const tbody = document.getElementById('wilayahTableBody');
   if (!tbody) return;
   
-  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
+  tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
   let all = [];
   let from = 0;
@@ -908,7 +908,7 @@ async function loadWilayah() {
   while (hasMore) {
     const { data, error } = await db
       .from('master_wilayah')
-      .select('kode_sls_gabungan, nmkec, nmdesa, nmsls')
+      .select('kode_sls_gabungan, nmkec, nmdesa, kdsls, kdsubsls, nmsls')
       .order('nmkec').order('nmdesa')
       .range(from, from + step - 1);
 
@@ -933,6 +933,8 @@ function filterWilayah() {
     w.nmkec.toLowerCase().includes(search) ||
     w.nmdesa.toLowerCase().includes(search) ||
     w.kode_sls_gabungan.includes(search) ||
+    (w.kdsls || '').includes(search) ||
+    (w.kdsubsls || '').includes(search) ||
     (w.nmsls || '').toLowerCase().includes(search)
   );
   sortWilayahData();
@@ -979,7 +981,7 @@ function renderWilayah() {
 
   const tbody = document.getElementById('wilayahTableBody');
   if (pageData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="empty-state-title">Tidak ada wilayah ditemukan</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-title">Tidak ada wilayah ditemukan</div></div></td></tr>`;
     const pag = document.getElementById('wilayahPagination');
     if (pag) pag.innerHTML = '';
     return;
@@ -989,6 +991,8 @@ function renderWilayah() {
     <tr>
       <td><strong>${escHtml(w.nmkec)}</strong></td>
       <td>${escHtml(w.nmdesa)}</td>
+      <td class="mono">${escHtml(w.kdsls || '—')}</td>
+      <td class="mono">${escHtml(w.kdsubsls || '—')}</td>
       <td class="mono">${escHtml(w.kode_sls_gabungan)}</td>
       <td style="color:var(--text-muted)">${escHtml(w.nmsls || '—')}</td>
     </tr>`).join('');
@@ -1118,10 +1122,11 @@ async function processWilayahFile(file) {
 
       const nmprov = getValue('nmprov') || 'BANTEN';
       const nmkab = getValue('nmkab') || 'LEBAK';
-      const nmsls = getValue('nmsls') || `RT ${kdsls.slice(2)} RW ${kdsls.slice(0, 2)}`;
+      const nmsls = getValue('nmsls') || `SLS ${kdsls}`;
       const nmsubsls = getValue('nmsubsls') || nmsls;
 
-      const kode_sls_gabungan = kdprov + kdkab + kdkec + kddesa + kdsls + kdsubsls;
+      const idsubsls = getValue('idsubsls_25_2');
+      const kode_sls_gabungan = idsubsls || (kdprov + kdkab + kdkec + kddesa + kdsls + kdsubsls);
 
       records.push({
         kode_sls_gabungan,
@@ -1150,7 +1155,7 @@ async function uploadMasterWilayah() {
     const chunkSize = 500;
     for (let i = 0; i < parsedWilayahExcel.length; i += chunkSize) {
       const chunk = parsedWilayahExcel.slice(i, i + chunkSize);
-      const { error } = await db.from('master_wilayah').upsert(chunk, { onConflict: 'kode_sls_gabungan' });
+      const { error } = await db.rpc('import_master_wilayah_batch', { p_records: chunk });
       if (error) throw error;
     }
 
