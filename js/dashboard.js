@@ -50,7 +50,7 @@ async function initDashboard() {
   }
 
   // Run stats + dropdown options in parallel with the main table data
-  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadData()]);
+  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
 }
 
 // ============================================================
@@ -191,7 +191,7 @@ async function loadData() {
       if (ket === 'selesai') q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
       else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
       if (sls)    q = q.ilike('kode_sls_gabungan', `%${sls}%`);
-      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
+      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
       if (kec)    q = q.eq('raw_data->>Nama Kecamatan', kec);
       if (des)    q = q.eq('raw_data->>Nama Desa/Kel', des);
       q = q.limit(1000);
@@ -716,6 +716,72 @@ function onKecamatanChange() {
   }
 
   applyFilters();
+}
+
+// ============================================================
+// KECAMATAN PROGRESS CARD LOGIC
+// ============================================================
+function toggleKecamatanPanel() {
+  const grid = document.getElementById('kecProgressGrid');
+  const btn = document.getElementById('btnToggleKecamatan');
+  if (!grid || !btn) return;
+
+  const isCollapsed = grid.style.display === 'none';
+  if (isCollapsed) {
+    grid.style.display = 'grid';
+    btn.textContent = 'Sembunyikan';
+  } else {
+    grid.style.display = 'none';
+    btn.textContent = 'Tampilkan';
+  }
+}
+
+async function loadKecamatanProgress() {
+  const grid = document.getElementById('kecProgressGrid');
+  if (!grid) return;
+
+  try {
+    const { data, error } = await db.rpc('get_kecamatan_progress');
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:var(--text-muted)">Belum ada data wilayah. Silakan upload data anomali atau master wilayah terlebih dahulu.</div>`;
+      return;
+    }
+
+    grid.innerHTML = data.map(k => {
+      const todo = parseInt(k.total_anomali) - parseInt(k.selesai_anomali);
+      const done = parseInt(k.selesai_anomali);
+      const total = parseInt(k.total_anomali);
+      const percent = total > 0 ? Math.round((done / total) * 100) : 0;
+
+      return `
+        <div class="kec-card" onclick="selectKecamatanFilter('${escHtml(k.kecamatan)}')" style="cursor:pointer; border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem; background:var(--bg-card-2); transition:transform 0.15s ease, border-color 0.15s ease; position:relative;">
+          <div style="font-weight:600; font-size:0.8rem; margin-bottom:0.35rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-transform:uppercase; color:var(--text);">${escHtml(k.kecamatan)}</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); display:flex; justify-content:space-between; margin-bottom:0.25rem;">
+            <span>Belum: <strong>${todo}</strong></span>
+            <span>Selesai: <strong>${done}</strong></span>
+          </div>
+          <div class="progress-bar" style="height:4px; margin-top:0.25rem;">
+            <div class="progress-fill" style="width:${percent}%;"></div>
+          </div>
+          <div style="text-align:right; font-size:0.65rem; color:var(--text-muted); margin-top:0.15rem; font-weight:600;">${percent}%</div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    console.error('Error loading kecamatan progress:', err);
+    grid.innerHTML = `<div style="grid-column:1/-1; text-align:center; padding:1.5rem; color:var(--error)">Gagal memuat progres: ${err.message}</div>`;
+  }
+}
+
+function selectKecamatanFilter(kecName) {
+  const kecSelect = document.getElementById('filterKecamatan');
+  if (kecSelect) {
+    kecSelect.value = kecName;
+    onKecamatanChange();
+    document.querySelector('.filter-bar').scrollIntoView({ behavior: 'smooth' });
+  }
 }
 
 // ============================================================
