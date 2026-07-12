@@ -145,7 +145,7 @@ function renderAnomaliItem(row, refMap, historyList) {
         <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem">Data Pendukung:</div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:0.4rem 0.75rem">
           ${entries.map(([k, v]) => {
-            const kClean = k.toLowerCase().replace(/_/g, '');
+            const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
             let vDisplay = String(v);
             
             // 1. Format nominal uang / Rupiah
@@ -161,19 +161,19 @@ function renderAnomaliItem(row, refMap, historyList) {
               vDisplay = !isNaN(num) ? `${v} m²` : vDisplay;
             } 
             // 3. Decode daya terpasang
-            else if (kClean === 'dayalistrik' || kClean === 'daya' || kClean === 'dayaterpasangvalue' || kClean === 'dayaterpasang') {
+            else if (kClean.includes('daya') || kClean.includes('power')) {
               const dMap = { '1': '450 watt', '2': '900 watt', '3': '1.300 watt', '4': '2.200 watt', '5': '> 2.200 watt' };
               vDisplay = dMap[String(v).trim()] || `${v} Watt/VA`;
             } 
-            // 4. Decode memproduksi sendiri
-            else if (kClean.includes('produksisendiri') || kClean.includes('produkssendiri') || kClean.includes('produk_sendiri')) {
+            // 4. Decode memproduksi sendiri / produk sendiri
+            else if (kClean.includes('produksendiri') || kClean.includes('produksisendiri') || kClean.includes('produkssendiri')) {
               const valStr = String(v).trim();
               if (valStr === '1') vDisplay = 'Ya';
               else if (valStr === '2') vDisplay = 'Tidak';
             } 
             // 5. Decode status badan usaha
             else if (kClean.includes('badanusaha')) {
-              const valStr = String(v).trim().toLowerCase().replace('.', '');
+              const valStr = String(v).trim().toLowerCase().replace(/\s+/g, '').replace('.', '');
               const buMap = {
                 '1a': 'Perseroan (PT/NV/Tbk/Daerah)',
                 '1b': 'Perseroan Perorangan',
