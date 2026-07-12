@@ -786,7 +786,7 @@ BEGIN
   INTO v_anomali_total, v_anomali_done, v_anomali_todo
   FROM public.assignment_anomali
   WHERE
-    (p_role IN ('superadmin', 'admin') OR kode_sls_gabungan = ANY(v_sls_codes))
+    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
     AND (
       CASE
         WHEN p_role = 'ppl' THEN tipe = 'keluarga'
@@ -802,7 +802,7 @@ BEGIN
       bool_and(status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi')) AS is_done
     FROM public.assignment_anomali
     WHERE
-      (p_role IN ('superadmin', 'admin') OR kode_sls_gabungan = ANY(v_sls_codes))
+      (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
       AND (
         CASE
           WHEN p_role = 'ppl' THEN tipe = 'keluarga'

@@ -398,7 +398,7 @@ function renderAll() {
 function renderTable(pageData) {
   const tbody = document.getElementById('tableBody');
   if (filteredData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
       <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
       <div class="empty-state-title">Tidak ada data ditemukan</div>
       <div class="empty-state-sub">Coba ubah filter atau reset pencarian</div>
@@ -431,7 +431,6 @@ function renderTable(pageData) {
       <td>${group.nama_usaha_list.length > 0 ? escHtml(namaUsaha) : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
       <td><div class="anomali-list-str">${buildAnomaliString(group)}</div></td>
-      <td style="text-align:center"><strong>${group.rows.length}</strong></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="openDetail('${group.assignment_id}')">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>

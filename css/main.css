@@ -771,7 +771,7 @@ tbody td {
 
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
-  .stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .stat-grid { grid-template-columns: repeat(4, 1fr); gap: 0.75rem; }
 }
 
 @media (max-width: 768px) {
@@ -780,14 +780,19 @@ tbody td {
   .mobile-card-list { display: block; }
   .filter-row { gap: 0.5rem; }
   .filter-group { min-width: 100%; }
-  .stat-grid { grid-template-columns: repeat(2, 1fr); gap: 0.75rem; }
-  .stat-value { font-size: 1.4rem; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: 0.625rem; letter-spacing: 0.02em; }
+  .stat-sub { font-size: 0.625rem; }
   .bottom-sheet { max-height: 95vh; }
   .raw-data-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
-  .stat-grid { grid-template-columns: 1fr 1fr; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr); gap: 0.25rem; }
+  .stat-value { font-size: 1.05rem; }
+  .stat-label { font-size: 0.55rem; letter-spacing: 0; }
+  .stat-sub { font-size: 0.55rem; }
   .navbar-inner { padding: 0 1rem; }
   .page-content { padding: 0.75rem; }
 }
