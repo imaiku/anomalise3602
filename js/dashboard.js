@@ -125,10 +125,10 @@ function renderStats(total, belum, selesai, progress, anomTotal = 0, anomBelum =
   document.getElementById('statSelesai').textContent  = safe(selesai).toLocaleString('id');
   document.getElementById('statProgress').textContent = `${safe(progress)}%`;
   
-  // Render Sub-Label (Detail Kasus Anomali)
-  document.getElementById('statTotalSub').innerHTML    = `assignment unik <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomTotal).toLocaleString('id')} kasus anomali)</span>`;
-  document.getElementById('statBelumSub').innerHTML    = `ada anomali belum ditangani <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomBelum).toLocaleString('id')} kasus)</span>`;
-  document.getElementById('statSelesaiSub').innerHTML  = `semua anomali selesai <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomSelesai).toLocaleString('id')} kasus)</span>`;
+  // Render Sub-Label (Detail Kasus Anomali) - Inline and Shortened
+  document.getElementById('statTotalSub').innerHTML    = `assignment unik <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomTotal).toLocaleString('id')} kasus)</span>`;
+  document.getElementById('statBelumSub').innerHTML    = `ada pending <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomBelum).toLocaleString('id')} kasus)</span>`;
+  document.getElementById('statSelesaiSub').innerHTML  = `selesai <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomSelesai).toLocaleString('id')} kasus)</span>`;
 
   const fill = document.getElementById('progressFill');
   if (fill) fill.style.width = `${safe(progress)}%`;
