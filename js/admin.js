@@ -11,12 +11,24 @@ let allUsers     = [];
 let filteredUsers = [];
 let currentUserPage = 1;
 let userPageSize    = 25;
+let userSortField   = 'nama';
+let userSortDir     = 'asc';
 let editingRefId = null;
 
 // ============================================================
 // INIT & NAVIGATION
 // ============================================================
 async function initAdmin() {
+  // Load section based on URL Hash (default to 'upload') immediately to prevent screen flicker
+  const initialSection = window.location.hash.substring(1) || 'upload';
+  showSection(initialSection, false);
+
+  // Listen to browser Back/Forward or manual Hash changes
+  window.addEventListener('hashchange', () => {
+    const currentSection = window.location.hash.substring(1) || 'upload';
+    showSection(currentSection, false);
+  });
+
   const session = await requireAuth(['superadmin', 'admin']);
   if (!session) return;
   adminProfile = session.profile;
@@ -28,11 +40,15 @@ async function initAdmin() {
   await loadUnassigned();
 }
 
-function showSection(sectionId) {
+function showSection(sectionId, updateHash = true) {
   document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   document.getElementById(`panel-${sectionId}`)?.classList.add('active');
   document.getElementById(`nav-${sectionId}`)?.classList.add('active');
+
+  if (updateHash) {
+    window.location.hash = sectionId;
+  }
 }
 
 // ============================================================
@@ -226,11 +242,85 @@ async function startMerge() {
 
     showToast('Merge berhasil!', 'success');
     await loadBatchHistory();
+    await checkMissingReferences(allRecords);
   } catch (e) {
     await db.from('upload_batches').update({ status: 'failed' }).eq('id', batchId);
     showToast('Merge gagal: ' + e.message, 'error');
     document.getElementById('mergeStatus').textContent = 'Terjadi kesalahan: ' + e.message;
   }
+}
+
+async function checkMissingReferences(allRecords) {
+  const uniqueUploaded = {};
+  allRecords.forEach(r => {
+    const key = `${r.tipe}|${r.nomor_anomali}`;
+    if (!uniqueUploaded[key]) {
+      uniqueUploaded[key] = {
+        tipe: r.tipe,
+        nomor: r.nomor_anomali,
+        nama: r.nama_anomali
+      };
+    }
+  });
+
+  const { data: refs, error } = await db.from('anomali_ref').select('tipe, nomor');
+  if (error) {
+    console.error('Gagal memeriksa referensi anomali:', error);
+    return;
+  }
+
+  const existingKeys = new Set((refs || []).map(r => `${r.tipe}|${r.nomor}`));
+  const missing = [];
+  Object.entries(uniqueUploaded).forEach(([key, val]) => {
+    if (!existingKeys.has(key)) {
+      missing.push(val);
+    }
+  });
+
+  const warnDiv = document.getElementById('newAnomaliesWarning');
+  if (!warnDiv) return;
+
+  if (missing.length === 0) {
+    warnDiv.classList.add('hidden');
+    warnDiv.innerHTML = '';
+    return;
+  }
+
+  warnDiv.classList.remove('hidden');
+  warnDiv.innerHTML = `
+    <div class="alert alert-warning" style="display:block;border-left:4px solid var(--warning);padding:1rem">
+      <div style="font-weight:600;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warning)"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+        Terdeteksi ${missing.length} Anomali Baru (Belum Terdaftar)
+      </div>
+      <div style="font-size:0.8125rem;color:var(--text-subtle);margin-bottom:0.75rem">
+        Anomali berikut ditemukan dalam file Excel Anda namun belum memiliki penjelasan teknis/solusi di menu Referensi. Silakan lengkapi agar PPL mendapatkan panduan penanganannya.
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;background:var(--bg-card);padding:0.75rem;border-radius:var(--radius-md);border:1px solid var(--border);max-height:200px;overflow-y:auto">
+        ${missing.map(m => `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:1rem;font-size:0.8125rem;border-bottom:1px solid var(--border);padding-bottom:0.4rem;margin-bottom:0.4rem">
+            <div style="flex:1;text-align:left">
+              <span class="type-badge type-${m.tipe}" style="font-size:0.7rem;padding:0.1rem 0.35rem">${m.tipe.toUpperCase()} ${m.nomor}</span>
+              <span style="font-weight:500;margin-left:0.25rem">${escHtml(m.nama)}</span>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="quickFillAddRefModal('${m.tipe}', ${m.nomor}, '${escHtml(m.nama).replace(/'/g, "\\'")}')" style="font-size:0.75rem;padding:0.25rem 0.5rem;white-space:nowrap">
+              + Lengkapi Panduan
+            </button>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function quickFillAddRefModal(tipe, nomor, nama) {
+  editingRefId = null;
+  document.getElementById('refModalTitle').textContent = 'Tambah Referensi Anomali';
+  document.getElementById('refNomor').value = nomor;
+  document.getElementById('refTipe').value = tipe;
+  document.getElementById('refNama').value = nama;
+  document.getElementById('refPenjelasan').value = '';
+  document.getElementById('refModal').classList.add('open');
 }
 
 function setStep(n) {
@@ -250,6 +340,11 @@ function backToStep1() {
 
 function resetUpload() {
   parsedKK = null; parsedUsaha = null; batchId = null;
+  const newAnomWarn = document.getElementById('newAnomaliesWarning');
+  if (newAnomWarn) {
+    newAnomWarn.classList.add('hidden');
+    newAnomWarn.innerHTML = '';
+  }
   ['zoneKK', 'zoneUsaha'].forEach(id => document.getElementById(id)?.classList.remove('has-file'));
   ['kkLabel', 'usahaLabel'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).textContent = 'Pilih atau seret file di sini'; });
   ['kkValidation', 'usahaValidation', 'consistencyWarnings'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).innerHTML = ''; });
@@ -374,17 +469,29 @@ async function deleteAnomaliRef(id) {
   await loadAnomaliRef();
 }
 
-// ============================================================
-// USER MANAGEMENT
-// ============================================================
-// ============================================================
-// USER MANAGEMENT
-// ============================================================
 async function loadUsers() {
   let all = [];
   let from = 0;
   const step = 1000;
   let hasMore = true;
+
+  // Render skeleton table rows with shimmering effect
+  document.getElementById('userTableBody').innerHTML = Array(5).fill(0).map(() => `
+    <tr>
+      <td><div class="skeleton skeleton-text" style="width: 140px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 80px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 50px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 160px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
+      <td>
+        <div style="display:flex;gap:0.35rem">
+          <div class="skeleton skeleton-text" style="width: 60px; height: 26px; border-radius: var(--radius-md);"></div>
+          <div class="skeleton skeleton-text" style="width: 90px; height: 26px; border-radius: var(--radius-md);"></div>
+        </div>
+      </td>
+    </tr>
+  `).join('');
 
   while (hasMore) {
     const { data, error } = await db
@@ -405,42 +512,6 @@ async function loadUsers() {
         from += step;
       }
     }
-  }
-
-  allUsers = all;
-  filterUsers();
-}
-
-function filterUsers() {
-  const search = document.getElementById('userSearch').value.toLowerCase();
-  const role   = document.getElementById('userRoleFilter').value;
-  filteredUsers = allUsers.filter(u =>
-    (!role   || u.role === role) &&
-    (!search || u.nama.toLowerCase().includes(search) || (u.sobatid || '').toLowerCase().includes(search))
-  );
-  currentUserPage = 1;
-  renderUsers();
-}
-
-async function renderUsers() {
-  const total = filteredUsers.length;
-  let pageData = filteredUsers;
-  
-  if (userPageSize !== 'all') {
-    const start = (currentUserPage - 1) * parseInt(userPageSize);
-    pageData = filteredUsers.slice(start, start + parseInt(userPageSize));
-  }
-
-  const pmlCount = allUsers.filter(u => u.role === 'pml').length;
-  const pplCount = allUsers.filter(u => u.role === 'ppl').length;
-  document.getElementById('userTableCount').textContent = `Total: ${allUsers.length} pengguna (${pplCount} PPL, ${pmlCount} PML) | Menampilkan ${pageData.length} data`;
-
-  const tbody = document.getElementById('userTableBody');
-  if (pageData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
-    const pag = document.getElementById('userPagination');
-    if (pag) pag.innerHTML = '';
-    return;
   }
 
   let slsData = [];
@@ -490,10 +561,9 @@ async function renderUsers() {
     pmlPplsMap[r.pml_id].add(r.ppl_id);
   });
 
-  tbody.innerHTML = pageData.map(u => {
-    let slsCountVal = 0;
+  all.forEach(u => {
     if (u.role === 'ppl') {
-      slsCountVal = pplSlsMap[u.id]?.size || 0;
+      u.slsCount = pplSlsMap[u.id]?.size || 0;
     } else if (u.role === 'pml') {
       const supervised = pmlPplsMap[u.id];
       if (supervised) {
@@ -501,29 +571,101 @@ async function renderUsers() {
         supervised.forEach(pplId => {
           pplSlsMap[pplId]?.forEach(s => uniqueSls.add(s));
         });
-        slsCountVal = uniqueSls.size;
+        u.slsCount = uniqueSls.size;
+      } else {
+        u.slsCount = 0;
       }
+    } else {
+      u.slsCount = 0;
     }
+  });
 
-    return `
-      <tr>
-        <td><strong>${escHtml(u.nama)}</strong></td>
-        <td class="mono">${escHtml(u.sobatid || '—')}</td>
-        <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
-        <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
-        <td><span class="chip">${slsCountVal} SLS</span></td>
-        <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-ghost btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
-            SLS
-          </button>
-          <button class="btn btn-ghost btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
-            ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-          </button>
-        </td>
-      </tr>`;
-  }).join('');
+  allUsers = all;
+  filterUsers();
+}
+
+function filterUsers() {
+  const search = document.getElementById('userSearch').value.toLowerCase();
+  const role   = document.getElementById('userRoleFilter').value;
+  filteredUsers = allUsers.filter(u =>
+    (!role   || u.role === role) &&
+    (!search || u.nama.toLowerCase().includes(search) || (u.sobatid || '').toLowerCase().includes(search))
+  );
+  sortUsersData();
+  currentUserPage = 1;
+  renderUsers();
+}
+
+function sortUsers(field) {
+  userSortDir = userSortField === field ? (userSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+  userSortField = field;
+  
+  document.querySelectorAll('th span.sort-icon').forEach(span => span.textContent = '⇅');
+  const activeIcon = document.getElementById(`sort-${field}`);
+  if (activeIcon) activeIcon.textContent = userSortDir === 'asc' ? '▲' : '▼';
+
+  sortUsersData();
+  currentUserPage = 1;
+  renderUsers();
+}
+
+function sortUsersData() {
+  filteredUsers.sort((a, b) => {
+    let va, vb;
+    switch (userSortField) {
+      case 'nama':      va = a.nama.toLowerCase(); vb = b.nama.toLowerCase(); break;
+      case 'sobatid':   va = a.sobatid || '';      vb = b.sobatid || ''; break;
+      case 'role':      va = a.role;               vb = b.role; break;
+      case 'email':     va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
+      case 'sls':       va = a.slsCount;           vb = b.slsCount; break;
+      case 'is_active': va = a.is_active ? 1 : 0;  vb = b.is_active ? 1 : 0; break;
+      default:          va = a.nama.toLowerCase(); vb = b.nama.toLowerCase();
+    }
+    if (va < vb) return userSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return userSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderUsers() {
+  const total = filteredUsers.length;
+  let pageData = filteredUsers;
+  
+  if (userPageSize !== 'all') {
+    const start = (currentUserPage - 1) * parseInt(userPageSize);
+    pageData = filteredUsers.slice(start, start + parseInt(userPageSize));
+  }
+
+  const pmlCount = allUsers.filter(u => u.role === 'pml').length;
+  const pplCount = allUsers.filter(u => u.role === 'ppl').length;
+  document.getElementById('userTableCount').textContent = `Total: ${allUsers.length} pengguna (${pplCount} PPL, ${pmlCount} PML) | Menampilkan ${pageData.length} data`;
+
+  const tbody = document.getElementById('userTableBody');
+  if (pageData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
+    const pag = document.getElementById('userPagination');
+    if (pag) pag.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = pageData.map(u => `
+    <tr>
+      <td><strong>${escHtml(u.nama)}</strong></td>
+      <td class="mono">${escHtml(u.sobatid || '—')}</td>
+      <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
+      <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
+      <td><span class="chip">${u.slsCount} SLS</span></td>
+      <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
+      <td style="white-space:nowrap;display:flex;gap:0.35rem">
+        <button class="btn btn-secondary btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS" ${u.role === 'pml' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+          SLS
+        </button>
+        <button class="btn btn-secondary btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
+          ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+        </button>
+      </td>
+    </tr>`).join('');
 
   renderUserPagination();
 }

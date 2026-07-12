@@ -305,6 +305,7 @@
               </div>
             </div>
             <div id="mergeResults" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;font-size:0.875rem"></div>
+            <div id="newAnomaliesWarning" class="hidden" style="margin-bottom:1.25rem;"></div>
             <div style="display:flex;gap:0.75rem">
               <button class="btn btn-secondary" onclick="resetUpload()">Upload Data Lain</button>
               <a href="/dashboard.html" class="btn btn-primary">Lihat Dashboard</a>
@@ -384,7 +385,13 @@
           </div>
           <table class="admin-table">
             <thead><tr>
-              <th>Nama</th><th>Sobat ID</th><th>Role</th><th>Email</th><th>SLS (aktif)</th><th>Status</th><th class="no-sort">Aksi</th>
+              <th onclick="sortUsers('nama')" style="cursor:pointer;white-space:nowrap">Nama <span class="sort-icon" id="sort-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+              <th onclick="sortUsers('sobatid')" style="cursor:pointer;white-space:nowrap">Sobat ID <span class="sort-icon" id="sort-sobatid" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('role')" style="cursor:pointer;white-space:nowrap">Role <span class="sort-icon" id="sort-role" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('email')" style="cursor:pointer;white-space:nowrap">Email <span class="sort-icon" id="sort-email" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th class="no-sort">Aksi</th>
             </tr></thead>
             <tbody id="userTableBody"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>

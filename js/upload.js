@@ -45,11 +45,39 @@ function validateExcel(rows, tipe) {
   const expected = tipe === 'usaha' ? EXPECTED_COLS_USAHA : EXPECTED_COLS_KELUARGA;
 
   if (!rows || rows.length < 3) {
-    return { valid: false, errors: ['File tidak memiliki cukup baris (minimum 3 baris termasuk 2 baris header)'] };
+    return { valid: false, errors: ['File tidak memiliki cukup baris'] };
   }
 
-  // Layer 2: Check header columns
-  const headerRow = rows[0];
+  // Dynamically locate the header row by looking for key columns
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i] || [];
+    const hasProv = row.some(c => String(c || '').trim() === 'Kode Prov');
+    const hasAssId = row.some(c => String(c || '').trim() === 'Assignment ID');
+    if (hasProv && hasAssId) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) {
+    return { valid: false, errors: ['Format file tidak dikenali. Kolom "Kode Prov" dan "Assignment ID" tidak ditemukan di 10 baris pertama.'] };
+  }
+
+  let numIdx = -1;
+  let dataStartIdx = headerIdx + 1;
+
+  // Check if there is a number row immediately following the header (e.g. starts with '(1)')
+  if (rows.length > headerIdx + 1) {
+    const nextRowFirstCell = String(rows[headerIdx + 1][0] || '').trim();
+    if (nextRowFirstCell === '(1)') {
+      numIdx = headerIdx + 1;
+      dataStartIdx = headerIdx + 2;
+    }
+  }
+
+  // Check header columns
+  const headerRow = rows[headerIdx];
   const colErrors = [];
   expected.forEach((col, i) => {
     const actual = String(headerRow[i] || '').trim();
@@ -59,20 +87,22 @@ function validateExcel(rows, tipe) {
     return { valid: false, errors: ['Format header tidak sesuai template:', ...colErrors.slice(0, 6)] };
   }
 
-  // Layer 3: Row 2 must be (1)(2)(3)...
-  const numRow = rows[1];
-  if (!numRow || String(numRow[0] || '').trim() !== '(1)') {
-    errors.push('Baris kedua harus berupa nomor kolom (1)(2)(3)... sesuai template');
-    return { valid: false, errors };
+  // Check column numbers row (1)(2)(3)... only if detected
+  if (numIdx !== -1) {
+    const numRow = rows[numIdx];
+    if (!numRow || String(numRow[0] || '').trim() !== '(1)') {
+      errors.push(`Baris ke-${numIdx + 1} harus berupa nomor kolom (1)(2)(3)... sesuai template`);
+      return { valid: false, errors };
+    }
   }
 
-  // Layer 4: Validate data rows
-  const dataRows = rows.slice(2).filter(r => r && r.some(c => c !== null && c !== ''));
+  // Validate data rows
+  const dataRows = rows.slice(dataStartIdx).filter(r => r && r.some(c => c !== null && c !== ''));
   const rowErrors = [];
 
   for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
     const row = dataRows[i];
-    const rowNum = i + 3;
+    const rowNum = i + dataStartIdx + 1;
     const assignmentId = String(row[12] || '').trim();
     const kodeDesa     = String(row[8]  || '').trim();
     const kodeSLS      = String(row[10] || '').trim();
@@ -101,8 +131,30 @@ function parseAnomaliName(namaStr, tipe) {
 
 // ---- Convert rows to records ----
 function rowsToRecordsFull(rows, tipe, tanggalData) {
-  const headerRow = rows[0].map(h => String(h || '').trim());
-  const dataRows  = rows.slice(2).filter(r => r && r.some(c => c !== null && c !== ''));
+  // Dynamically locate the header row by looking for key columns
+  let headerIdx = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i] || [];
+    const hasProv = row.some(c => String(c || '').trim() === 'Kode Prov');
+    const hasAssId = row.some(c => String(c || '').trim() === 'Assignment ID');
+    if (hasProv && hasAssId) {
+      headerIdx = i;
+      break;
+    }
+  }
+
+  if (headerIdx === -1) return [];
+
+  let dataStartIdx = headerIdx + 1;
+  if (rows.length > headerIdx + 1) {
+    const nextRowFirstCell = String(rows[headerIdx + 1][0] || '').trim();
+    if (nextRowFirstCell === '(1)') {
+      dataStartIdx = headerIdx + 2;
+    }
+  }
+
+  const headerRow = rows[headerIdx].map(h => String(h || '').trim());
+  const dataRows  = rows.slice(dataStartIdx).filter(r => r && r.some(c => c !== null && c !== ''));
   const linkFasihIdx = headerRow.indexOf('Link Fasih');
 
   return dataRows.map(row => {
@@ -163,124 +215,50 @@ function checkSLSConsistency(kkRecords, usahaRecords) {
 // ---- Merge Logic ----
 async function mergeRecords(records, batchId, tanggalData, onProgress) {
   const results = { inserted: 0, updated: 0, reopened: 0, resolved: 0, errors: [] };
-  const BATCH_SIZE = 100;
+  const BATCH_SIZE = 500; // Large safe chunk size for batch database execution
 
-  // Deduplicate records by composite key (take last occurrence)
-  const recordMap = {};
+  // Group records by type because the database function processes one type at a time
+  const recordsByTipe = {};
   records.forEach(r => {
-    recordMap[`${r.assignment_id}|${r.tipe}|${r.nomor_anomali}`] = r;
+    if (!recordsByTipe[r.tipe]) recordsByTipe[r.tipe] = [];
+    recordsByTipe[r.tipe].push(r);
   });
-  const uniqueRecords = Object.values(recordMap);
-  const total = uniqueRecords.length;
 
-  // Process in batches
-  for (let i = 0; i < uniqueRecords.length; i += BATCH_SIZE) {
-    const batch = uniqueRecords.slice(i, i + BATCH_SIZE);
-    const assignmentIds = [...new Set(batch.map(r => r.assignment_id))];
+  const total = records.length;
+  let processed = 0;
 
-    const { data: existing } = await db
-      .from('assignment_anomali')
-      .select('id, assignment_id, tipe, nomor_anomali, status, is_ever_reopened')
-      .in('assignment_id', assignmentIds);
+  for (const [tipe, tipeRecords] of Object.entries(recordsByTipe)) {
+    for (let i = 0; i < tipeRecords.length; i += BATCH_SIZE) {
+      const chunk = tipeRecords.slice(i, i + BATCH_SIZE);
+      
+      if (onProgress) {
+        const pct = Math.round((processed / total) * 100);
+        onProgress(pct);
+      }
 
-    const existingMap = {};
-    (existing || []).forEach(e => {
-      existingMap[`${e.assignment_id}|${e.tipe}|${e.nomor_anomali}`] = e;
-    });
+      const { data, error } = await db.rpc('merge_anomali_batch', {
+        p_records: chunk,
+        p_batch_id: batchId,
+        p_tanggal_data: tanggalData,
+        p_tipe: tipe
+      });
 
-    for (const record of batch) {
-      const key = `${record.assignment_id}|${record.tipe}|${record.nomor_anomali}`;
-      const existingRow = existingMap[key];
-
-      try {
-        if (!existingRow) {
-          // New anomali
-          const { data: inserted, error: insErr } = await db
-            .from('assignment_anomali')
-            .insert({ ...record, status: 'belum_ditindaklanjuti', batch_id: batchId })
-            .select('id').single();
-
-          if (!insErr && inserted) {
-            await db.from('status_history').insert({
-              assignment_anomali_id: inserted.id,
-              status_lama: null,
-              status_baru: 'belum_ditindaklanjuti',
-              diubah_oleh_nama: 'Sistem (Merge)',
-              sumber: 'merge_otomatis'
-            });
-          }
-          results.inserted++;
-        } else {
-          // Existing anomali — update last_seen
-          const updatePayload = {
-            last_seen: tanggalData,
-            batch_id: batchId,
-            nama_entitas: record.nama_entitas || existingRow.nama_entitas
-          };
-
-          let reopened = false;
-          if (existingRow.status === 'sudah_diperbaiki') {
-            updatePayload.status = 'belum_ditindaklanjuti';
-            updatePayload.is_ever_reopened = true;
-            reopened = true;
-            results.reopened++;
-          }
-
-          await db.from('assignment_anomali').update(updatePayload).eq('id', existingRow.id);
-
-          if (reopened) {
-            await db.from('status_history').insert({
-              assignment_anomali_id: existingRow.id,
-              status_lama: 'sudah_diperbaiki',
-              status_baru: 'belum_ditindaklanjuti',
-              diubah_oleh_nama: 'Sistem (Merge)',
-              sumber: 'merge_otomatis'
-            });
-          }
-          results.updated++;
+      if (error) {
+        if (error.message.includes('function') && error.message.includes('does not exist')) {
+          throw new Error('Fungsi merge_anomali_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
         }
-      } catch (e) {
-        results.errors.push(`${record.assignment_id.slice(0, 8)}: ${e.message}`);
+        throw error;
       }
-    }
 
-    if (onProgress) onProgress(Math.round(((i + batch.length) / total) * 75));
-  }
-
-  // Auto-resolve: anomali not in today's file
-  if (onProgress) onProgress(78);
-  const tipes = [...new Set(records.map(r => r.tipe))];
-
-  for (const tipe of tipes) {
-    const tipeKeySet = new Set(
-      records.filter(r => r.tipe === tipe)
-             .map(r => `${r.assignment_id}|${r.nomor_anomali}`)
-    );
-
-    // Get all non-resolved records for this tipe
-    const { data: activeRows } = await db
-      .from('assignment_anomali')
-      .select('id, assignment_id, nomor_anomali, status')
-      .eq('tipe', tipe)
-      .not('status', 'in', '("tidak_terdeteksi_lagi","sesuai_kondisi")');
-
-    for (const row of (activeRows || [])) {
-      const key = `${row.assignment_id}|${row.nomor_anomali}`;
-      if (!tipeKeySet.has(key)) {
-        await db.from('assignment_anomali').update({
-          status: 'tidak_terdeteksi_lagi',
-          last_seen: tanggalData
-        }).eq('id', row.id);
-
-        await db.from('status_history').insert({
-          assignment_anomali_id: row.id,
-          status_lama: row.status,
-          status_baru: 'tidak_terdeteksi_lagi',
-          diubah_oleh_nama: 'Sistem (Merge)',
-          sumber: 'merge_otomatis'
-        });
-        results.resolved++;
+      results.inserted += data.inserted || 0;
+      results.updated  += data.updated || 0;
+      results.reopened += data.reopened || 0;
+      results.resolved += data.resolved || 0;
+      if (data.errors && data.errors.length > 0) {
+        results.errors = results.errors.concat(data.errors);
       }
+
+      processed += chunk.length;
     }
   }
 

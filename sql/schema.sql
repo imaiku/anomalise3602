@@ -463,3 +463,181 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- ============================================================
+-- BATCH ANOMALI MERGE FUNCTION (ADMIN ONLY)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.merge_anomali_batch(
+  p_records jsonb,
+  p_batch_id uuid,
+  p_tanggal_data date,
+  p_tipe text
+)
+RETURNS jsonb
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_rec jsonb;
+  v_existing_id uuid;
+  v_existing_status varchar;
+  v_inserted_id uuid;
+  v_inserted_count int := 0;
+  v_updated_count int := 0;
+  v_reopened_count int := 0;
+  v_resolved_count int := 0;
+  v_errors text[] := '{}';
+  v_active_ids uuid[] := '{}';
+BEGIN
+  -- 1. Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- 2. Loop records and insert/update
+  FOR v_rec IN SELECT * FROM jsonb_array_elements(p_records) LOOP
+    BEGIN
+      -- Check if already exists
+      SELECT id, status INTO v_existing_id, v_existing_status
+      FROM public.assignment_anomali
+      WHERE assignment_id = v_rec->>'assignment_id'
+        AND tipe = p_tipe
+        AND nomor_anomali = (v_rec->>'nomor_anomali')::int;
+
+      IF v_existing_id IS NULL THEN
+        -- Insert new anomali
+        v_inserted_id := gen_random_uuid();
+        INSERT INTO public.assignment_anomali (
+          id,
+          assignment_id,
+          tipe,
+          nama_entitas,
+          kode_desa,
+          kode_sls,
+          kode_sub_sls,
+          nomor_anomali,
+          nama_anomali,
+          status,
+          raw_data,
+          first_seen,
+          last_seen,
+          batch_id
+        ) VALUES (
+          v_inserted_id,
+          v_rec->>'assignment_id',
+          p_tipe,
+          NULLIF(v_rec->>'nama_entitas', ''),
+          v_rec->>'kode_desa',
+          v_rec->>'kode_sls',
+          v_rec->>'kode_sub_sls',
+          (v_rec->>'nomor_anomali')::int,
+          v_rec->>'nama_anomali',
+          'belum_ditindaklanjuti',
+          (v_rec->'raw_data'),
+          p_tanggal_data,
+          p_tanggal_data,
+          p_batch_id
+        );
+
+        -- Add to status history
+        INSERT INTO public.status_history (
+          assignment_anomali_id,
+          status_lama,
+          status_baru,
+          diubah_oleh_nama,
+          sumber
+        ) VALUES (
+          v_inserted_id,
+          null,
+          'belum_ditindaklanjuti',
+          'Sistem (Merge)',
+          'merge_otomatis'
+        );
+
+        v_inserted_count := v_inserted_count + 1;
+        v_active_ids := array_append(v_active_ids, v_inserted_id);
+      ELSE
+        -- Update existing anomali
+        IF v_existing_status = 'sudah_diperbaiki' THEN
+          UPDATE public.assignment_anomali SET
+            last_seen = p_tanggal_data,
+            batch_id = p_batch_id,
+            nama_entitas = COALESCE(NULLIF(v_rec->>'nama_entitas', ''), nama_entitas),
+            status = 'belum_ditindaklanjuti',
+            is_ever_reopened = true,
+            updated_at = now()
+          WHERE id = v_existing_id;
+
+          -- Add status history for reopen
+          INSERT INTO public.status_history (
+            assignment_anomali_id,
+            status_lama,
+            status_baru,
+            diubah_oleh_nama,
+            sumber
+          ) VALUES (
+            v_existing_id,
+            'sudah_diperbaiki',
+            'belum_ditindaklanjuti',
+            'Sistem (Merge)',
+            'merge_otomatis'
+          );
+
+          v_reopened_count := v_reopened_count + 1;
+        ELSE
+          UPDATE public.assignment_anomali SET
+            last_seen = p_tanggal_data,
+            batch_id = p_batch_id,
+            nama_entitas = COALESCE(NULLIF(v_rec->>'nama_entitas', ''), nama_entitas),
+            updated_at = now()
+          WHERE id = v_existing_id;
+        END IF;
+
+        v_updated_count := v_updated_count + 1;
+        v_active_ids := array_append(v_active_ids, v_existing_id);
+      END IF;
+
+    EXCEPTION WHEN OTHERS THEN
+      v_errors := array_append(v_errors, (v_rec->>'assignment_id') || ': ' || SQLERRM);
+    END;
+  END LOOP;
+
+  -- 3. Auto-resolve: any active record not in today's upload batch for this type
+  -- We set them to 'tidak_terdeteksi_lagi'
+  WITH resolved_rows AS (
+    UPDATE public.assignment_anomali
+    SET status = 'tidak_terdeteksi_lagi', last_seen = p_tanggal_data
+    WHERE tipe = p_tipe
+      AND status NOT IN ('tidak_terdeteksi_lagi', 'sesuai_kondisi')
+      AND NOT (id = ANY(v_active_ids))
+    RETURNING id, status
+  )
+  INSERT INTO public.status_history (
+    assignment_anomali_id,
+    status_lama,
+    status_baru,
+    diubah_oleh_nama,
+    sumber
+  )
+  SELECT id, 'belum_ditindaklanjuti', 'tidak_terdeteksi_lagi', 'Sistem (Merge)', 'merge_otomatis'
+  FROM resolved_rows;
+
+  -- Count resolved rows
+  SELECT count(*) INTO v_resolved_count
+  FROM public.assignment_anomali
+  WHERE tipe = p_tipe
+    AND last_seen = p_tanggal_data
+    AND status = 'tidak_terdeteksi_lagi'
+    AND NOT (id = ANY(v_active_ids));
+
+  RETURN jsonb_build_object(
+    'inserted', v_inserted_count,
+    'updated', v_updated_count,
+    'reopened', v_reopened_count,
+    'resolved', v_resolved_count,
+    'errors', to_jsonb(v_errors)
+  );
+END;
+$$ LANGUAGE plpgsql;
+
