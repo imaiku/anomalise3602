@@ -50,7 +50,7 @@ async function initDashboard() {
   }
 
   // Run stats + dropdown options in parallel with the main table data
-  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
+  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadData()]);
 }
 
 // ============================================================
@@ -191,7 +191,7 @@ async function loadData() {
       if (ket === 'selesai') q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
       else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
       if (sls)    q = q.ilike('kode_sls_gabungan', `%${sls}%`);
-      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
+      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
       if (kec)    q = q.eq('raw_data->>Nama Kecamatan', kec);
       if (des)    q = q.eq('raw_data->>Nama Desa/Kel', des);
       q = q.limit(1000);
@@ -701,13 +701,6 @@ function onKecamatanChange() {
   const selectedKec = kecSelect.value;
   desSelect.innerHTML = '<option value="">Semua Desa</option>';
 
-  // Sync active visual card class
-  document.querySelectorAll('.kec-card').forEach(c => c.classList.remove('active'));
-  if (selectedKec) {
-    const activeCard = document.getElementById(`kec-card-${selectedKec}`);
-    if (activeCard) activeCard.classList.add('active');
-  }
-
   if (selectedKec) {
     const desSet = new Set(
       wilayahCache
@@ -723,64 +716,6 @@ function onKecamatanChange() {
   }
 
   applyFilters();
-}
-
-async function loadKecamatanProgress() {
-  const grid = document.getElementById('kecamatanGrid');
-  if (!grid) return;
-
-  try {
-    const { data, error } = await db.rpc('get_kecamatan_progress', {
-      p_user_id: currentProfile?.id || null,
-      p_role: currentProfile?.role || 'guest'
-    });
-
-    if (error) throw error;
-
-    if (!data || data.length === 0) {
-      grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--text-muted)">Tidak ada data wilayah</div>`;
-      return;
-    }
-
-    grid.innerHTML = data.map(k => {
-      const isSuccess = parseInt(k.progress) === 100;
-      const progressFillWidth = k.total > 0 ? k.progress : 0;
-      return `
-        <div class="kec-card ${isSuccess ? 'success-complete' : ''}" id="kec-card-${escHtml(k.kecamatan)}" onclick="selectKecamatanCard('${escHtml(k.kecamatan)}')">
-          <div class="kec-name">${escHtml(k.kecamatan)}</div>
-          <div class="kec-stats">
-            <span>Progress</span>
-            <strong>${k.selesai}/${k.total} (${k.progress}%)</strong>
-          </div>
-          <div class="kec-progress">
-            <div class="kec-progress-fill" style="width: ${progressFillWidth}%"></div>
-          </div>
-        </div>
-      `;
-    }).join('');
-  } catch (err) {
-    console.error('Error loading kecamatan progress:', err);
-    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--error)">Gagal memuat progress: ${err.message}</div>`;
-  }
-}
-
-function selectKecamatanCard(kecName) {
-  const kecSelect = document.getElementById('filterKecamatan');
-  if (!kecSelect) return;
-
-  const currentCard = document.getElementById(`kec-card-${kecName}`);
-  const isAlreadyActive = currentCard?.classList.contains('active');
-
-  document.querySelectorAll('.kec-card').forEach(c => c.classList.remove('active'));
-
-  if (isAlreadyActive) {
-    kecSelect.value = '';
-  } else {
-    kecSelect.value = kecName;
-    currentCard?.classList.add('active');
-  }
-
-  onKecamatanChange();
 }
 
 // ============================================================
