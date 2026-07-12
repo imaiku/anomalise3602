@@ -14,7 +14,11 @@ async function openDetail(assignmentId) {
   currentGroup = allData.find(g => g.assignment_id === assignmentId);
   if (!currentGroup) return;
 
-  canEdit = await canEditSLS(currentGroup.kode_sls_gabungan, currentProfile);
+  if (!currentProfile) {
+    canEdit = true; // Let guests interact in the modal
+  } else {
+    canEdit = await canEditSLS(currentGroup.kode_sls_gabungan, currentProfile);
+  }
 
   document.getElementById('sheetTitle').textContent =
     currentGroup.nama_kk || currentGroup.nama_usaha_list[0] || assignmentId.slice(0, 8) + '...';
@@ -165,6 +169,10 @@ function toggleHistory(id)  { const el = document.getElementById(id); if (el) el
 function toggleRawData()    { const el = document.getElementById('rawDataSection'); if (el) el.classList.toggle('hidden'); }
 
 async function saveChanges() {
+  if (!currentProfile) {
+    window.location.href = '/login.html';
+    return;
+  }
   if (!canEdit) return;
   const changes = Object.entries(pendingChanges);
   if (changes.length === 0) { showToast('Tidak ada perubahan untuk disimpan', 'info'); return; }
