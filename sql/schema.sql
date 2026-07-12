@@ -390,3 +390,76 @@ BEGIN
   );
 END;
 $$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- BATCH SLS MAPPING IMPORT FUNCTION (ADMIN ONLY)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.import_sls_batch(
+  p_mappings jsonb
+)
+RETURNS jsonb
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_item jsonb;
+  v_ppl_id uuid;
+  v_pml_id uuid;
+  v_sls_success int := 0;
+  v_rel_success int := 0;
+  v_fail_count int := 0;
+  v_errors text[] := '{}';
+BEGIN
+  -- 1. Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- 2. Loop through mappings
+  FOR v_item IN SELECT * FROM jsonb_array_elements(p_mappings) LOOP
+    BEGIN
+      -- Cari PPL ID berdasarkan email_ref
+      SELECT id INTO v_ppl_id FROM public.profiles 
+      WHERE LOWER(TRIM(email_ref)) = LOWER(TRIM(v_item->>'email_ppl')) AND role = 'ppl';
+
+      IF v_ppl_id IS NULL THEN
+        RAISE EXCEPTION 'Email PPL % tidak terdaftar atau rolenya bukan PPL', v_item->>'email_ppl';
+      END IF;
+
+      -- Cari PML ID berdasarkan email_ref (opsional)
+      SELECT id INTO v_pml_id FROM public.profiles 
+      WHERE LOWER(TRIM(email_ref)) = LOWER(TRIM(v_item->>'email_pml')) AND role = 'pml';
+
+      -- A. Upsert SLS ke user_sls
+      INSERT INTO public.user_sls (user_id, kode_sls, status)
+      VALUES (v_ppl_id, v_item->>'kode_sls', 'aktif')
+      ON CONFLICT (user_id, kode_sls) DO UPDATE SET status = 'aktif';
+      
+      v_sls_success := v_sls_success + 1;
+
+      -- B. Upsert Hubungan PML-PPL (jika PML ditemukan)
+      IF v_pml_id IS NOT NULL THEN
+        INSERT INTO public.pml_ppl (pml_id, ppl_id)
+        VALUES (v_pml_id, v_ppl_id)
+        ON CONFLICT (pml_id, ppl_id) DO NOTHING;
+        
+        v_rel_success := v_rel_success + 1;
+      END IF;
+
+    EXCEPTION WHEN OTHERS THEN
+      v_fail_count := v_fail_count + 1;
+      v_errors := array_append(v_errors, (v_item->>'kode_sls') || ': ' || SQLERRM);
+    END;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'sls_success', v_sls_success,
+    'rel_success', v_rel_success,
+    'fail_count', v_fail_count,
+    'errors', to_jsonb(v_errors)
+  );
+END;
+$$ LANGUAGE plpgsql;
+

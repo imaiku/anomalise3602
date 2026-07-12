@@ -354,62 +354,56 @@ async function processSLSImport() {
   btn.disabled = true;
   btn.textContent = 'Memproses...';
 
-  const { data: profiles, error: profErr } = await db.from('profiles').select('id, email_ref, role');
-  if (profErr) {
-    showToast('Gagal memuat profil pengguna: ' + profErr.message, 'error');
+  let slsSuccess = 0, relSuccess = 0, failCount = 0;
+  const chunkSize = 500; // Send 500 mappings at a time
+
+  try {
+    for (let i = 0; i < parsedSLSData.length; i += chunkSize) {
+      const chunk = parsedSLSData.slice(i, i + chunkSize);
+      btn.textContent = `Memproses (${i} / ${parsedSLSData.length})...`;
+
+      const payload = chunk.map(s => ({
+        kode_sls: s.kode_sls,
+        email_pml: s.email_pml || '',
+        email_ppl: s.email_ppl
+      }));
+
+      const { data, error } = await db.rpc('import_sls_batch', { p_mappings: payload });
+
+      if (error) {
+        if (error.message.includes('function') && error.message.includes('does not exist')) {
+          throw new Error('Fungsi import_sls_batch belum ditambahkan di database. Harap jalankan script SQL terbaru di editor SQL Supabase Anda.');
+        }
+        throw error;
+      }
+
+      slsSuccess += data.sls_success || 0;
+      relSuccess += data.rel_success || 0;
+      failCount  += data.fail_count || 0;
+    }
+
+    showToast(
+      `Impor SLS selesai. ${slsSuccess} SLS terdaftar, ${relSuccess} hubungan PML-PPL terbuat, ${failCount} gagal.`,
+      failCount === 0 ? 'success' : 'warning'
+    );
+
+    if (slsSuccess > 0) {
+      // Reset UI
+      setZoneFile('zoneSLS', 'slsImportLabel', null, false);
+      document.getElementById('slsValidation').innerHTML = '';
+      document.getElementById('importSLSPreviewArea')?.classList.add('hidden');
+      document.getElementById('fileSLS').value = '';
+      parsedSLSData = null;
+
+      showSection('users');
+      await loadUsers();
+    }
+  } catch (e) {
+    console.error('Proses impor SLS gagal:', e);
+    showToast(e.message, 'error');
+  } finally {
     btn.disabled = false;
     btn.textContent = 'Proses Impor SLS & PML';
-    return;
   }
-
-  // Build email → profile map
-  const emailMap = {};
-  (profiles || []).forEach(p => {
-    if (p.email_ref) emailMap[p.email_ref.toLowerCase().trim()] = p;
-  });
-
-  let slsSuccess = 0, relSuccess = 0, failCount = 0;
-
-  for (const item of parsedSLSData) {
-    try {
-      const pplProfile = emailMap[item.email_ppl.toLowerCase().trim()];
-      const pmlProfile = emailMap[item.email_pml.toLowerCase().trim()];
-
-      if (!pplProfile)           throw new Error(`Email PPL "${item.email_ppl}" tidak ditemukan`);
-      if (pplProfile.role !== 'ppl') throw new Error(`Email PPL "${item.email_ppl}" rolenya bukan PPL`);
-
-      const { error: slsErr } = await db.from('user_sls').upsert(
-        { user_id: pplProfile.id, kode_sls: item.kode_sls, status: 'aktif' },
-        { onConflict: 'user_id,kode_sls' }
-      );
-      if (slsErr) throw slsErr;
-      slsSuccess++;
-
-      if (pmlProfile?.role === 'pml') {
-        const { error: relErr } = await db.from('pml_ppl').upsert({
-          pml_id: pmlProfile.id, ppl_id: pplProfile.id
-        });
-        if (relErr) throw relErr;
-        relSuccess++;
-      }
-    } catch (e) {
-      console.error(`Gagal mengimpor SLS ${item.kode_sls}:`, e);
-      failCount++;
-    }
-  }
-
-  showToast(
-    `Impor SLS selesai. ${slsSuccess} SLS terdaftar, ${relSuccess} hubungan PML-PPL terbuat, ${failCount} gagal.`,
-    failCount === 0 ? 'success' : 'warning'
-  );
-
-  // Reset UI
-  setZoneFile('zoneSLS', 'slsImportLabel', null, false);
-  document.getElementById('slsValidation').innerHTML = '';
-  document.getElementById('importSLSPreviewArea')?.classList.add('hidden');
-  document.getElementById('fileSLS').value = '';
-  parsedSLSData = null;
-
-  showSection('users');
-  await loadUsers();
+}
 }
