@@ -296,6 +296,32 @@
     </div>
   </div>
 
+  <!-- Login Modal Overlay -->
+  <div class="bottom-sheet-overlay" id="loginModal" onclick="handleLoginOverlayClick(event)">
+    <div class="bottom-sheet" style="max-width:400px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="text-align:center">
+        <div class="bottom-sheet-title" style="font-size:1.25rem">Masuk ke Akun Anda</div>
+        <div class="bottom-sheet-subtitle">Silakan login menggunakan akun PPL/PML untuk menyimpan perubahan status tindak lanjut.</div>
+      </div>
+      <div class="bottom-sheet-body">
+        <div id="loginModalError" class="alert alert-error hidden" style="margin-bottom:1rem"></div>
+        <div class="form-group mb-3">
+          <label class="form-label" for="loginEmail">Email / Sobat ID</label>
+          <input type="text" id="loginEmail" class="form-input" placeholder="sobatid@anomali3602.se atau email">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="loginPassword">Password (PIN / NIK)</label>
+          <input type="password" id="loginPassword" class="form-input" placeholder="Masukkan password Anda">
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeLoginModal()" style="flex:1">Batal</button>
+        <button class="btn btn-primary" id="loginModalSubmitBtn" onclick="handleModalLoginSubmit()" style="flex:1">Masuk & Simpan</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/config.js"></script>

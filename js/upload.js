@@ -261,11 +261,13 @@ async function mergeRecords(records, batchId, tanggalData, onProgress) {
       processed += chunk.length;
     }
 
-    // Resolve unseen anomalies of this type after all chunks of this type are processed
+    // Resolve unseen anomalies of this type ONLY in the villages (desa) present in the uploaded file
+    const desaCodes = [...new Set(tipeRecords.map(r => r.kode_desa))];
     const { data: resCount, error: resErr } = await db.rpc('resolve_unseen_anomali', {
       p_batch_id: batchId,
       p_tanggal_data: tanggalData,
-      p_tipe: tipe
+      p_tipe: tipe,
+      p_desa_codes: desaCodes
     });
     if (!resErr) {
       results.resolved += resCount || 0;

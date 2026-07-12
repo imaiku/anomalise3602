@@ -627,7 +627,8 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION public.resolve_unseen_anomali(
   p_batch_id uuid,
   p_tanggal_data date,
-  p_tipe text
+  p_tipe text,
+  p_desa_codes text[]
 )
 RETURNS int
 SECURITY DEFINER
@@ -643,12 +644,13 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- 2. Mark any active anomalies of this type that were NOT in today's upload batch as resolved
+  -- 2. Mark any active anomalies of this type in these specific villages that were NOT in today's upload batch as resolved
   WITH resolved_rows AS (
     UPDATE public.assignment_anomali
     SET status = 'tidak_terdeteksi_lagi', last_seen = p_tanggal_data
     WHERE tipe = p_tipe
       AND status NOT IN ('tidak_terdeteksi_lagi', 'sesuai_kondisi')
+      AND kode_desa = ANY(p_desa_codes)
       AND batch_id != p_batch_id
     RETURNING id, status
   )
@@ -668,13 +670,7 @@ BEGIN
   WHERE tipe = p_tipe
     AND last_seen = p_tanggal_data
     AND status = 'tidak_terdeteksi_lagi'
-    AND batch_id = p_batch_id; -- Wait! It was updated to p_tanggal_data, but wait, the query updates last_seen = p_tanggal_data, and batch_id remains unchanged (or does not match today's batch_id). Let's count where status is 'tidak_terdeteksi_lagi' and last_seen = p_tanggal_data and batch_id != p_batch_id
-  
-  SELECT count(*) INTO v_resolved_count
-  FROM public.assignment_anomali
-  WHERE tipe = p_tipe
-    AND last_seen = p_tanggal_data
-    AND status = 'tidak_terdeteksi_lagi'
+    AND kode_desa = ANY(p_desa_codes)
     AND batch_id != p_batch_id;
 
   RETURN v_resolved_count;

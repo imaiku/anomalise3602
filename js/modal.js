@@ -168,9 +168,15 @@ function onCatatanChange(rowId, v) { if (!pendingChanges[rowId]) pendingChanges[
 function toggleHistory(id)  { const el = document.getElementById(id); if (el) el.classList.toggle('hidden'); }
 function toggleRawData()    { const el = document.getElementById('rawDataSection'); if (el) el.classList.toggle('hidden'); }
 
+let afterLoginCallback = null;
+
 async function saveChanges() {
   if (!currentProfile) {
-    window.location.href = '/login.html';
+    // Save the callback to execute after successful background authentication
+    afterLoginCallback = async () => {
+      await saveChanges();
+    };
+    openLoginModal();
     return;
   }
   if (!canEdit) return;
@@ -224,3 +230,103 @@ function closeDetailModal() {
   currentAssignmentId = null; currentGroup = null; pendingChanges = {};
 }
 function handleOverlayClick(e) { if (e.target === document.getElementById('detailModal')) closeDetailModal(); }
+
+// ============================================================
+// INLINE LOGIN MODAL CONTROLLER
+// ============================================================
+function openLoginModal() {
+  const errDiv = document.getElementById('loginModalError');
+  if (errDiv) errDiv.classList.add('hidden');
+  document.getElementById('loginEmail').value = '';
+  document.getElementById('loginPassword').value = '';
+  document.getElementById('loginModal').classList.add('open');
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.remove('open');
+  afterLoginCallback = null;
+}
+
+function handleLoginOverlayClick(e) {
+  if (e.target === document.getElementById('loginModal')) {
+    closeLoginModal();
+  }
+}
+
+async function handleModalLoginSubmit() {
+  const emailInput = document.getElementById('loginEmail').value.trim();
+  const password   = document.getElementById('loginPassword').value;
+  const errDiv     = document.getElementById('loginModalError');
+  const btn        = document.getElementById('loginModalSubmitBtn');
+
+  if (!emailInput || !password) {
+    errDiv.textContent = 'Email/Sobat ID dan password wajib diisi';
+    errDiv.classList.remove('hidden');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Memverifikasi...';
+  errDiv.classList.add('hidden');
+
+  try {
+    let email = emailInput;
+    if (/^\d+$/.test(emailInput)) {
+      email = `${emailInput}@anomali3602.se`;
+    }
+
+    const { data: authData, error: authErr } = await db.auth.signInWithPassword({ email, password });
+    if (authErr) throw authErr;
+
+    const { data: profile, error: profErr } = await db
+      .from('profiles')
+      .select('*')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (profErr) throw profErr;
+
+    currentProfile = profile;
+
+    // Sync header navigation UI
+    const userDisplayName = document.getElementById('userDisplayName');
+    const userRoleBadge   = document.getElementById('userRoleBadge');
+    const loginNavBtn     = document.getElementById('loginNavBtn');
+    const logoutNavBtn    = document.getElementById('logoutNavBtn');
+    const adminNavBtn     = document.getElementById('adminNavBtn');
+
+    if (userDisplayName) userDisplayName.textContent = getSessionName(profile);
+    if (userRoleBadge) {
+      userRoleBadge.textContent = profile.role.toUpperCase();
+      userRoleBadge.className = `type-badge type-${
+        profile.role === 'ppl' ? 'keluarga' :
+        profile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+      userRoleBadge.style.display = 'inline-block';
+    }
+    loginNavBtn?.classList.add('hidden');
+    logoutNavBtn?.classList.remove('hidden');
+    const isAdmin = ['superadmin', 'admin'].includes(profile.role);
+    adminNavBtn?.classList.toggle('hidden', !isAdmin);
+
+    // Re-verify edit rights for this SLS
+    canEdit = await canEditSLS(currentGroup.kode_sls_gabungan, currentProfile);
+    document.getElementById('saveBtn').disabled = !canEdit;
+
+    closeLoginModal();
+    showToast('Login berhasil!', 'success');
+
+    // Run callback to automatically save the pending changes
+    if (afterLoginCallback) {
+      const cb = afterLoginCallback;
+      afterLoginCallback = null;
+      await cb();
+    }
+  } catch (e) {
+    console.error('Modal login failed:', e);
+    errDiv.textContent = 'Login gagal: ' + (e.message || 'Periksa email & password Anda');
+    errDiv.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Masuk & Simpan';
+  }
+}
