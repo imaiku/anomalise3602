@@ -101,22 +101,7 @@ async function renderSheetBody() {
     });
   }
 
-  const sampleRow = rows[0];
-  if (sampleRow?.raw_data && Object.keys(sampleRow.raw_data).length > 0) {
-    const validEntries = Object.entries(sampleRow.raw_data).filter(([k, v]) => v !== null && v !== '' && v !== '-');
-    if (validEntries.length > 0) {
-      html += `<div class="divider"></div>
-      <button class="history-toggle" onclick="toggleRawData()">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        Lihat Data Mentah
-      </button>
-      <div id="rawDataSection" class="hidden" style="margin-top:0.75rem">
-        <div class="raw-data-grid">
-          ${validEntries.map(([k, v]) => `<div class="raw-data-item"><span class="raw-data-key">${escHtml(k)}:</span><span class="raw-data-val">${escHtml(String(v))}</span></div>`).join('')}
-        </div>
-      </div>`;
-    }
-  }
+
 
   body.innerHTML = html;
 }
@@ -146,40 +131,22 @@ function renderAnomaliItem(row, refMap, historyList) {
     </div>
     ${ref?.penjelasan ? `<div class="anomali-explanation">${escHtml(ref.penjelasan)}</div>` : ''}
     
-    <!-- Relevant Raw Data Highlight (Dynamic Context) -->
+    <!-- Relevant Raw Data Display (Show All Non-Empty Raw Columns) -->
     ${(() => {
       if (!row.raw_data || Object.keys(row.raw_data).length === 0) return '';
       
-      // Kata kunci pencarian kolom yang relevan berdasarkan nomor/nama anomali
-      const nom = row.nomor_anomali;
-      const namaLow = (row.nama_anomali || ref?.nama || '').toLowerCase();
-      const keywords = [];
-
-      if (nom === 8 || namaLow.includes('kbli')) {
-        keywords.push('kbli', 'sbr', 'prelist', 'utama');
-      } else if (namaLow.includes('gaji') || namaLow.includes('pendapatan') || namaLow.includes('upah')) {
-        keywords.push('gaji', 'pendapatan', 'upah', 'omset', 'omzet', 'rupiah', 'nilai');
-      } else if (namaLow.includes('art') || namaLow.includes('anggota') || namaLow.includes('keluarga')) {
-        keywords.push('art', 'nama', 'kk', 'nik', 'hubungan');
-      } else {
-        // Fallback umum: ambil kolom yang bernilai beda / berisi data perbandingan
-        keywords.push('sbr', 'prelist', 'beda', 'selisih', 'akhir', 'awal', 'pendataan', 'cacah');
-      }
-
-      // Filter key-value yang sesuai dengan kata kunci di atas
-      const matched = Object.entries(row.raw_data).filter(([k, v]) => {
-        if (v === null || v === '' || v === '-') return false;
-        const kLow = k.toLowerCase();
-        return keywords.some(kw => kLow.includes(kw));
+      // Ambil seluruh kolom yang memiliki nilai (tidak kosong, null, atau strip)
+      const validEntries = Object.entries(row.raw_data).filter(([k, v]) => {
+        return v !== null && v !== '' && v !== '-' && v !== undefined;
       });
 
-      if (matched.length === 0) return '';
+      if (validEntries.length === 0) return '';
 
       return `<div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.6rem 0.8rem; margin: 0.5rem 0 0.875rem 0; font-size:0.8rem">
-        <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.35rem">Data Terkait Anomali:</div>
-        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:0.4rem 0.75rem">
-          ${matched.map(([k, v]) => `<div>
-            <span style="color:var(--text-muted); font-size:0.75rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
+        <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem">Data Pendukung (Mentah):</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:0.4rem 0.75rem">
+          ${validEntries.map(([k, v]) => `<div>
+            <span style="color:var(--text-muted); font-size:0.725rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
             <strong style="color:var(--primary); font-size:0.85rem">${escHtml(String(v))}</strong>
           </div>`).join('')}
         </div>
