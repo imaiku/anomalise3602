@@ -130,25 +130,23 @@ function renderStats(total, belum, selesai, progress) {
 // DATA LOADING
 // ============================================================
 async function loadAnomalinomorOptions() {
-  let query = db.from('assignment_anomali')
-    .select('nomor_anomali, tipe')
-    .order('nomor_anomali')
-    .limit(500);  // anomali nomor unik jauh kurang dari 500, limit ini aman
-  if (currentProfile?.role === 'ppl') {
-    query = query.eq('tipe', 'keluarga');
-  } else if (currentProfile?.role === 'pml') {
-    query = query.eq('tipe', 'usaha');
-  }
-  const { data } = await query;
-  const seen   = new Set();
+  const { data } = await db.from('anomali_ref')
+    .select('nomor, tipe')
+    .order('nomor');
   const select = document.getElementById('filterNomor');
+  if (!select) return;
+  // Clear existing options except first
+  while (select.options.length > 1) {
+    select.remove(1);
+  }
+  const seen = new Set();
   (data || []).forEach(row => {
-    const key = `${row.tipe}-${row.nomor_anomali}`;
+    const key = `${row.tipe}:${row.nomor}`;
     if (seen.has(key)) return;
     seen.add(key);
     const opt = document.createElement('option');
-    opt.value       = `${row.tipe}:${row.nomor_anomali}`;
-    opt.textContent = `Anomali ${row.nomor_anomali} (${row.tipe === 'keluarga' ? 'KK' : 'Usaha'})`;
+    opt.value       = key;
+    opt.textContent = `Anomali ${row.nomor} (${row.tipe === 'keluarga' ? 'KK' : 'Usaha'})`;
     select.appendChild(opt);
   });
 }
@@ -376,7 +374,7 @@ function renderAll() {
 function renderTable(pageData) {
   const tbody = document.getElementById('tableBody');
   if (filteredData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state">
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state">
       <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div>
       <div class="empty-state-title">Tidak ada data ditemukan</div>
       <div class="empty-state-sub">Coba ubah filter atau reset pencarian</div>
@@ -409,6 +407,7 @@ function renderTable(pageData) {
       <td>${group.nama_usaha_list.length > 0 ? escHtml(namaUsaha) : '<span style="color:var(--text-subtle)">—</span>'}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
       <td><div class="anomali-list-str">${buildAnomaliString(group)}</div></td>
+      <td style="text-align:center"><strong>${group.rows.length}</strong></td>
       <td>
         <button class="btn btn-primary btn-sm" onclick="openDetail('${group.assignment_id}')">
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -500,12 +499,26 @@ function changePageSize() {
 }
 
 function updateTableCount() {
-  const start = (currentPage - 1) * pageSize + 1;
-  const end   = Math.min(currentPage * pageSize, filteredData.length);
-  const total = filteredData.length;
-  const all   = allData.length;
-  let text = total === 0 ? 'Tidak ada data' : `Menampilkan ${start}–${end} dari ${total.toLocaleString('id')}`;
-  if (total < all) text += ` (difilter dari ${all.toLocaleString('id')})`;
+  const start   = (currentPage - 1) * pageSize + 1;
+  const end     = Math.min(currentPage * pageSize, filteredData.length);
+  const total   = filteredData.length;
+  const all     = allData.length;
+  const dbTotal = document.getElementById('statTotal')?.textContent || '0';
+
+  // Cek apakah ada filter aktif yang membatasi dataset
+  const hasActiveFilters = document.getElementById('filterStatus')?.value ||
+                           document.getElementById('filterJenis')?.value ||
+                           document.getElementById('filterNomor')?.value ||
+                           document.getElementById('filterKeterangan')?.value ||
+                           document.getElementById('filterSLS')?.value.trim() ||
+                           document.getElementById('filterSearch')?.value.trim();
+
+  let text = total === 0 
+    ? 'Tidak ada data' 
+    : `Menampilkan ${start}–${end} dari ${hasActiveFilters ? total.toLocaleString('id') : dbTotal}`;
+  if (hasActiveFilters && total < all) {
+    text += ` (difilter dari ${dbTotal})`;
+  }
   document.getElementById('tableCount').textContent = text;
 }
 
