@@ -64,23 +64,15 @@ async function loadStats() {
     });
 
     if (!error && data) {
-      renderStats(data.total, data.belum, data.selesai, data.progress);
+      renderStats(
+        data.total, data.belum, data.selesai, data.progress,
+        data.anomali_total, data.anomali_belum, data.anomali_selesai
+      );
       return;
     }
 
     // Fallback: fungsi RPC belum dijalankan di database.
-    // Gunakan count cepat per tipe status dari server, tanpa mengambil raw rows.
-    console.warn('get_dashboard_stats tidak tersedia, menggunakan fallback count');
-    const buildCount = (statusFilter) => {
-      let q = db.from('assignment_anomali')
-        .select('assignment_id', { count: 'exact', head: false })
-        .limit(50000);
-      if (currentProfile?.role === 'ppl')      q = q.eq('tipe', 'keluarga');
-      else if (currentProfile?.role === 'pml') q = q.eq('tipe', 'usaha');
-      if (statusFilter) q = q.eq('status', statusFilter);
-      return q;
-    };
-
+    console.warn('get_dashboard_stats tidak tersedia, menggunakan fallback');
     // Ambil semua baris assignment_id + status (hanya 2 kolom, cepat)
     let baseQ = db.from('assignment_anomali')
       .select('assignment_id, status')
@@ -100,30 +92,51 @@ async function loadStats() {
     if (rowErr) throw rowErr;
 
     const map = {};
+    const DONE = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+    let anomaliTotal = 0;
+    let anomaliSelesai = 0;
+    let anomaliBelum = 0;
+
     (rows || []).forEach(r => {
+      anomaliTotal++;
+      if (DONE.has(r.status)) anomaliSelesai++; else anomaliBelum++;
+
       if (!map[r.assignment_id]) map[r.assignment_id] = [];
       map[r.assignment_id].push(r.status);
     });
-    const DONE     = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+
     const total    = Object.keys(map).length;
     const selesai  = Object.values(map).filter(ss => ss.every(s => DONE.has(s))).length;
     const belum    = total - selesai;
     const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
-    renderStats(total, belum, selesai, progress);
+    
+    renderStats(total, belum, selesai, progress, anomaliTotal, anomaliBelum, anomaliSelesai);
   } catch (e) {
     console.error('loadStats error:', e);
   }
 }
 
-function renderStats(total, belum, selesai, progress) {
+function renderStats(total, belum, selesai, progress, anomTotal = 0, anomBelum = 0, anomSelesai = 0) {
   const safe = v => (v ?? 0);
+  
+  // Render Nilai Utama (Assignment)
   document.getElementById('statTotal').textContent    = safe(total).toLocaleString('id');
   document.getElementById('statBelum').textContent    = safe(belum).toLocaleString('id');
   document.getElementById('statSelesai').textContent  = safe(selesai).toLocaleString('id');
   document.getElementById('statProgress').textContent = `${safe(progress)}%`;
+  
+  // Render Sub-Label (Detail Kasus Anomali)
+  document.getElementById('statTotalSub').innerHTML    = `assignment unik <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomTotal).toLocaleString('id')} kasus anomali)</span>`;
+  document.getElementById('statBelumSub').innerHTML    = `ada anomali belum ditangani <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomBelum).toLocaleString('id')} kasus)</span>`;
+  document.getElementById('statSelesaiSub').innerHTML  = `semua anomali selesai <span style="display:block;font-size:0.75rem;color:var(--text-subtle);margin-top:0.15rem">(${safe(anomSelesai).toLocaleString('id')} kasus)</span>`;
+
   const fill = document.getElementById('progressFill');
   if (fill) fill.style.width = `${safe(progress)}%`;
+
+  // Update table subtitle count immediately with loaded stats values
+  updateTableCount();
 }
+
 
 
 // ============================================================

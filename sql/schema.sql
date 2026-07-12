@@ -688,12 +688,15 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $$
+AS $func$
 DECLARE
-  v_total    int := 0;
-  v_selesai  int := 0;
-  v_belum    int := 0;
-  v_progress int := 0;
+  v_total          int := 0;
+  v_selesai        int := 0;
+  v_belum          int := 0;
+  v_progress       int := 0;
+  v_anomali_total  int := 0;
+  v_anomali_done   int := 0;
+  v_anomali_todo   int := 0;
   v_sls_codes text[] := '{}';
 BEGIN
   -- Ambil kode SLS berdasarkan role
@@ -710,7 +713,24 @@ BEGIN
      WHERE mp.pml_id = p_user_id;
   END IF;
 
-  -- Hitung distinct assignment_id: selesai/belum
+  -- 1. Hitung total anomali secara individu (baris mentah)
+  SELECT
+    count(*)::int,
+    count(*) FILTER (WHERE status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::int,
+    count(*) FILTER (WHERE status NOT IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::int
+  INTO v_anomali_total, v_anomali_done, v_anomali_todo
+  FROM public.assignment_anomali
+  WHERE
+    (p_role IN ('superadmin', 'admin') OR kode_sls_gabungan = ANY(v_sls_codes))
+    AND (
+      CASE
+        WHEN p_role = 'ppl' THEN tipe = 'keluarga'
+        WHEN p_role = 'pml' THEN tipe = 'usaha'
+        ELSE true
+      END
+    );
+
+  -- 2. Hitung berdasarkan assignment_id
   WITH group_status AS (
     SELECT
       assignment_id,
@@ -739,13 +759,17 @@ BEGIN
   END IF;
 
   RETURN jsonb_build_object(
-    'total',    v_total,
-    'selesai',  v_selesai,
-    'belum',    v_belum,
-    'progress', v_progress
+    'total',            v_total,
+    'selesai',          v_selesai,
+    'belum',            v_belum,
+    'progress',         v_progress,
+    'anomali_total',    v_anomali_total,
+    'anomali_selesai',  v_anomali_done,
+    'anomali_belum',    v_anomali_todo
   );
 END;
 $$;
 
 -- Berikan akses execute ke semua role
 GRANT EXECUTE ON FUNCTION public.get_dashboard_stats(uuid, text) TO anon, authenticated;
+
