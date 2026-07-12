@@ -564,6 +564,8 @@ async function loadUsers() {
     else if (item.tipe === 'usaha') anomalyMap[code].usaha += parseInt(item.total_anomali);
   });
 
+  // Pass 1: Calculate PPL anomaly counts and store in a temporary map
+  const pplAnomalyCounts = {};
   all.forEach(u => {
     if (u.role === 'ppl') {
       u.slsCount = pplSlsMap[u.id]?.size || 0;
@@ -572,21 +574,25 @@ async function loadUsers() {
         count += anomalyMap[code]?.keluarga || 0;
       });
       u.anomalyCount = count;
-    } else if (u.role === 'pml') {
+      pplAnomalyCounts[u.id] = count;
+    }
+  });
+
+  // Pass 2: Calculate PML anomaly counts as sum of supervised PPL counts
+  all.forEach(u => {
+    if (u.role === 'pml') {
       const supervised = pmlPplsMap[u.id];
       const uniqueSls = new Set();
+      let count = 0;
       if (supervised) {
         supervised.forEach(pplId => {
+          count += pplAnomalyCounts[pplId] || 0;
           pplSlsMap[pplId]?.forEach(s => uniqueSls.add(s));
         });
       }
       u.slsCount = uniqueSls.size;
-      let count = 0;
-      uniqueSls.forEach(code => {
-        count += anomalyMap[code]?.usaha || 0;
-      });
       u.anomalyCount = count;
-    } else {
+    } else if (u.role !== 'ppl') {
       u.slsCount = 0;
       u.anomalyCount = 0;
     }
