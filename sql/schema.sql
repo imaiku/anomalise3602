@@ -995,3 +995,36 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_kecamatan_progress() TO anon, authenticated;
+
+-- ============================================================
+-- Get Summary of SLS without PPL (Optimized for Admin Panel)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_unassigned_sls_summary()
+RETURNS TABLE(
+  assignment_id uuid, 
+  kode_sls_gabungan varchar, 
+  tipe text, 
+  nama_entitas varchar, 
+  total_anomali bigint
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    (SELECT id FROM public.assignment_anomali WHERE kode_sls_gabungan = a.kode_sls_gabungan AND status != 'tidak_terdeteksi_lagi' LIMIT 1) as assignment_id,
+    a.kode_sls_gabungan,
+    string_agg(DISTINCT a.tipe, ', ') as tipe,
+    (SELECT nama_entitas FROM public.assignment_anomali WHERE kode_sls_gabungan = a.kode_sls_gabungan AND status != 'tidak_terdeteksi_lagi' LIMIT 1) as nama_entitas,
+    count(*)::bigint as total_anomali
+  FROM public.assignment_anomali a
+  LEFT JOIN public.user_sls u ON a.kode_sls_gabungan = u.kode_sls AND u.status = 'aktif'
+  WHERE a.status != 'tidak_terdeteksi_lagi'
+    AND u.id IS NULL
+  GROUP BY a.kode_sls_gabungan;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_unassigned_sls_summary() TO anon, authenticated;

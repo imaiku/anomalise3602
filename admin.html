@@ -590,10 +590,27 @@
           </div>
           <table class="admin-table">
             <thead><tr>
-              <th>Assignment ID</th><th>Kode SLS</th><th>Tipe</th><th>Nama Entitas</th><th class="no-sort">Assign ke PPL</th>
+              <th onclick="sortUnassigned('assignment_id')" style="cursor:pointer;white-space:nowrap">Assignment ID <span class="sort-icon" id="sort-unassigned-id" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUnassigned('kode_sls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span class="sort-icon" id="sort-unassigned-sls" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+              <th onclick="sortUnassigned('tipe')" style="cursor:pointer;white-space:nowrap">Tipe <span class="sort-icon" id="sort-unassigned-tipe" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUnassigned('nama_entitas')" style="cursor:pointer;white-space:nowrap">Nama Entitas <span class="sort-icon" id="sort-unassigned-name" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th class="no-sort">Assign ke PPL</th>
             </tr></thead>
             <tbody id="unassignedBody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
           </table>
+          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="unassignedPageSizeSelect" class="filter-select" onchange="changeUnassignedPageSize()" style="width:80px;padding:0.25rem">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="unassignedPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
         </div>
       </div>
 

@@ -861,46 +861,152 @@ async function manageUserSLS(userId, nama) {
 // ============================================================
 // SLS TANPA PPL
 // ============================================================
+let allUnassignedGroups = [];
+let currentUnassignedPage = 1;
+let unassignedPageSize = 25;
+let unassignedSortField = 'kode_sls';
+let unassignedSortDir = 'asc';
+
 async function loadUnassigned() {
   const tbody = document.getElementById('unassignedBody');
+  if (!tbody) return;
+  
+  tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
-  const { data: activeSLS } = await db.from('user_sls').select('kode_sls').eq('status', 'aktif');
-  const assignedSet = new Set((activeSLS || []).map(s => s.kode_sls));
-
-  const { data: rows, error } = await db
-    .from('assignment_anomali')
-    .select('assignment_id, kode_sls_gabungan, tipe, nama_entitas')
-    .not('status', 'eq', 'tidak_terdeteksi_lagi')
-    .limit(200);
+  const { data: rows, error } = await db.rpc('get_unassigned_sls_summary');
 
   if (error) {
     tbody.innerHTML = `<tr><td colspan="5" style="color:var(--error)">Gagal: ${error.message}</td></tr>`;
     return;
   }
 
-  const unassigned = (rows || []).filter(r => !assignedSet.has(r.kode_sls_gabungan));
-  if (unassigned.length === 0) {
+  allUnassignedGroups = rows || [];
+  sortUnassignedData();
+  currentUnassignedPage = 1;
+  renderUnassigned();
+}
+
+function renderUnassigned() {
+  const tbody = document.getElementById('unassignedBody');
+  if (!tbody) return;
+
+  if (allUnassignedGroups.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state"><div class="empty-state-title">Semua SLS sudah terassign ke PPL</div></div></td></tr>`;
+    const pag = document.getElementById('unassignedPagination');
+    if (pag) pag.innerHTML = '';
     return;
   }
 
-  // Group by SLS
-  const groups = {};
-  unassigned.forEach(r => {
-    if (!groups[r.kode_sls_gabungan]) groups[r.kode_sls_gabungan] = [];
-    groups[r.kode_sls_gabungan].push(r);
+  let pageData = allUnassignedGroups;
+  if (unassignedPageSize !== 'all') {
+    const start = (currentUnassignedPage - 1) * parseInt(unassignedPageSize);
+    pageData = allUnassignedGroups.slice(start, start + parseInt(unassignedPageSize));
+  }
+
+  tbody.innerHTML = pageData.map(r => {
+    const types = (r.tipe || '').split(', ').map(t => `<span class="type-badge type-${t.trim()}">${t.trim()}</span>`).join(' ');
+    return `
+    <tr>
+      <td class="mono" style="font-size:0.75rem">${r.assignment_id ? r.assignment_id.slice(0, 8) : '—'}... (+${r.total_anomali})</td>
+      <td><span class="chip">${r.kode_sls_gabungan}</span></td>
+      <td>${types}</td>
+      <td>${escHtml(r.nama_entitas || '—')}</td>
+      <td>
+        <button class="btn btn-primary btn-sm" onclick="assignSLStoPPL('${r.kode_sls_gabungan}')">Assign ke PPL</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  renderUnassignedPagination();
+}
+
+function changeUnassignedPageSize() {
+  unassignedPageSize = document.getElementById('unassignedPageSizeSelect').value;
+  currentUnassignedPage = 1;
+  renderUnassigned();
+}
+
+function goUnassignedPage(page) {
+  currentUnassignedPage = page;
+  renderUnassigned();
+}
+
+function renderUnassignedPagination() {
+  const pag = document.getElementById('unassignedPagination');
+  if (!pag) return;
+  if (unassignedPageSize === 'all') { pag.innerHTML = ''; return; }
+
+  const totalPages = Math.ceil(allUnassignedGroups.length / parseInt(unassignedPageSize));
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" onclick="goUnassignedPage(${currentUnassignedPage - 1})" ${currentUnassignedPage === 1 ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>`;
+
+  const delta = 3;
+  const range = [];
+  for (let i = Math.max(1, currentUnassignedPage - delta); i <= Math.min(totalPages, currentUnassignedPage + delta); i++) {
+    range.push(i);
+  }
+
+  if (range[0] > 1) {
+    html += `<button class="page-btn" onclick="goUnassignedPage(1)">1</button>`;
+    if (range[0] > 2) html += `<span style="padding:0 0.25rem;color:var(--text-muted)">...</span>`;
+  }
+
+  range.forEach(p => {
+    html += `<button class="page-btn ${p === currentUnassignedPage ? 'active' : ''}" onclick="goUnassignedPage(${p})">${p}</button>`;
   });
 
-  tbody.innerHTML = Object.entries(groups).slice(0, 100).map(([sls, rs]) => `
-    <tr>
-      <td class="mono" style="font-size:0.75rem">${rs[0].assignment_id.slice(0, 8)}... (+${rs.length})</td>
-      <td><span class="chip">${sls}</span></td>
-      <td>${[...new Set(rs.map(r => r.tipe))].map(t => `<span class="type-badge type-${t}">${t}</span>`).join(' ')}</td>
-      <td>${escHtml(rs[0].nama_entitas || '—')}</td>
-      <td>
-        <button class="btn btn-primary btn-sm" onclick="assignSLStoPPL('${sls}')">Assign ke PPL</button>
-      </td>
-    </tr>`).join('');
+  if (range[range.length - 1] < totalPages) {
+    if (range[range.length - 1] < totalPages - 1) html += `<span style="padding:0 0.25rem;color:var(--text-muted)">...</span>`;
+    html += `<button class="page-btn" onclick="goUnassignedPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  html += `<button class="page-btn" onclick="goUnassignedPage(${currentUnassignedPage + 1})" ${currentUnassignedPage === totalPages ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6 6-6"/></svg>
+  </button>`;
+
+  pag.innerHTML = html;
+}
+
+function sortUnassigned(field) {
+  unassignedSortDir = unassignedSortField === field ? (unassignedSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+  unassignedSortField = field;
+
+  document.querySelectorAll('th span[id^="sort-unassigned-"]').forEach(span => span.textContent = '⇅');
+  const activeIcon = document.getElementById(`sort-unassigned-${field === 'assignment_id' ? 'id' : field === 'kode_sls' ? 'sls' : field === 'tipe' ? 'tipe' : 'name'}`);
+  if (activeIcon) activeIcon.textContent = unassignedSortDir === 'asc' ? '▲' : '▼';
+
+  sortUnassignedData();
+  currentUnassignedPage = 1;
+  renderUnassigned();
+}
+
+function sortUnassignedData() {
+  allUnassignedGroups.sort((a, b) => {
+    let va, vb;
+    if (unassignedSortField === 'kode_sls') {
+      va = a.kode_sls_gabungan;
+      vb = b.kode_sls_gabungan;
+    } else if (unassignedSortField === 'assignment_id') {
+      va = a.assignment_id || '';
+      vb = b.assignment_id || '';
+    } else if (unassignedSortField === 'tipe') {
+      va = a.tipe || '';
+      vb = b.tipe || '';
+    } else if (unassignedSortField === 'nama_entitas') {
+      va = a.nama_entitas || '';
+      vb = b.nama_entitas || '';
+    }
+
+    va = typeof va === 'string' ? va.toLowerCase() : va;
+    vb = typeof vb === 'string' ? vb.toLowerCase() : vb;
+
+    if (va < vb) return unassignedSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return unassignedSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
 }
 
 async function assignSLStoPPL(kodeSLS) {
