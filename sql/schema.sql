@@ -559,9 +559,6 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 -- BATCH ANOMALI MERGE FUNCTION (ADMIN ONLY)
 -- ============================================================
--- ============================================================
--- BATCH ANOMALI MERGE FUNCTION (ADMIN ONLY)
--- ============================================================
 CREATE OR REPLACE FUNCTION public.merge_anomali_batch(
   p_records jsonb,
   p_batch_id uuid,
@@ -572,7 +569,7 @@ RETURNS jsonb
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_rec jsonb;
+  v_rec record;
   v_existing_id uuid;
   v_existing_status varchar;
   v_inserted_id uuid;
@@ -589,141 +586,114 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- 2. Loop records and insert/update
-  FOR v_rec IN SELECT * FROM jsonb_array_elements(p_records) LOOP
+  -- 2. Loop records using jsonb_to_recordset for type-safety
+  FOR v_rec IN 
+    SELECT * FROM jsonb_to_recordset(p_records) AS x(
+      assignment_id text,
+      nomor_anomali int,
+      nama_anomali text,
+      kode_desa text,
+      kode_sls text,
+      kode_sub_sls text,
+      nama_entitas text,
+      raw_data jsonb
+    )
+  LOOP
     BEGIN
       -- A. Auto-register reference in public.anomali_ref if it doesn't exist
       IF NOT EXISTS (
         SELECT 1 FROM public.anomali_ref
-        WHERE nomor = (v_rec->>'nomor_anomali')::int AND tipe = p_tipe
+        WHERE nomor = v_rec.nomor_anomali AND tipe = p_tipe
       ) THEN
         INSERT INTO public.anomali_ref (nomor, tipe, nama, penjelasan, created_at, updated_at)
-        VALUES ((v_rec->>'nomor_anomali')::int, p_tipe, v_rec->>'nama_anomali', null, now(), now());
+        VALUES (v_rec.nomor_anomali, p_tipe, v_rec.nama_anomali, null, now(), now());
       END IF;
 
       -- A.b. Auto-register SLS to regional tables
       IF NOT EXISTS (
         SELECT 1 FROM public.wilayah_subsls
-        WHERE kode_sls_gabungan = (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls')
+        WHERE kode_sls_gabungan = (v_rec.kode_desa || v_rec.kode_sls || v_rec.kode_sub_sls)
       ) THEN
         -- Insert Kec
         INSERT INTO public.wilayah_kec (kode_kec, nmkec)
         VALUES (
-          substring((v_rec->>'kode_desa') from 1 for 7),
-          upper(COALESCE(v_rec->'raw_data'->>'Nama Kecamatan', '—'))
+          substring(v_rec.kode_desa from 1 for 7),
+          upper(COALESCE(v_rec.raw_data->>'Nama Kecamatan', '—'))
         ) ON CONFLICT (kode_kec) DO NOTHING;
 
         -- Insert Desa
         INSERT INTO public.wilayah_desa (kode_desa, kode_kec, nmdesa)
         VALUES (
-          v_rec->>'kode_desa',
-          substring((v_rec->>'kode_desa') from 1 for 7),
-          upper(COALESCE(v_rec->'raw_data'->>'Nama Desa/Kel', '—'))
+          v_rec.kode_desa,
+          substring(v_rec.kode_desa from 1 for 7),
+          upper(COALESCE(v_rec.raw_data->>'Nama Desa/Kel', '—'))
         ) ON CONFLICT (kode_desa) DO NOTHING;
 
         -- Insert SLS
         INSERT INTO public.wilayah_sls (kode_sls, kode_desa, nmsls)
         VALUES (
-          (v_rec->>'kode_desa' || v_rec->>'kode_sls'),
-          v_rec->>'kode_desa',
-          COALESCE(v_rec->'raw_data'->>'Nama SLS', '—')
+          (v_rec.kode_desa || v_rec.kode_sls),
+          v_rec.kode_desa,
+          COALESCE(v_rec.raw_data->>'Nama SLS', '—')
         ) ON CONFLICT (kode_sls) DO NOTHING;
 
         -- Insert Sub SLS
         INSERT INTO public.wilayah_subsls (kode_sls_gabungan, kode_sls, nmsls, nmsubsls, kdsls, kdsubsls)
         VALUES (
-          (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls'),
-          (v_rec->>'kode_desa' || v_rec->>'kode_sls'),
-          COALESCE(v_rec->'raw_data'->>'Nama SLS', '—'),
-          COALESCE(v_rec->'raw_data'->>'Sub SLS', '—'),
-          v_rec->>'kode_sls',
-          v_rec->>'kode_sub_sls'
+          (v_rec.kode_desa || v_rec.kode_sls || v_rec.kode_sub_sls),
+          (v_rec.kode_desa || v_rec.kode_sls),
+          COALESCE(v_rec.raw_data->>'Nama SLS', '—'),
+          COALESCE(v_rec.raw_data->>'Sub SLS', '—'),
+          v_rec.kode_sls,
+          v_rec.kode_sub_sls
         ) ON CONFLICT (kode_sls_gabungan) DO NOTHING;
       END IF;
 
       -- B. Check if already exists in assignment_anomali
       SELECT id, status INTO v_existing_id, v_existing_status
       FROM public.assignment_anomali
-      WHERE assignment_id = v_rec->>'assignment_id'
+      WHERE assignment_id = v_rec.assignment_id
         AND tipe = p_tipe
-        AND nomor_anomali = (v_rec->>'nomor_anomali')::int;
+        AND nomor_anomali = v_rec.nomor_anomali
+        AND COALESCE(nama_entitas, '') = COALESCE(NULLIF(v_rec.nama_entitas, ''), '');
 
       IF v_existing_id IS NULL THEN
         -- Insert new anomali
         v_inserted_id := gen_random_uuid();
         INSERT INTO public.assignment_anomali (
-          id,
-          assignment_id,
-          tipe,
-          nama_entitas,
-          kode_desa,
-          kode_sls,
-          kode_sub_sls,
-          nomor_anomali,
-          nama_anomali,
-          status,
-          raw_data,
-          first_seen,
-          last_seen,
-          batch_id
+          id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls,
+          nomor_anomali, nama_anomali, status, raw_data, first_seen, last_seen, batch_id
         ) VALUES (
-          v_inserted_id,
-          v_rec->>'assignment_id',
-          p_tipe,
-          NULLIF(v_rec->>'nama_entitas', ''),
-          v_rec->>'kode_desa',
-          v_rec->>'kode_sls',
-          v_rec->>'kode_sub_sls',
-          (v_rec->>'nomor_anomali')::int,
-          v_rec->>'nama_anomali',
-          'belum_ditindaklanjuti',
-          (v_rec->'raw_data'),
-          p_tanggal_data,
-          p_tanggal_data,
-          p_batch_id
+          v_inserted_id, v_rec.assignment_id, p_tipe, NULLIF(v_rec.nama_entitas, ''),
+          v_rec.kode_desa, v_rec.kode_sls, v_rec.kode_sub_sls,
+          v_rec.nomor_anomali, v_rec.nama_anomali, 'belum_ditindaklanjuti',
+          v_rec.raw_data, p_tanggal_data, p_tanggal_data, p_batch_id
         );
 
         -- Add to status history
         INSERT INTO public.status_history (
-          assignment_anomali_id,
-          status_lama,
-          status_baru,
-          diubah_oleh_nama,
-          sumber
+          assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
         ) VALUES (
-          v_inserted_id,
-          null,
-          'belum_ditindaklanjuti',
-          'Sistem (Merge)',
-          'merge_otomatis'
+          v_inserted_id, null, 'belum_ditindaklanjuti', 'Sistem (Merge)', 'merge_otomatis'
         );
 
         v_inserted_count := v_inserted_count + 1;
       ELSE
         -- Update existing anomali
-        IF v_existing_status = 'sudah_diperbaiki' THEN
+        IF v_existing_status IN ('sudah_diperbaiki', 'tidak_terdeteksi_lagi') THEN
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
-            nama_entitas = COALESCE(NULLIF(v_rec->>'nama_entitas', ''), nama_entitas),
+            nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
             status = 'belum_ditindaklanjuti',
             is_ever_reopened = true,
             updated_at = now()
           WHERE id = v_existing_id;
 
-          -- Add status history for reopen
           INSERT INTO public.status_history (
-            assignment_anomali_id,
-            status_lama,
-            status_baru,
-            diubah_oleh_nama,
-            sumber
+            assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
           ) VALUES (
-            v_existing_id,
-            'sudah_diperbaiki',
-            'belum_ditindaklanjuti',
-            'Sistem (Merge)',
-            'merge_otomatis'
+            v_existing_id, v_existing_status, 'belum_ditindaklanjuti', 'Sistem (Merge)', 'merge_otomatis'
           );
 
           v_reopened_count := v_reopened_count + 1;
@@ -731,16 +701,15 @@ BEGIN
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
-            nama_entitas = COALESCE(NULLIF(v_rec->>'nama_entitas', ''), nama_entitas),
+            nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
             updated_at = now()
           WHERE id = v_existing_id;
+
+          v_updated_count := v_updated_count + 1;
         END IF;
-
-        v_updated_count := v_updated_count + 1;
       END IF;
-
     EXCEPTION WHEN OTHERS THEN
-      v_errors := array_append(v_errors, (v_rec->>'assignment_id') || ': ' || SQLERRM);
+      v_errors := array_append(v_errors, v_rec.assignment_id || ': ' || SQLERRM);
     END;
   END LOOP;
 

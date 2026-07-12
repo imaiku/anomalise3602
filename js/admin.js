@@ -28,20 +28,38 @@ let parsedWilayahExcel = null;
 // INIT & NAVIGATION
 // ============================================================
 async function initAdmin() {
-  // Load section based on URL Hash (default to 'upload') immediately to prevent screen flicker
-  const initialSection = window.location.hash.substring(1) || 'upload';
-  showSection(initialSection, false);
-
-  // Listen to browser Back/Forward or manual Hash changes
-  window.addEventListener('hashchange', () => {
-    const currentSection = window.location.hash.substring(1) || 'upload';
-    showSection(currentSection, false);
-  });
-
   const session = await requireAuth(['superadmin', 'admin']);
   if (!session) return;
   adminProfile = session.profile;
   document.getElementById('adminName').textContent = getSessionName(adminProfile);
+
+  // Load section based on URL Hash (default to 'upload' or 'history' depending on role)
+  let initialSection = window.location.hash.substring(1) || 'upload';
+  if (adminProfile.role === 'admin') {
+    const forbidden = ['upload', 'unassigned', 'import-sls', 'import-users'];
+    if (forbidden.includes(initialSection)) {
+      initialSection = 'history';
+    }
+
+    // Hide forbidden navigation items
+    document.getElementById('nav-upload')?.classList.add('hidden');
+    document.getElementById('nav-unassigned')?.classList.add('hidden');
+    document.getElementById('nav-import-sls')?.classList.add('hidden');
+
+    // Hide superadmin-only buttons (Import Wilayah, Tambah Pengguna, Import Massal)
+    document.querySelectorAll('.btn-superadmin-only').forEach(btn => btn.classList.add('hidden'));
+
+    // Hide user actions column header
+    document.querySelectorAll('.col-aksi-user').forEach(el => el.classList.add('hidden'));
+  }
+
+  showSection(initialSection, false);
+
+  // Listen to browser Back/Forward or manual Hash changes
+  window.addEventListener('hashchange', () => {
+    const currentSection = window.location.hash.substring(1) || (adminProfile.role === 'admin' ? 'history' : 'upload');
+    showSection(currentSection, false);
+  });
 
   await loadBatchHistory();
   await loadAnomaliRef();
@@ -51,6 +69,14 @@ async function initAdmin() {
 }
 
 function showSection(sectionId, updateHash = true) {
+  // Prevent admin from visiting forbidden sections
+  if (adminProfile && adminProfile.role === 'admin') {
+    const forbidden = ['upload', 'unassigned', 'import-sls', 'import-users'];
+    if (forbidden.includes(sectionId)) {
+      sectionId = 'history';
+    }
+  }
+
   document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   document.getElementById(`panel-${sectionId}`)?.classList.add('active');
@@ -465,7 +491,7 @@ async function loadUsers() {
   const step = 1000;
   let hasMore = true;
 
-  // Render skeleton table rows with shimmering effect
+  const isAdminRole = adminProfile && adminProfile.role === 'admin';
   document.getElementById('userTableBody').innerHTML = Array(5).fill(0).map(() => `
     <tr>
       <td><div class="skeleton skeleton-text" style="width: 140px;"></div></td>
@@ -475,12 +501,13 @@ async function loadUsers() {
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px; text-align: center; margin: 0 auto;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
+      ${!isAdminRole ? `
       <td>
         <div style="display:flex;gap:0.35rem">
           <div class="skeleton skeleton-text" style="width: 60px; height: 26px; border-radius: var(--radius-md);"></div>
           <div class="skeleton skeleton-text" style="width: 90px; height: 26px; border-radius: var(--radius-md);"></div>
         </div>
-      </td>
+      </td>` : ''}
     </tr>
   `).join('');
 
@@ -670,6 +697,7 @@ function renderUsers() {
     return;
   }
 
+  const isAdminRole = adminProfile && adminProfile.role === 'admin';
   tbody.innerHTML = pageData.map(u => `
     <tr>
       <td><strong>${escHtml(u.nama)}</strong></td>
@@ -679,6 +707,7 @@ function renderUsers() {
       <td><span class="chip">${u.slsCount} SLS</span></td>
       <td style="text-align:center"><strong>${u.anomalyCount || 0}</strong></td>
       <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
+      ${!isAdminRole ? `
       <td style="white-space:nowrap;display:flex;gap:0.35rem">
         <button class="btn btn-secondary btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS" ${u.role === 'pml' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
           <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
@@ -687,7 +716,7 @@ function renderUsers() {
         <button class="btn btn-secondary btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
           ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
         </button>
-      </td>
+      </td>` : ''}
     </tr>`).join('');
 
   renderUserPagination();

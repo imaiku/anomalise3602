@@ -67,10 +67,31 @@ async function renderSheetBody() {
   const nama_kk = rows.find(r => r.tipe === 'keluarga')?.nama_entitas;
   const usahaNames = [...new Set(rows.filter(r => r.tipe === 'usaha').map(r => r.nama_entitas).filter(Boolean))];
 
+  // Fetch regional details from master_wilayah view
+  let alamat = `Kode SLS: ${currentGroup.kode_sls_gabungan}`;
+  try {
+    const { data: wilData } = await db
+      .from('master_wilayah')
+      .select('nmkec, nmdesa, nmsls, nmsubsls')
+      .eq('kode_sls_gabungan', currentGroup.kode_sls_gabungan)
+      .maybeSingle();
+
+    if (wilData) {
+      const slsName = wilData.nmsls || '—';
+      const subName = wilData.nmsubsls || '—';
+      const slsPart = (slsName.trim().toLowerCase() === subName.trim().toLowerCase()) 
+        ? slsName 
+        : `${slsName} (${subName})`;
+      alamat = `Kec. ${wilData.nmkec}, Desa ${wilData.nmdesa}, ${slsPart}`;
+    }
+  } catch (err) {
+    console.error('Error fetching regional details:', err);
+  }
+
   let html = `<div class="card mb-4" style="padding:0.875rem 1rem">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;font-size:0.8125rem">
       <div><span style="color:var(--text-muted)">Kepala Keluarga</span><br><strong>${escHtml(nama_kk || '\u2014')}</strong></div>
-      <div><span style="color:var(--text-muted)">Kode SLS</span><br><strong class="mono">${currentGroup.kode_sls_gabungan}</strong></div>
+      <div style="grid-column:1/-1"><span style="color:var(--text-muted)">Alamat</span><br><strong>${escHtml(alamat)}</strong></div>
       ${usahaNames.length > 0 ? `<div style="grid-column:1/-1"><span style="color:var(--text-muted)">Usaha</span><br><strong>${escHtml(usahaNames.join(', '))}</strong></div>` : ''}
       <div><span style="color:var(--text-muted)">Pertama Terdeteksi</span><br><strong>${formatDate(currentGroup.first_seen)}</strong></div>
       <div><span style="color:var(--text-muted)">Terakhir Terdeteksi</span><br><strong>${formatDate(currentGroup.last_seen)}</strong></div>
@@ -219,7 +240,7 @@ function renderAnomaliItem(row, refMap, historyList) {
         <select class="form-select" style="font-size:0.875rem" onchange="onStatusChange('${row.id}', this.value)" ${!canEdit ? 'disabled' : ''}>${statusOptions}</select>
       </div>
       <div class="form-group">
-        <label class="form-label-sm">Catatan (opsional)</label>
+        <label class="form-label-sm">Catatan <span style="color:var(--error)">* (Wajib diisi jika ada perubahan)</span></label>
         <textarea class="form-textarea" style="font-size:0.8125rem;min-height:60px" onchange="onCatatanChange('${row.id}', this.value)" ${!canEdit ? 'disabled' : ''}>${escHtml(row.catatan || '')}</textarea>
       </div>
     </div>
@@ -263,19 +284,31 @@ async function saveChanges() {
       const { data: cur } = await db.from('assignment_anomali').select('status,catatan').eq('id', rowId).single();
       const upd = { updated_at: now, updated_by_nama: sessionName, updated_by_id: currentProfile.id };
 
-      if (ch.status !== undefined && ch.status !== cur.status) {
-        upd.status = ch.status;
+      const isStatusChanged = ch.status !== undefined && ch.status !== cur.status;
+      const isCatatanChanged = ch.catatan !== undefined && ch.catatan !== cur.catatan;
+
+      if (isStatusChanged || isCatatanChanged) {
+        const noteToSave = ch.catatan !== undefined ? ch.catatan.trim() : (cur.catatan ? cur.catatan.trim() : '');
+        if (!noteToSave) {
+          showToast('Catatan wajib diisi jika Anda melakukan perubahan status atau catatan!', 'warning');
+          saveBtn.disabled = false;
+          saveBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg> Simpan Perubahan';
+          return;
+        }
+
+        if (isStatusChanged) upd.status = ch.status;
+        if (ch.catatan !== undefined) upd.catatan = ch.catatan;
+
         await db.from('status_history').insert({
           assignment_anomali_id: rowId,
           status_lama: cur.status,
-          status_baru: ch.status,
+          status_baru: ch.status !== undefined ? ch.status : cur.status,
           diubah_oleh_nama: sessionName,
           diubah_oleh_id: currentProfile.id,
-          catatan: ch.catatan || null,
+          catatan: noteToSave,
           sumber: 'manual'
         });
       }
-      if (ch.catatan !== undefined) upd.catatan = ch.catatan;
       await db.from('assignment_anomali').update(upd).eq('id', rowId);
     }
 

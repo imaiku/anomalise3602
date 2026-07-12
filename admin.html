@@ -367,7 +367,7 @@
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
           <input type="text" class="filter-select" id="wilayahSearch" placeholder="Cari kecamatan / desa / SLS..." oninput="filterWilayah()" style="max-width:260px">
-          <button class="btn btn-primary btn-sm" onclick="openImportWilayahModal()">
+          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openImportWilayahModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             Import Excel Master Wilayah
           </button>
@@ -411,11 +411,11 @@
         <div class="section-sub">Tambah, nonaktifkan, dan kelola akun PPL/PML beserta SLS yang mereka pegang.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
-          <button class="btn btn-primary btn-sm" onclick="openAddUserModal()">
+          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openAddUserModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
             Tambah Pengguna
           </button>
-          <button class="btn btn-secondary btn-sm" onclick="showSection('import-users')">
+          <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="showSection('import-users')">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             Import Excel Massal
           </button>
@@ -441,7 +441,7 @@
               <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('anomaly_count')" style="cursor:pointer;white-space:nowrap;text-align:center">Jml Anomali <span class="sort-icon" id="sort-anomaly_count" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th class="no-sort">Aksi</th>
+              <th class="no-sort col-aksi-user">Aksi</th>
             </tr></thead>
             <tbody id="userTableBody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>

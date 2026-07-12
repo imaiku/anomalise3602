@@ -442,13 +442,13 @@ function renderTable(pageData) {
       </td>
       <td>
         <div class="assignment-id-cell">${group.assignment_id.slice(0, 8)}...</div>
+        ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
         <a href="${buildFasihLink(group.assignment_id)}" target="_blank" rel="noopener" class="fasih-link" onclick="event.stopPropagation()">
           <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
           Fasih-SM
-        </a>
+        </a>` : ''}
         ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
       </td>
-      <td><span class="sls-code">${group.kode_sls_gabungan || '—'}</span></td>
       <td>${escHtml(combinedName)}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
       <td><div class="anomali-list-str">${buildAnomaliString(group)}</div></td>
@@ -489,10 +489,11 @@ function renderMobileCards(pageData) {
       </div>
       <div class="anomali-list-str" style="margin-bottom:0.75rem">${buildAnomaliString(group)}</div>
       <div class="mobile-card-footer">
+        ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
         <a href="${buildFasihLink(group.assignment_id)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">
           <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
           Fasih-SM
-        </a>
+        </a>` : ''}
         <button class="btn btn-primary btn-sm" onclick="openDetail('${group.assignment_id}')">Aksi</button>
       </div>
     </div>`;
@@ -660,7 +661,7 @@ function updateFilterChips() {
 
 function showTableLoading() {
   const spinner = `<div class="spinner" style="margin:0 auto"></div>`;
-  document.getElementById('tableBody').innerHTML = `<tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)">${spinner}</td></tr>`;
+  document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">${spinner}</td></tr>`;
   document.getElementById('mobileCardList').innerHTML = `<div style="text-align:center;padding:3rem">${spinner}</div>`;
 }
 
