@@ -152,19 +152,12 @@
             <option value="">Semua Nomor</option>
           </select>
         </div>
-        <!-- Kecamatan -->
+        <!-- Pilih Wilayah Button -->
         <div class="filter-group">
-          <label class="filter-label">Kecamatan</label>
-          <select class="filter-select" id="filterKecamatan" onchange="onKecamatanChange()">
-            <option value="">Semua Kecamatan</option>
-          </select>
-        </div>
-        <!-- Desa -->
-        <div class="filter-group">
-          <label class="filter-label">Desa / Kelurahan</label>
-          <select class="filter-select" id="filterDesa" onchange="applyFilters()">
-            <option value="">Semua Desa</option>
-          </select>
+          <label class="filter-label">Filter Wilayah</label>
+          <button class="btn btn-secondary" onclick="openWilayahFilterModal()" style="padding:0.45rem 0.75rem;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-card);color:var(--text);font-weight:500;font-size:0.875rem;cursor:pointer">
+            Pilih Wilayah
+          </button>
         </div>
         <!-- Keterangan -->
         <div class="filter-group">
@@ -175,15 +168,10 @@
             <option value="selesai">Selesai</option>
           </select>
         </div>
-        <!-- Kode SLS -->
-        <div class="filter-group">
-          <label class="filter-label">Kode SLS</label>
-          <input type="text" class="filter-select" id="filterSLS" placeholder="Cari kode SLS..." oninput="applyFiltersDebounced()" style="min-width:140px">
-        </div>
-        <!-- Search -->
-        <div class="filter-group" style="flex:1;min-width:180px">
+        <!-- Search (1 Field for everything) -->
+        <div class="filter-group" style="flex:1;min-width:200px">
           <label class="filter-label">Cari</label>
-          <input type="text" class="filter-select" id="filterSearch" placeholder="Nama KK / Usaha / Assignment ID" oninput="applyFiltersDebounced()" style="width:100%">
+          <input type="text" class="filter-select" id="filterSearch" placeholder="Cari SLS, KK, usaha, atau ID..." oninput="applyFiltersDebounced()" style="width:100%">
         </div>
         <div style="display:flex;gap:0.5rem;align-items:flex-end">
           <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
@@ -200,7 +188,7 @@
     <div class="table-wrapper">
       <div class="table-header">
         <div style="display:flex;align-items:center;gap:0.75rem">
-          <div class="table-title">Daftar Assignment Anomali</div>
+          <div class="table-title">Daftar Anomali</div>
           <div class="table-count" id="tableCount">Memuat...</div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem">
@@ -222,8 +210,7 @@
               </th>
               <th onclick="sortTable('assignment_id')">Assignment ID <span class="sort-icon">↕</span></th>
               <th onclick="sortTable('kode_sls_gabungan')">Kode SLS <span class="sort-icon">↕</span></th>
-              <th onclick="sortTable('nama_kk')">Nama KK <span class="sort-icon">↕</span></th>
-              <th onclick="sortTable('nama_usaha')">Nama Usaha <span class="sort-icon">↕</span></th>
+              <th onclick="sortTable('nama_kk')">Nama KK/Usaha <span class="sort-icon">↕</span></th>
               <th class="no-sort">Jenis Anomali</th>
               <th class="no-sort">Daftar Anomali</th>
               <th class="no-sort">Tindak Lanjut</th>
@@ -231,7 +218,7 @@
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr><td colspan="9" style="text-align:center;padding:3rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+            <tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
           </tbody>
         </table>
       </div>
@@ -350,6 +337,64 @@
           <span id="loginModalBtnText">Masuk &amp; Simpan</span>
           <span id="loginModalSpinner" class="spinner hidden" style="width:14px;height:14px;border-width:2px;border-color:rgba(255,255,255,0.3);border-top-color:#fff"></span>
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Filter Wilayah -->
+  <div class="modal-overlay" id="wilayahFilterModal" onclick="if(event.target===this)closeWilayahFilterModal()">
+    <div class="bottom-sheet" style="max-width:500px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Filter Wilayah</div>
+      </div>
+      <div class="bottom-sheet-body" style="display:flex;flex-direction:column;gap:0.75rem;padding-bottom:1.5rem">
+        <!-- Lvl 1: Provinsi -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Provinsi (Lvl 1)</label>
+          <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+            <option>[36] BANTEN</option>
+          </select>
+        </div>
+        <!-- Lvl 2: Kabupaten -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Kabupaten/Kota (Lvl 2)</label>
+          <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+            <option>[02] LEBAK</option>
+          </select>
+        </div>
+        <!-- Lvl 3: Kecamatan -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Kecamatan (Lvl 3)</label>
+          <select class="filter-select w-full" id="filterKecamatan" onchange="onKecamatanChange()">
+            <option value="">Semua Kecamatan</option>
+          </select>
+        </div>
+        <!-- Lvl 4: Desa -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Desa / Kelurahan (Lvl 4)</label>
+          <select class="filter-select w-full" id="filterDesa" onchange="onDesaChange()">
+            <option value="">Semua Desa</option>
+          </select>
+        </div>
+        <!-- Lvl 5: SLS -->
+        <div class="filter-group w-full">
+          <label class="filter-label">SLS / RT (Lvl 5)</label>
+          <select class="filter-select w-full" id="filterSLS" onchange="onSLSChange()">
+            <option value="">Semua SLS</option>
+          </select>
+        </div>
+        <!-- Lvl 6: Sub-SLS -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Sub-SLS (Lvl 6)</label>
+          <select class="filter-select w-full" id="filterSubSLS">
+            <option value="">Semua Sub-SLS</option>
+          </select>
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeWilayahFilterModal()">Batal</button>
+        <button class="btn btn-primary" onclick="applyWilayahFilter()">Terapkan Filter</button>
       </div>
     </div>
   </div>

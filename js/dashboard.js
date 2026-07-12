@@ -174,10 +174,7 @@ async function loadData() {
     const jenis  = document.getElementById('filterJenis')?.value;
     const nomor  = document.getElementById('filterNomor')?.value;
     const ket    = document.getElementById('filterKeterangan')?.value;
-    const sls    = document.getElementById('filterSLS')?.value.trim();
     const search = document.getElementById('filterSearch')?.value.trim();
-    const kec    = document.getElementById('filterKecamatan')?.value;
-    const des    = document.getElementById('filterDesa')?.value;
 
     // Builder: buat query dengan semua filter kecuali tipe
     const buildQuery = (tipeOverride) => {
@@ -190,10 +187,23 @@ async function loadData() {
       }
       if (ket === 'selesai') q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
       else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
-      if (sls)    q = q.ilike('kode_sls_gabungan', `%${sls}%`);
-      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
-      if (des)    q = q.eq('kode_desa', des);
-      else if (kec) q = q.like('kode_desa', `${kec}%`);
+      
+      // Pencarian gabungan (Search SLS, KK, usaha, atau ID)
+      if (search) {
+        q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,nama_kk.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
+      }
+
+      // Filter Wilayah Berjenjang
+      if (selectedSub) {
+        q = q.eq('kode_sls_gabungan', selectedSub);
+      } else if (selectedSLS) {
+        q = q.like('kode_sls_gabungan', `${selectedSLS}%`);
+      } else if (selectedDes) {
+        q = q.eq('kode_desa', selectedDes);
+      } else if (selectedKec) {
+        q = q.like('kode_desa', `${selectedKec}%`);
+      }
+
       q = q.limit(1000);
       return q;
     };
@@ -345,15 +355,24 @@ function applyFiltersDebounced() {
 }
 
 function resetFilters() {
-  ['filterStatus', 'filterJenis', 'filterNomor', 'filterKeterangan', 'filterSLS', 'filterSearch', 'filterKecamatan', 'filterDesa']
+  ['filterStatus', 'filterJenis', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+
+  selectedKec = '';
+  selectedDes = '';
+  selectedSLS = '';
+  selectedSub = '';
+
   const filterDesa = document.getElementById('filterDesa');
-  if (filterDesa) {
-    filterDesa.innerHTML = '<option value="">Semua Desa</option>';
-  }
+  if (filterDesa) filterDesa.innerHTML = '<option value="">Semua Desa</option>';
+  const filterSLS = document.getElementById('filterSLS');
+  if (filterSLS) filterSLS.innerHTML = '<option value="">Semua SLS</option>';
+  const filterSubSLS = document.getElementById('filterSubSLS');
+  if (filterSubSLS) filterSubSLS.innerHTML = '<option value="">Semua Sub-SLS</option>';
+
   applyFilters();
 }
 
@@ -410,9 +429,12 @@ function renderTable(pageData) {
     const ket        = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
-    const namaUsaha  = group.nama_usaha_list.length > 0
-      ? group.nama_usaha_list.slice(0, 2).join(', ') + (group.nama_usaha_list.length > 2 ? ` +${group.nama_usaha_list.length - 2}` : '')
-      : '—';
+    const nameParts = [];
+    if (group.nama_kk) nameParts.push(group.nama_kk);
+    if (group.nama_usaha_list.length > 0) {
+      nameParts.push(group.nama_usaha_list.slice(0, 2).join(', ') + (group.nama_usaha_list.length > 2 ? ` +${group.nama_usaha_list.length - 2}` : ''));
+    }
+    const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
 
     return `<tr class="${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''}" data-id="${group.assignment_id}">
       <td class="col-checkbox">
@@ -427,8 +449,7 @@ function renderTable(pageData) {
         ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
       </td>
       <td><span class="sls-code">${group.kode_sls_gabungan || '—'}</span></td>
-      <td>${group.nama_kk ? escHtml(group.nama_kk) : '<span style="color:var(--text-subtle)">—</span>'}</td>
-      <td>${group.nama_usaha_list.length > 0 ? escHtml(namaUsaha) : '<span style="color:var(--text-subtle)">—</span>'}</td>
+      <td>${escHtml(combinedName)}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
       <td><div class="anomali-list-str">${buildAnomaliString(group)}</div></td>
       <td>
@@ -525,21 +546,23 @@ function updateTableCount() {
   const start   = (currentPage - 1) * pageSize + 1;
   const end     = Math.min(currentPage * pageSize, filteredData.length);
   const total   = filteredData.length;
-  const all     = allData.length;
   const dbTotal = document.getElementById('statTotal')?.textContent || '0';
+
+  const isTruncated = total >= 1000;
+  const displayTotal = isTruncated ? '1.000+' : total.toLocaleString('id');
 
   // Cek apakah ada filter aktif yang membatasi dataset
   const hasActiveFilters = document.getElementById('filterStatus')?.value ||
                            document.getElementById('filterJenis')?.value ||
                            document.getElementById('filterNomor')?.value ||
                            document.getElementById('filterKeterangan')?.value ||
-                           document.getElementById('filterSLS')?.value.trim() ||
+                           selectedKec || selectedDes || selectedSLS || selectedSub ||
                            document.getElementById('filterSearch')?.value.trim();
 
   let text = total === 0 
     ? 'Tidak ada data' 
-    : `Menampilkan ${start}–${end} dari ${hasActiveFilters ? total.toLocaleString('id') : dbTotal}`;
-  if (hasActiveFilters && total < all) {
+    : `Menampilkan ${start}–${end} dari ${hasActiveFilters ? displayTotal : (isTruncated ? '1.000+' : dbTotal)}`;
+  if (hasActiveFilters && total < allData.length) {
     text += ` (difilter dari ${dbTotal})`;
   }
   document.getElementById('tableCount').textContent = text;
@@ -607,23 +630,23 @@ function updateFilterChips() {
   const jenis  = document.getElementById('filterJenis').value;
   const nomor  = document.getElementById('filterNomor').value;
   const ket    = document.getElementById('filterKeterangan').value;
-  const sls    = document.getElementById('filterSLS').value.trim();
   const search = document.getElementById('filterSearch').value.trim();
-  const kecSelect = document.getElementById('filterKecamatan');
-  const kec    = kecSelect?.value;
-  const kecText = kecSelect?.options[kecSelect.selectedIndex]?.text;
-  const desSelect = document.getElementById('filterDesa');
-  const des    = desSelect?.value;
-  const desText = desSelect?.options[desSelect.selectedIndex]?.text;
+
+  // Helper untuk mengambil label teks yang terpilih
+  const getSelectText = id => {
+    const el = document.getElementById(id);
+    return el?.options[el.selectedIndex]?.text || '';
+  };
 
   const chips = [
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
     jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value  = ''; applyFilters(); } },
     nomor  && { label: `Nomor: ${nomor.split(':')[1]} (${nomor.split(':')[0] === 'keluarga' ? 'KK' : 'Usaha'})`, clear: () => { document.getElementById('filterNomor').value = ''; applyFilters(); } },
-    kec    && { label: `Kec: ${kecText}`,                          clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); } },
-    des    && { label: `Desa: ${desText}`,                         clear: () => { document.getElementById('filterDesa').value = ''; applyFilters(); } },
+    selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
+    (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
+    (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
+    (!selectedDes && selectedKec) && { label: `Kec: ${getSelectText('filterKecamatan')}`, clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); applyWilayahFilter(); } },
     ket    && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
-    sls    && { label: `SLS: ${sls}`,                              clear: () => { document.getElementById('filterSLS').value    = ''; applyFilters(); } },
     search && { label: `Cari: "${search}"`,                        clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
   ].filter(Boolean);
 
@@ -642,12 +665,36 @@ function showTableLoading() {
 }
 
 // ============================================================
-// WILAYAH FILTER LOGIC
+// WILAYAH FILTER LOGIC (6-Level Cascade Popup)
 // ============================================================
+let selectedKec = '';
+let selectedDes = '';
+let selectedSLS = '';
+let selectedSub = '';
+
+function openWilayahFilterModal() {
+  const modal = document.getElementById('wilayahFilterModal');
+  if (modal) modal.classList.add('open');
+}
+
+function closeWilayahFilterModal() {
+  const modal = document.getElementById('wilayahFilterModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function applyWilayahFilter() {
+  selectedKec = document.getElementById('filterKecamatan')?.value || '';
+  selectedDes = document.getElementById('filterDesa')?.value || '';
+  selectedSLS = document.getElementById('filterSLS')?.value || '';
+  selectedSub = document.getElementById('filterSubSLS')?.value || '';
+  
+  closeWilayahFilterModal();
+  applyFilters();
+}
+
 async function loadWilayahOptions() {
   const kecSelect = document.getElementById('filterKecamatan');
-  const desSelect = document.getElementById('filterDesa');
-  if (!kecSelect || !desSelect) return;
+  if (!kecSelect) return;
 
   try {
     const { data, error } = await db
@@ -665,26 +712,29 @@ async function loadWilayahOptions() {
       kecSelect.appendChild(opt);
     });
 
-    desSelect.innerHTML = '<option value="">Semua Desa</option>';
+    document.getElementById('filterDesa').innerHTML = '<option value="">Semua Desa</option>';
+    document.getElementById('filterSLS').innerHTML = '<option value="">Semua SLS</option>';
+    document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
   } catch (err) {
-    console.error('Error loading wilayah options:', err);
+    console.error('Error loading kecamatan:', err);
   }
 }
 
 async function onKecamatanChange() {
-  const kecSelect = document.getElementById('filterKecamatan');
+  const selectedKecVal = document.getElementById('filterKecamatan')?.value;
   const desSelect = document.getElementById('filterDesa');
-  if (!kecSelect || !desSelect) return;
+  if (!desSelect) return;
 
-  const selectedKec = kecSelect.value;
   desSelect.innerHTML = '<option value="">Semua Desa</option>';
+  document.getElementById('filterSLS').innerHTML = '<option value="">Semua SLS</option>';
+  document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
 
-  if (selectedKec) {
+  if (selectedKecVal) {
     try {
       const { data, error } = await db
         .from('wilayah_desa')
         .select('kode_desa, nmdesa')
-        .eq('kode_kec', selectedKec)
+        .eq('kode_kec', selectedKecVal)
         .order('nmdesa');
 
       if (error) throw error;
@@ -699,8 +749,65 @@ async function onKecamatanChange() {
       console.error('Error loading desa:', err);
     }
   }
+}
 
-  applyFilters();
+async function onDesaChange() {
+  const selectedDesVal = document.getElementById('filterDesa')?.value;
+  const slsSelect = document.getElementById('filterSLS');
+  if (!slsSelect) return;
+
+  slsSelect.innerHTML = '<option value="">Semua SLS</option>';
+  document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
+
+  if (selectedDesVal) {
+    try {
+      const { data, error } = await db
+        .from('wilayah_sls')
+        .select('kode_sls, nmsls')
+        .eq('kode_desa', selectedDesVal)
+        .order('nmsls');
+
+      if (error) throw error;
+
+      (data || []).forEach(sls => {
+        const opt = document.createElement('option');
+        opt.value = sls.kode_sls;
+        opt.textContent = sls.nmsls;
+        slsSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Error loading SLS:', err);
+    }
+  }
+}
+
+async function onSLSChange() {
+  const selectedSLSVal = document.getElementById('filterSLS')?.value;
+  const subSelect = document.getElementById('filterSubSLS');
+  if (!subSelect) return;
+
+  subSelect.innerHTML = '<option value="">Semua Sub-SLS</option>';
+
+  if (selectedSLSVal) {
+    try {
+      const { data, error } = await db
+        .from('wilayah_subsls')
+        .select('kode_sls_gabungan, nmsubsls, kdsubsls')
+        .eq('kode_sls', selectedSLSVal)
+        .order('nmsubsls');
+
+      if (error) throw error;
+
+      (data || []).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub.kode_sls_gabungan;
+        opt.textContent = `${sub.nmsubsls} (${sub.kdsubsls})`;
+        subSelect.appendChild(opt);
+      });
+    } catch (err) {
+      console.error('Error loading subsls:', err);
+    }
+  }
 }
 
 // ============================================================

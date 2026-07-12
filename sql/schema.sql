@@ -27,6 +27,27 @@ CREATE TABLE public.user_sls (
   UNIQUE (user_id, kode_sls)
 );
 
+-- Trigger to automatically change previous PPL's assignment on the same SLS to 'historis'
+CREATE OR REPLACE FUNCTION public.trg_user_sls_single_active_ppl()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.status = 'aktif' THEN
+    UPDATE public.user_sls
+       SET status = 'historis',
+           released_at = NOW()
+     WHERE kode_sls = NEW.kode_sls
+       AND user_id != NEW.user_id
+       AND status = 'aktif';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_user_sls_single_active_ppl_trigger
+  BEFORE INSERT OR UPDATE ON public.user_sls
+  FOR EACH ROW
+  EXECUTE FUNCTION public.trg_user_sls_single_active_ppl();
+
 -- 3. PML - PPL RELATIONSHIP
 CREATE TABLE public.pml_ppl (
   pml_id      UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -924,42 +945,50 @@ BEGIN
   -- 1. Insert Kecamatan
   INSERT INTO public.wilayah_kec (kode_kec, nmkec)
   SELECT DISTINCT 
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec'),
-    upper(r->>'nmkec')
-  FROM jsonb_array_elements(p_records) r
+    (kdprov || kdkab || kdkec),
+    upper(nmkec)
+  FROM jsonb_to_recordset(p_records) AS x(
+    kdprov text, kdkab text, kdkec text, nmkec text
+  )
   ON CONFLICT (kode_kec) DO UPDATE 
   SET nmkec = EXCLUDED.nmkec;
   
   -- 2. Insert Desa
   INSERT INTO public.wilayah_desa (kode_desa, kode_kec, nmdesa)
   SELECT DISTINCT 
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa'),
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec'),
-    upper(r->>'nmdesa')
-  FROM jsonb_array_elements(p_records) r
+    (kdprov || kdkab || kdkec || kddesa),
+    (kdprov || kdkab || kdkec),
+    upper(nmdesa)
+  FROM jsonb_to_recordset(p_records) AS x(
+    kdprov text, kdkab text, kdkec text, kddesa text, nmdesa text
+  )
   ON CONFLICT (kode_desa) DO UPDATE 
   SET nmdesa = EXCLUDED.nmdesa;
 
   -- 3. Insert SLS
   INSERT INTO public.wilayah_sls (kode_sls, kode_desa, nmsls)
   SELECT DISTINCT 
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa' || r->>'kdsls'),
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa'),
-    r->>'nmsls'
-  FROM jsonb_array_elements(p_records) r
+    (kdprov || kdkab || kdkec || kddesa || kdsls),
+    (kdprov || kdkab || kdkec || kddesa),
+    nmsls
+  FROM jsonb_to_recordset(p_records) AS x(
+    kdprov text, kdkab text, kdkec text, kddesa text, kdsls text, nmsls text
+  )
   ON CONFLICT (kode_sls) DO UPDATE 
   SET nmsls = EXCLUDED.nmsls;
 
   -- 4. Insert Sub-SLS
   INSERT INTO public.wilayah_subsls (kode_sls_gabungan, kode_sls, nmsls, nmsubsls, kdsls, kdsubsls)
   SELECT DISTINCT 
-    r->>'kode_sls_gabungan',
-    (r->>'kdprov' || r->>'kdkab' || r->>'kdkec' || r->>'kddesa' || r->>'kdsls'),
-    r->>'nmsls',
-    r->>'nmsubsls',
-    r->>'kdsls',
-    r->>'kdsubsls'
-  FROM jsonb_array_elements(p_records) r
+    kode_sls_gabungan,
+    (kdprov || kdkab || kdkec || kddesa || kdsls),
+    nmsls,
+    nmsubsls,
+    kdsls,
+    kdsubsls
+  FROM jsonb_to_recordset(p_records) AS x(
+    kode_sls_gabungan text, kdprov text, kdkab text, kdkec text, kddesa text, kdsls text, nmsls text, nmsubsls text, kdsubsls text
+  )
   ON CONFLICT (kode_sls_gabungan) DO UPDATE 
   SET nmsls = EXCLUDED.nmsls,
       nmsubsls = EXCLUDED.nmsubsls,
@@ -971,4 +1000,3 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.import_master_wilayah_batch(jsonb) TO authenticated;
-
