@@ -191,7 +191,7 @@ async function loadData() {
       
       // Pencarian gabungan (Search SLS, KK, usaha, atau ID)
       if (search) {
-        q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,nama_kk.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
+        q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
       }
 
       // Filter Wilayah Berjenjang
