@@ -153,6 +153,10 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
           Daftar Anomali
         </button>
+        <button class="sidebar-item" onclick="showSection('wilayah-ref')" id="nav-wilayah-ref">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          Master Wilayah
+        </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-section-label">Pengguna</div>
@@ -356,6 +360,49 @@
         </div>
       </div>
 
+      <!-- ============ MASTER WILAYAH ============ -->
+      <div class="section-panel" id="panel-wilayah-ref">
+        <div class="section-title">Master Wilayah</div>
+        <div class="section-sub">Kelola daftar wilayah (Kecamatan, Desa, SLS) untuk filter wilayah di dashboard.</div>
+
+        <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
+          <input type="text" class="filter-select" id="wilayahSearch" placeholder="Cari kecamatan / desa / SLS..." oninput="filterWilayah()" style="max-width:260px">
+          <button class="btn btn-primary btn-sm" onclick="openImportWilayahModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Import Excel Master Wilayah
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <div class="table-title">Daftar Wilayah</div>
+            <div class="table-count" id="wilayahTableCount">Total: 0 wilayah</div>
+          </div>
+          <table class="admin-table">
+            <thead><tr>
+              <th onclick="sortWilayah('nmkec')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sort-icon" id="sort-wil-nmkec" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+              <th onclick="sortWilayah('nmdesa')" style="cursor:pointer;white-space:nowrap">Desa / Kelurahan <span class="sort-icon" id="sort-wil-nmdesa" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortWilayah('kode_sls_gabungan')" style="cursor:pointer;white-space:nowrap">Kode SLS Gabungan <span class="sort-icon" id="sort-wil-kode" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortWilayah('nmsls')" style="cursor:pointer;white-space:nowrap">Nama SLS <span class="sort-icon" id="sort-wil-nmsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+            </tr></thead>
+            <tbody id="wilayahTableBody"><tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+          </table>
+          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="wilayahPageSizeSelect" class="filter-select" onchange="changeWilayahPageSize()" style="width:80px;padding:0.25rem">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="wilayahPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
+        </div>
+      </div>
+
       <!-- ============ KELOLA PENGGUNA ============ -->
       <div class="section-panel" id="panel-users">
         <div class="section-title">Kelola Pengguna</div>
@@ -390,10 +437,11 @@
               <th onclick="sortUsers('role')" style="cursor:pointer;white-space:nowrap">Role <span class="sort-icon" id="sort-role" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('email')" style="cursor:pointer;white-space:nowrap">Email <span class="sort-icon" id="sort-email" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('anomaly_count')" style="cursor:pointer;white-space:nowrap;text-align:center">Jml Anomali <span class="sort-icon" id="sort-anomaly_count" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th class="no-sort">Aksi</th>
             </tr></thead>
-            <tbody id="userTableBody"><tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <tbody id="userTableBody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>
           <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
@@ -669,6 +717,35 @@
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeOverwriteModal()">Batal</button>
         <button class="btn btn-primary" onclick="proceedWithUserImport(true)">Ya, Timpa & Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import Wilayah Modal -->
+  <div class="modal-overlay" id="importWilayahModal" onclick="if(event.target===this)closeImportWilayahModal()">
+    <div class="bottom-sheet" style="max-width:550px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Import Master Wilayah</div>
+      </div>
+      <div class="bottom-sheet-body">
+        <div class="upload-card">
+          <div class="upload-card-sub" style="margin-bottom:0.75rem">Upload file Excel master wilayah yang berisi kode dan nama wilayah.</div>
+          <div class="upload-zone" id="zoneWilayah" onclick="document.getElementById('fileWilayah').click()"
+               ondragover="handleDragOver(event,'zoneWilayah')" ondragleave="handleDragLeave('zoneWilayah')" ondrop="handleWilayahDrop(event)">
+            <input type="file" id="fileWilayah" accept=".xlsx,.xls" onchange="handleWilayahFileSelect(event)">
+            <div class="upload-zone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+            </div>
+            <div class="upload-zone-title" id="wilayahImportLabel">Pilih atau seret file di sini</div>
+            <div class="upload-zone-sub">Format header: kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls, nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls</div>
+          </div>
+          <div id="wilayahValidation" class="mt-2"></div>
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeImportWilayahModal()">Batal</button>
+        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master Wilayah</button>
       </div>
     </div>
   </div>

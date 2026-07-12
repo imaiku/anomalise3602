@@ -15,6 +15,15 @@ let userSortField   = 'nama';
 let userSortDir     = 'asc';
 let editingRefId = null;
 
+// Wilayah state variables
+let allWilayah = [];
+let filteredWilayah = [];
+let currentWilayahPage = 1;
+let wilayahPageSize = 25;
+let wilayahSortField = 'nmkec';
+let wilayahSortDir = 'asc';
+let parsedWilayahExcel = null;
+
 // ============================================================
 // INIT & NAVIGATION
 // ============================================================
@@ -38,6 +47,7 @@ async function initAdmin() {
   await loadAnomaliRef();
   await loadUsers();
   await loadUnassigned();
+  await loadWilayah();
 }
 
 function showSection(sectionId, updateHash = true) {
@@ -463,6 +473,7 @@ async function loadUsers() {
       <td><div class="skeleton skeleton-text" style="width: 50px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 160px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 60px; text-align: center; margin: 0 auto;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
       <td>
         <div style="display:flex;gap:0.35rem">
@@ -541,22 +552,43 @@ async function loadUsers() {
     pmlPplsMap[r.pml_id].add(r.ppl_id);
   });
 
+  // Fetch anomaly counts by SLS from database
+  const { data: anomalyCounts, error: acError } = await db.rpc('get_anomaly_counts_by_sls');
+  if (acError) console.error('Error fetching anomaly counts:', acError);
+
+  const anomalyMap = {}; // kode_sls_gabungan -> { keluarga: number, usaha: number }
+  (anomalyCounts || []).forEach(item => {
+    const code = item.kode_sls_gabungan;
+    if (!anomalyMap[code]) anomalyMap[code] = { keluarga: 0, usaha: 0 };
+    if (item.tipe === 'keluarga') anomalyMap[code].keluarga += parseInt(item.total_anomali);
+    else if (item.tipe === 'usaha') anomalyMap[code].usaha += parseInt(item.total_anomali);
+  });
+
   all.forEach(u => {
     if (u.role === 'ppl') {
       u.slsCount = pplSlsMap[u.id]?.size || 0;
+      let count = 0;
+      pplSlsMap[u.id]?.forEach(code => {
+        count += anomalyMap[code]?.keluarga || 0;
+      });
+      u.anomalyCount = count;
     } else if (u.role === 'pml') {
       const supervised = pmlPplsMap[u.id];
+      const uniqueSls = new Set();
       if (supervised) {
-        const uniqueSls = new Set();
         supervised.forEach(pplId => {
           pplSlsMap[pplId]?.forEach(s => uniqueSls.add(s));
         });
-        u.slsCount = uniqueSls.size;
-      } else {
-        u.slsCount = 0;
       }
+      u.slsCount = uniqueSls.size;
+      let count = 0;
+      uniqueSls.forEach(code => {
+        count += anomalyMap[code]?.usaha || 0;
+      });
+      u.anomalyCount = count;
     } else {
       u.slsCount = 0;
+      u.anomalyCount = 0;
     }
   });
 
@@ -593,13 +625,14 @@ function sortUsersData() {
   filteredUsers.sort((a, b) => {
     let va, vb;
     switch (userSortField) {
-      case 'nama':      va = a.nama.toLowerCase(); vb = b.nama.toLowerCase(); break;
-      case 'sobatid':   va = a.sobatid || '';      vb = b.sobatid || ''; break;
-      case 'role':      va = a.role;               vb = b.role; break;
-      case 'email':     va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
-      case 'sls':       va = a.slsCount;           vb = b.slsCount; break;
-      case 'is_active': va = a.is_active ? 1 : 0;  vb = b.is_active ? 1 : 0; break;
-      default:          va = a.nama.toLowerCase(); vb = b.nama.toLowerCase();
+      case 'nama':          va = a.nama.toLowerCase(); vb = b.nama.toLowerCase(); break;
+      case 'sobatid':       va = a.sobatid || '';      vb = b.sobatid || ''; break;
+      case 'role':          va = a.role;               vb = b.role; break;
+      case 'email':         va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
+      case 'sls':           va = a.slsCount;           vb = b.slsCount; break;
+      case 'anomaly_count': va = a.anomalyCount || 0;  vb = b.anomalyCount || 0; break;
+      case 'is_active':     va = a.is_active ? 1 : 0;  vb = b.is_active ? 1 : 0; break;
+      default:              va = a.nama.toLowerCase(); vb = b.nama.toLowerCase();
     }
     if (va < vb) return userSortDir === 'asc' ? -1 : 1;
     if (va > vb) return userSortDir === 'asc' ? 1 : -1;
@@ -622,7 +655,7 @@ function renderUsers() {
 
   const tbody = document.getElementById('userTableBody');
   if (pageData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
     const pag = document.getElementById('userPagination');
     if (pag) pag.innerHTML = '';
     return;
@@ -635,6 +668,7 @@ function renderUsers() {
       <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
       <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
       <td><span class="chip">${u.slsCount} SLS</span></td>
+      <td style="text-align:center"><strong>${u.anomalyCount || 0}</strong></td>
       <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
       <td style="white-space:nowrap;display:flex;gap:0.35rem">
         <button class="btn btn-secondary btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS" ${u.role === 'pml' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
@@ -846,6 +880,280 @@ async function assignSLStoPPL(kodeSLS) {
 
   showToast(`SLS ${kodeSLS} berhasil di-assign ke ${ppls[idx].nama}`, 'success');
   await loadUnassigned();
+}
+
+// ============================================================
+// MASTER WILAYAH
+// ============================================================
+async function loadWilayah() {
+  const tbody = document.getElementById('wilayahTableBody');
+  if (!tbody) return;
+  
+  tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
+
+  let all = [];
+  let from = 0;
+  const step = 1000;
+  let hasMore = true;
+
+  while (hasMore) {
+    const { data, error } = await db
+      .from('master_wilayah')
+      .select('kode_sls_gabungan, nmkec, nmdesa, nmsls')
+      .order('nmkec').order('nmdesa')
+      .range(from, from + step - 1);
+
+    if (error) { console.error('Error loading wilayah:', error); break; }
+    if (!data || data.length === 0) {
+      hasMore = false;
+    } else {
+      all = all.concat(data);
+      if (data.length < step) hasMore = false;
+      else from += step;
+    }
+  }
+
+  allWilayah = all;
+  filterWilayah();
+}
+
+function filterWilayah() {
+  const search = document.getElementById('wilayahSearch').value.toLowerCase();
+  filteredWilayah = allWilayah.filter(w =>
+    !search ||
+    w.nmkec.toLowerCase().includes(search) ||
+    w.nmdesa.toLowerCase().includes(search) ||
+    w.kode_sls_gabungan.includes(search) ||
+    (w.nmsls || '').toLowerCase().includes(search)
+  );
+  sortWilayahData();
+  currentWilayahPage = 1;
+  renderWilayah();
+}
+
+function sortWilayah(field) {
+  wilayahSortDir = wilayahSortField === field ? (wilayahSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+  wilayahSortField = field;
+
+  document.querySelectorAll('th span[id^="sort-wil-"]').forEach(span => span.textContent = '⇅');
+  const activeIcon = document.getElementById(`sort-wil-${field === 'kode_sls_gabungan' ? 'kode' : field}`);
+  if (activeIcon) activeIcon.textContent = wilayahSortDir === 'asc' ? '▲' : '▼';
+
+  sortWilayahData();
+  currentWilayahPage = 1;
+  renderWilayah();
+}
+
+function sortWilayahData() {
+  filteredWilayah.sort((a, b) => {
+    let va = a[wilayahSortField] || '';
+    let vb = b[wilayahSortField] || '';
+    va = typeof va === 'string' ? va.toLowerCase() : va;
+    vb = typeof vb === 'string' ? vb.toLowerCase() : vb;
+
+    if (va < vb) return wilayahSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return wilayahSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+function renderWilayah() {
+  const total = filteredWilayah.length;
+  let pageData = filteredWilayah;
+
+  if (wilayahPageSize !== 'all') {
+    const start = (currentWilayahPage - 1) * parseInt(wilayahPageSize);
+    pageData = filteredWilayah.slice(start, start + parseInt(wilayahPageSize));
+  }
+
+  document.getElementById('wilayahTableCount').textContent = `Total: ${filteredWilayah.length} wilayah | Menampilkan ${pageData.length} data`;
+
+  const tbody = document.getElementById('wilayahTableBody');
+  if (pageData.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state"><div class="empty-state-title">Tidak ada wilayah ditemukan</div></div></td></tr>`;
+    const pag = document.getElementById('wilayahPagination');
+    if (pag) pag.innerHTML = '';
+    return;
+  }
+
+  tbody.innerHTML = pageData.map(w => `
+    <tr>
+      <td><strong>${escHtml(w.nmkec)}</strong></td>
+      <td>${escHtml(w.nmdesa)}</td>
+      <td class="mono">${escHtml(w.kode_sls_gabungan)}</td>
+      <td style="color:var(--text-muted)">${escHtml(w.nmsls || '—')}</td>
+    </tr>`).join('');
+
+  renderWilayahPagination();
+}
+
+function changeWilayahPageSize() {
+  wilayahPageSize = document.getElementById('wilayahPageSizeSelect').value;
+  currentWilayahPage = 1;
+  renderWilayah();
+}
+
+function goWilayahPage(page) {
+  currentWilayahPage = page;
+  renderWilayah();
+}
+
+function renderWilayahPagination() {
+  const pag = document.getElementById('wilayahPagination');
+  if (!pag) return;
+  if (wilayahPageSize === 'all') { pag.innerHTML = ''; return; }
+
+  const totalPages = Math.ceil(filteredWilayah.length / parseInt(wilayahPageSize));
+  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" onclick="goWilayahPage(${currentWilayahPage - 1})" ${currentWilayahPage === 1 ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>`;
+
+  const delta = 3;
+  const range = [];
+  for (let i = Math.max(1, currentWilayahPage - delta); i <= Math.min(totalPages, currentWilayahPage + delta); i++) {
+    range.push(i);
+  }
+
+  if (range[0] > 1) {
+    html += `<button class="page-btn" onclick="goWilayahPage(1)">1</button>`;
+    if (range[0] > 2) html += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+  }
+
+  range.forEach(i => {
+    html += `<button class="page-btn ${i === currentWilayahPage ? 'active' : ''}" onclick="goWilayahPage(${i})">${i}</button>`;
+  });
+
+  if (range[range.length - 1] < totalPages) {
+    if (range[range.length - 1] < totalPages - 1) html += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    html += `<button class="page-btn" onclick="goWilayahPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  html += `<button class="page-btn" onclick="goWilayahPage(${currentWilayahPage + 1})" ${currentWilayahPage === totalPages ? 'disabled' : ''}>
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </button>`;
+
+  pag.innerHTML = html;
+}
+
+function openImportWilayahModal() {
+  document.getElementById('importWilayahModal').classList.add('active');
+  document.getElementById('fileWilayah').value = '';
+  document.getElementById('wilayahImportLabel').textContent = 'Pilih atau seret file di sini';
+  document.getElementById('wilayahValidation').innerHTML = '';
+  document.getElementById('uploadWilayahBtn').disabled = true;
+  parsedWilayahExcel = null;
+}
+
+function closeImportWilayahModal() {
+  document.getElementById('importWilayahModal').classList.remove('active');
+}
+
+function handleWilayahDrop(e) {
+  e.preventDefault();
+  document.getElementById('zoneWilayah')?.classList.remove('drag-over');
+  const file = e.dataTransfer?.files[0];
+  if (file) processWilayahFile(file);
+}
+
+function handleWilayahFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processWilayahFile(file);
+}
+
+async function processWilayahFile(file) {
+  document.getElementById('wilayahImportLabel').textContent = file.name;
+  const validation = document.getElementById('wilayahValidation');
+  validation.innerHTML = '<div class="chip">Memvalidasi...</div>';
+
+  try {
+    const rows = await parseExcelFile(file);
+    if (!rows || rows.length < 2) {
+      validation.innerHTML = '<div class="alert alert-error" style="padding:0.5rem;font-size:0.8rem">File tidak memiliki cukup baris</div>';
+      return;
+    }
+
+    const headers = rows[0].map(h => (h || '').toString().toLowerCase().trim());
+    const required = ['kdprov', 'kdkab', 'kdkec', 'kddesa', 'kdsls', 'kdsubsls', 'nmkec', 'nmdesa'];
+    const missing = required.filter(h => !headers.includes(h));
+
+    if (missing.length > 0) {
+      validation.innerHTML = `<div class="alert alert-error" style="padding:0.5rem;font-size:0.8rem">Header kolom tidak lengkap. Kurang: ${missing.join(', ')}</div>`;
+      return;
+    }
+
+    const headerIndices = {};
+    headers.forEach((h, i) => headerIndices[h] = i);
+
+    const records = [];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (!row || row.length === 0 || row[0] === null) continue;
+
+      const getValue = (field) => {
+        const idx = headerIndices[field];
+        const val = row[idx];
+        return val !== undefined && val !== null ? val.toString().trim() : '';
+      };
+
+      const kdprov = getValue('kdprov').padStart(2, '0');
+      const kdkab = getValue('kdkab').padStart(2, '0');
+      const kdkec = getValue('kdkec').padStart(3, '0');
+      const kddesa = getValue('kddesa').padStart(3, '0');
+      const kdsls = getValue('kdsls').padStart(4, '0');
+      const kdsubsls = getValue('kdsubsls').padStart(2, '0');
+
+      const nmkec = getValue('nmkec').toUpperCase();
+      const nmdesa = getValue('nmdesa').toUpperCase();
+
+      const nmprov = getValue('nmprov') || 'BANTEN';
+      const nmkab = getValue('nmkab') || 'LEBAK';
+      const nmsls = getValue('nmsls') || `RT ${kdsls.slice(2)} RW ${kdsls.slice(0, 2)}`;
+      const nmsubsls = getValue('nmsubsls') || nmsls;
+
+      const kode_sls_gabungan = kdprov + kdkab + kdkec + kddesa + kdsls + kdsubsls;
+
+      records.push({
+        kode_sls_gabungan,
+        kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls,
+        nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls
+      });
+    }
+
+    parsedWilayahExcel = records;
+    validation.innerHTML = `<div class="alert alert-success" style="padding:0.5rem;font-size:0.8rem;margin-bottom:0">Valid! Terdeteksi ${records.length} baris wilayah siap diimpor.</div>`;
+    document.getElementById('uploadWilayahBtn').disabled = false;
+  } catch (err) {
+    console.error(err);
+    validation.innerHTML = `<div class="alert alert-error" style="padding:0.5rem;font-size:0.8rem">Gagal membaca/memproses file: ${err.message}</div>`;
+  }
+}
+
+async function uploadMasterWilayah() {
+  if (!parsedWilayahExcel || parsedWilayahExcel.length === 0) return;
+
+  const btn = document.getElementById('uploadWilayahBtn');
+  btn.disabled = true;
+  btn.textContent = 'Mengupload...';
+
+  try {
+    const chunkSize = 500;
+    for (let i = 0; i < parsedWilayahExcel.length; i += chunkSize) {
+      const chunk = parsedWilayahExcel.slice(i, i + chunkSize);
+      const { error } = await db.from('master_wilayah').upsert(chunk, { onConflict: 'kode_sls_gabungan' });
+      if (error) throw error;
+    }
+
+    showToast('Master Wilayah berhasil diupload!', 'success');
+    closeImportWilayahModal();
+    await loadWilayah();
+  } catch (err) {
+    console.error(err);
+    showToast('Gagal upload Master Wilayah: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Upload Master Wilayah';
+  }
 }
 
 // ============================================================

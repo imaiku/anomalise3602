@@ -47,6 +47,25 @@ CREATE TABLE public.anomali_ref (
   UNIQUE (nomor, tipe)
 );
 
+-- 4.b. MASTER WILAYAH (AUTO-POPULATED OR IMPORTED FROM EXCEL)
+CREATE TABLE public.master_wilayah (
+  kode_sls_gabungan VARCHAR(16) PRIMARY KEY,
+  kdprov            VARCHAR(2) NOT NULL,
+  kdkab             VARCHAR(2) NOT NULL,
+  kdkec             VARCHAR(3) NOT NULL,
+  kddesa            VARCHAR(3) NOT NULL,
+  kdsls             VARCHAR(4) NOT NULL,
+  kdsubsls          VARCHAR(2) NOT NULL,
+  nmprov            VARCHAR(100),
+  nmkab             VARCHAR(100),
+  nmkec             VARCHAR(100) NOT NULL,
+  nmdesa            VARCHAR(100) NOT NULL,
+  nmsls             VARCHAR(255),
+  nmsubsls          VARCHAR(255),
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 5. UPLOAD BATCHES
 CREATE TABLE public.upload_batches (
   id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -133,12 +152,27 @@ ALTER TABLE public.anomali_ref        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.upload_batches     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assignment_anomali ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_history     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.master_wilayah     ENABLE ROW LEVEL SECURITY;
 
--- Helper function: get current user role
+-- Helper function: get current user role (Safe from RLS recursive calls)
 CREATE OR REPLACE FUNCTION public.get_my_role()
-RETURNS VARCHAR AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid();
-$$ LANGUAGE SQL SECURITY DEFINER STABLE;
+RETURNS VARCHAR
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_role varchar;
+BEGIN
+  -- Ambil langsung dari profiles. Karena SECURITY DEFINER, query ini berjalan sebagai postgres/owner
+  -- dan secara otomatis mem-bypass RLS profiles, sehingga TIDAK AKAN PERNAH LOOP.
+  SELECT role INTO v_role 
+  FROM public.profiles 
+  WHERE id = auth.uid();
+
+  RETURN coalesce(v_role, 'guest');
+END;
+$$;
 
 -- Helper function: get current user's SLS list
 CREATE OR REPLACE FUNCTION public.get_my_sls()
@@ -210,6 +244,9 @@ CREATE POLICY "aa_delete_admin" ON public.assignment_anomali FOR DELETE TO authe
 -- STATUS_HISTORY: all can read, insert on update
 CREATE POLICY "history_select" ON public.status_history FOR SELECT USING (true);
 CREATE POLICY "history_insert" ON public.status_history FOR INSERT TO authenticated WITH CHECK (true);
+
+-- MASTER_WILAYAH: public read access
+CREATE POLICY "wilayah_select" ON public.master_wilayah FOR SELECT USING (true);
 
 -- ============================================================
 -- TRIGGER: auto-update updated_at
@@ -508,6 +545,34 @@ BEGIN
         VALUES ((v_rec->>'nomor_anomali')::int, p_tipe, v_rec->>'nama_anomali', null, now(), now());
       END IF;
 
+      -- A.b. Auto-register SLS to Kecamatan/Desa mapping in public.master_wilayah
+      IF NOT EXISTS (
+        SELECT 1 FROM public.master_wilayah
+        WHERE kode_sls_gabungan = (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls')
+      ) THEN
+        INSERT INTO public.master_wilayah (
+          kode_sls_gabungan,
+          kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls,
+          nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls
+        )
+        VALUES (
+          (v_rec->>'kode_desa' || v_rec->>'kode_sls' || v_rec->>'kode_sub_sls'),
+          COALESCE(v_rec->'raw_data'->>'Kode Prov', SUBSTRING(v_rec->>'kode_desa' FROM 1 FOR 2)),
+          COALESCE(v_rec->'raw_data'->>'Kode Kab/Kota', SUBSTRING(v_rec->>'kode_desa' FROM 3 FOR 2)),
+          COALESCE(v_rec->'raw_data'->>'Kode Kec', SUBSTRING(v_rec->>'kode_desa' FROM 5 FOR 3)),
+          COALESCE(v_rec->'raw_data'->>'Kode Desa', SUBSTRING(v_rec->>'kode_desa' FROM 8 FOR 3)),
+          v_rec->>'kode_sls',
+          v_rec->>'kode_sub_sls',
+          COALESCE(v_rec->'raw_data'->>'Nama Provinsi', 'BANTEN'),
+          COALESCE(v_rec->'raw_data'->>'Nama Kab/Kota', 'LEBAK'),
+          COALESCE(v_rec->'raw_data'->>'Nama Kecamatan', '—'),
+          COALESCE(v_rec->'raw_data'->>'Nama Desa/Kel', '—'),
+          COALESCE(v_rec->'raw_data'->>'Nama SLS', '—'),
+          COALESCE(v_rec->'raw_data'->>'Sub SLS', '—')
+        )
+        ON CONFLICT (kode_sls_gabungan) DO NOTHING;
+      END IF;
+
       -- B. Check if already exists in assignment_anomali
       SELECT id, status INTO v_existing_id, v_existing_status
       FROM public.assignment_anomali
@@ -688,7 +753,7 @@ RETURNS jsonb
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
-AS $func$
+AS $$
 DECLARE
   v_total          int := 0;
   v_selesai        int := 0;
@@ -772,4 +837,20 @@ $$;
 
 -- Berikan akses execute ke semua role
 GRANT EXECUTE ON FUNCTION public.get_dashboard_stats(uuid, text) TO anon, authenticated;
+
+-- ============================================================
+-- HELPER FUNCTION: GET ANOMALY COUNTS BY SLS
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_anomaly_counts_by_sls()
+RETURNS TABLE(kode_sls_gabungan varchar, tipe varchar, total_anomali bigint)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT kode_sls_gabungan, tipe, count(*)::bigint
+  FROM public.assignment_anomali
+  GROUP BY kode_sls_gabungan, tipe;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_anomaly_counts_by_sls() TO anon, authenticated;
 
