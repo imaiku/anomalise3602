@@ -854,14 +854,7 @@ BEGIN
   INTO v_anomali_total, v_anomali_done, v_anomali_todo
   FROM public.assignment_anomali
   WHERE
-    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
-    AND (
-      CASE
-        WHEN p_role = 'ppl' THEN tipe = 'keluarga'
-        WHEN p_role = 'pml' THEN tipe = 'usaha'
-        ELSE true
-      END
-    );
+    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes));
 
   -- 2. Hitung berdasarkan assignment_id
   WITH group_status AS (
@@ -871,13 +864,6 @@ BEGIN
     FROM public.assignment_anomali
     WHERE
       (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
-      AND (
-        CASE
-          WHEN p_role = 'ppl' THEN tipe = 'keluarga'
-          WHEN p_role = 'pml' THEN tipe = 'usaha'
-          ELSE true
-        END
-      )
     GROUP BY assignment_id
   )
   SELECT

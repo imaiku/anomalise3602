@@ -247,11 +247,9 @@ async function loadData() {
         ...(resUsaha.data || []).filter(r => bothIds.has(r.assignment_id))
       ];
     } else {
-      // Tipe tunggal atau semua tipe (admin)
+      // Tipe tunggal atau semua tipe
       let tipeFilter = null;
-      if (currentProfile?.role === 'ppl')      tipeFilter = 'keluarga';
-      else if (currentProfile?.role === 'pml') tipeFilter = 'usaha';
-      else if (jenis && jenis !== 'keduanya')   tipeFilter = jenis;
+      if (jenis && jenis !== 'keduanya')   tipeFilter = jenis;
 
       let q = buildQuery(tipeFilter);
       q = await applyRoleFilter(q, tipeFilter);
