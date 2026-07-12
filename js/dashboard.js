@@ -49,8 +49,20 @@ async function initDashboard() {
     adminNavBtn?.classList.add('hidden');
   }
 
-  // Run stats + dropdown options in parallel with the main table data
-  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
+  // 1. Muat data utama & statistik terlebih dahulu secara paralel (aman dari crash silang)
+  try {
+    await Promise.all([
+      loadStats().catch(e => console.error('Error loading stats:', e)),
+      loadAnomalinomorOptions().catch(e => console.error('Error loading anomaly numbers:', e)),
+      loadData().catch(e => console.error('Error loading table data:', e))
+    ]);
+  } catch (e) {
+    console.error('Core dashboard load failed:', e);
+  }
+
+  // 2. Jalankan widget pendukung di background secara aman tanpa menghalangi data utama
+  loadWilayahOptions().catch(e => console.error('Error loading wilayah options:', e));
+  loadKecamatanProgress().catch(e => console.error('Error loading kecamatan progress:', e));
 }
 
 // ============================================================
