@@ -234,11 +234,54 @@ function handleOverlayClick(e) { if (e.target === document.getElementById('detai
 // ============================================================
 // INLINE LOGIN MODAL CONTROLLER
 // ============================================================
+function detectModalLoginType(value) {
+  const hint     = document.getElementById('modalLoginTypeHint');
+  const dot      = document.getElementById('modalLoginTypeDot');
+  const typeText = document.getElementById('modalLoginTypeText');
+  const passLbl  = document.getElementById('modalLoginPassLabel');
+  const isPPL    = /^\d+$/.test(value.trim()) && value.trim().length > 0;
+  if (hint) {
+    hint.style.borderColor  = isPPL ? 'var(--primary)' : 'var(--border)';
+    hint.style.color        = isPPL ? 'var(--text)' : 'var(--text-muted)';
+  }
+  if (dot)  dot.style.background = isPPL ? 'var(--primary)' : 'var(--border-strong)';
+  if (typeText) {
+    typeText.textContent = isPPL
+      ? 'Terdeteksi sebagai PPL/PML — gunakan NIK sebagai password'
+      : value.trim().length > 0
+        ? 'Terdeteksi sebagai Admin — gunakan password Anda'
+        : 'Masukkan Sobat ID atau email';
+  }
+  if (passLbl) passLbl.textContent = isPPL ? 'NIK (Password)' : 'Password';
+}
+
+function toggleModalPassword() {
+  const input  = document.getElementById('loginPassword');
+  const eyeO   = document.getElementById('modalEyeOpen');
+  const eyeC   = document.getElementById('modalEyeClosed');
+  if (!input) return;
+  if (input.type === 'password') {
+    input.type = 'text';
+    eyeO?.classList.add('hidden');
+    eyeC?.classList.remove('hidden');
+  } else {
+    input.type = 'password';
+    eyeO?.classList.remove('hidden');
+    eyeC?.classList.add('hidden');
+  }
+}
+
 function openLoginModal() {
   const errDiv = document.getElementById('loginModalError');
   if (errDiv) errDiv.classList.add('hidden');
-  document.getElementById('loginEmail').value = '';
-  document.getElementById('loginPassword').value = '';
+  const emailEl = document.getElementById('loginEmail');
+  const passEl  = document.getElementById('loginPassword');
+  if (emailEl) { emailEl.value = ''; }
+  if (passEl)  { passEl.value = ''; passEl.type = 'password'; }
+  // Reset type hint
+  detectModalLoginType('');
+  document.getElementById('modalEyeOpen')?.classList.remove('hidden');
+  document.getElementById('modalEyeClosed')?.classList.add('hidden');
   document.getElementById('loginModal').classList.add('open');
 }
 
@@ -257,17 +300,21 @@ async function handleModalLoginSubmit() {
   const emailInput = document.getElementById('loginEmail').value.trim();
   const password   = document.getElementById('loginPassword').value;
   const errDiv     = document.getElementById('loginModalError');
+  const errText    = document.getElementById('loginModalErrorText');
   const btn        = document.getElementById('loginModalSubmitBtn');
+  const btnText    = document.getElementById('loginModalBtnText');
+  const spinner    = document.getElementById('loginModalSpinner');
 
   if (!emailInput || !password) {
-    errDiv.textContent = 'Email/Sobat ID dan password wajib diisi';
-    errDiv.classList.remove('hidden');
+    if (errText) errText.textContent = 'Sobat ID/email dan password wajib diisi';
+    errDiv?.classList.remove('hidden');
     return;
   }
 
   btn.disabled = true;
-  btn.textContent = 'Memverifikasi...';
-  errDiv.classList.add('hidden');
+  if (btnText) btnText.textContent = 'Memverifikasi...';
+  spinner?.classList.remove('hidden');
+  errDiv?.classList.add('hidden');
 
   try {
     let email = emailInput;
@@ -276,7 +323,12 @@ async function handleModalLoginSubmit() {
     }
 
     const { data: authData, error: authErr } = await db.auth.signInWithPassword({ email, password });
-    if (authErr) throw authErr;
+    if (authErr) {
+      const msg = authErr.message.includes('Invalid login')
+        ? 'Sobat ID / password salah. Periksa kembali.'
+        : authErr.message;
+      throw new Error(msg);
+    }
 
     const { data: profile, error: profErr } = await db
       .from('profiles')
@@ -284,7 +336,8 @@ async function handleModalLoginSubmit() {
       .eq('id', authData.user.id)
       .single();
 
-    if (profErr) throw profErr;
+    if (profErr || !profile) throw new Error('Akun tidak ditemukan. Hubungi administrator.');
+    if (!profile.is_active)  throw new Error('Akun Anda telah dinonaktifkan.');
 
     currentProfile = profile;
 
@@ -321,12 +374,14 @@ async function handleModalLoginSubmit() {
       afterLoginCallback = null;
       await cb();
     }
-  } catch (e) {
-    console.error('Modal login failed:', e);
-    errDiv.textContent = 'Login gagal: ' + (e.message || 'Periksa email & password Anda');
-    errDiv.classList.remove('hidden');
+  } catch (err) {
+    const errText = document.getElementById('loginModalErrorText');
+    if (errText) errText.textContent = err.message;
+    else errDiv.textContent = err.message;
+    errDiv?.classList.remove('hidden');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Masuk & Simpan';
+    if (btnText) btnText.textContent = 'Masuk & Simpan';
+    spinner?.classList.add('hidden');
   }
 }

@@ -685,36 +685,41 @@ CREATE OR REPLACE FUNCTION public.get_dashboard_stats(
   p_role text
 )
 RETURNS jsonb
+LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
-  v_total int := 0;
-  v_selesai int := 0;
-  v_belum int := 0;
+  v_total    int := 0;
+  v_selesai  int := 0;
+  v_belum    int := 0;
   v_progress int := 0;
   v_sls_codes text[] := '{}';
 BEGIN
-  -- Get SLS codes if PPL or PML
+  -- Ambil kode SLS berdasarkan role
   IF p_role = 'ppl' THEN
-    SELECT COALESCE(array_agg(kode_sls), '{}') INTO v_sls_codes FROM public.user_sls WHERE user_id = p_user_id AND status = 'aktif';
+    SELECT COALESCE(array_agg(kode_sls), '{}')
+      INTO v_sls_codes
+      FROM public.user_sls
+     WHERE user_id = p_user_id AND status = 'aktif';
   ELSIF p_role = 'pml' THEN
-    SELECT COALESCE(array_agg(DISTINCT us.kode_sls), '{}') INTO v_sls_codes
-    FROM public.user_sls us
-    JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
-    WHERE mp.pml_id = p_user_id;
+    SELECT COALESCE(array_agg(DISTINCT us.kode_sls), '{}')
+      INTO v_sls_codes
+      FROM public.user_sls us
+      JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
+     WHERE mp.pml_id = p_user_id;
   END IF;
 
-  -- Count assignments
+  -- Hitung distinct assignment_id: selesai/belum
   WITH group_status AS (
-    SELECT 
+    SELECT
       assignment_id,
-      -- Check if all anomalies in assignment are done
-      bool_and(status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi')) as is_done
+      bool_and(status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi')) AS is_done
     FROM public.assignment_anomali
-    WHERE 
-      (p_role = 'superadmin' OR p_role = 'admin' OR kode_sls_gabungan = ANY(v_sls_codes))
+    WHERE
+      (p_role IN ('superadmin', 'admin') OR kode_sls_gabungan = ANY(v_sls_codes))
       AND (
-        CASE 
+        CASE
           WHEN p_role = 'ppl' THEN tipe = 'keluarga'
           WHEN p_role = 'pml' THEN tipe = 'usaha'
           ELSE true
@@ -722,10 +727,10 @@ BEGIN
       )
     GROUP BY assignment_id
   )
-  SELECT 
-    count(*),
-    count(*) FILTER (WHERE is_done = true),
-    count(*) FILTER (WHERE is_done = false)
+  SELECT
+    count(*)::int,
+    count(*) FILTER (WHERE is_done = true)::int,
+    count(*) FILTER (WHERE is_done = false)::int
   INTO v_total, v_selesai, v_belum
   FROM group_status;
 
@@ -734,12 +739,13 @@ BEGIN
   END IF;
 
   RETURN jsonb_build_object(
-    'total', v_total,
-    'selesai', v_selesai,
-    'belum', v_belum,
+    'total',    v_total,
+    'selesai',  v_selesai,
+    'belum',    v_belum,
     'progress', v_progress
   );
 END;
-$$ LANGUAGE plpgsql;
+$$;
 
-
+-- Berikan akses execute ke semua role
+GRANT EXECUTE ON FUNCTION public.get_dashboard_stats(uuid, text) TO anon, authenticated;

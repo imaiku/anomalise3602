@@ -49,9 +49,8 @@ async function initDashboard() {
     adminNavBtn?.classList.add('hidden');
   }
 
-  await loadStats();
-  await loadAnomalinomorOptions();
-  await loadData();
+  // Run stats + dropdown options in parallel with the main table data
+  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadData()]);
 }
 
 // ============================================================
@@ -64,59 +63,77 @@ async function loadStats() {
       p_role: currentProfile?.role || 'guest'
     });
 
-    if (error) {
-      console.warn('Fungsi get_dashboard_stats belum ada di database, menggunakan fallback client-side');
-      let query = db.from('assignment_anomali').select('assignment_id, status').limit(2000);
-      if (currentProfile?.role === 'ppl') {
-        query = query.eq('tipe', 'keluarga');
-        const { data: mySlsList } = await db.rpc('get_my_sls');
-        const slsCodes = (mySlsList || []).map(r => r.kode_sls);
-        if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
-      } else if (currentProfile?.role === 'pml') {
-        query = query.eq('tipe', 'usaha');
-        const { data: mySlsList } = await db.rpc('get_pml_sls');
-        const slsCodes = (mySlsList || []).map(r => r.kode_sls);
-        if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
-      }
-      const { data: fallbackData } = await query;
-      const assignments = {};
-      (fallbackData || []).forEach(row => {
-        if (!assignments[row.assignment_id]) assignments[row.assignment_id] = [];
-        assignments[row.assignment_id].push(row.status);
-      });
-      const total   = Object.keys(assignments).length;
-      const DONE    = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
-      const selesai = Object.values(assignments).filter(ss => ss.every(s => DONE.has(s))).length;
-      const belum   = total - selesai;
-      const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
-
-      document.getElementById('statTotal').textContent    = total.toLocaleString('id');
-      document.getElementById('statBelum').textContent    = belum.toLocaleString('id');
-      document.getElementById('statSelesai').textContent  = selesai.toLocaleString('id');
-      document.getElementById('statProgress').textContent = `${progress}%`;
-      document.getElementById('progressFill').style.width = `${progress}%`;
+    if (!error && data) {
+      renderStats(data.total, data.belum, data.selesai, data.progress);
       return;
     }
 
-    document.getElementById('statTotal').textContent    = (data.total || 0).toLocaleString('id');
-    document.getElementById('statBelum').textContent    = (data.belum || 0).toLocaleString('id');
-    document.getElementById('statSelesai').textContent  = (data.selesai || 0).toLocaleString('id');
-    document.getElementById('statProgress').textContent = `${data.progress || 0}%`;
-    document.getElementById('progressFill').style.width = `${data.progress || 0}%`;
+    // Fallback: fungsi RPC belum dijalankan di database.
+    // Gunakan count cepat per tipe status dari server, tanpa mengambil raw rows.
+    console.warn('get_dashboard_stats tidak tersedia, menggunakan fallback count');
+    const buildCount = (statusFilter) => {
+      let q = db.from('assignment_anomali')
+        .select('assignment_id', { count: 'exact', head: false })
+        .limit(50000);
+      if (currentProfile?.role === 'ppl')      q = q.eq('tipe', 'keluarga');
+      else if (currentProfile?.role === 'pml') q = q.eq('tipe', 'usaha');
+      if (statusFilter) q = q.eq('status', statusFilter);
+      return q;
+    };
+
+    // Ambil semua baris assignment_id + status (hanya 2 kolom, cepat)
+    let baseQ = db.from('assignment_anomali')
+      .select('assignment_id, status')
+      .limit(50000);
+    if (currentProfile?.role === 'ppl') {
+      baseQ = baseQ.eq('tipe', 'keluarga');
+      const { data: sl } = await db.rpc('get_my_sls');
+      const codes = (sl || []).map(r => r.kode_sls);
+      if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
+    } else if (currentProfile?.role === 'pml') {
+      baseQ = baseQ.eq('tipe', 'usaha');
+      const { data: sl } = await db.rpc('get_pml_sls');
+      const codes = (sl || []).map(r => r.kode_sls);
+      if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
+    }
+    const { data: rows, error: rowErr } = await baseQ;
+    if (rowErr) throw rowErr;
+
+    const map = {};
+    (rows || []).forEach(r => {
+      if (!map[r.assignment_id]) map[r.assignment_id] = [];
+      map[r.assignment_id].push(r.status);
+    });
+    const DONE     = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+    const total    = Object.keys(map).length;
+    const selesai  = Object.values(map).filter(ss => ss.every(s => DONE.has(s))).length;
+    const belum    = total - selesai;
+    const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
+    renderStats(total, belum, selesai, progress);
   } catch (e) {
     console.error('loadStats error:', e);
   }
 }
-  } catch (e) {
-    console.error('loadStats error:', e);
-  }
+
+function renderStats(total, belum, selesai, progress) {
+  const safe = v => (v ?? 0);
+  document.getElementById('statTotal').textContent    = safe(total).toLocaleString('id');
+  document.getElementById('statBelum').textContent    = safe(belum).toLocaleString('id');
+  document.getElementById('statSelesai').textContent  = safe(selesai).toLocaleString('id');
+  document.getElementById('statProgress').textContent = `${safe(progress)}%`;
+  const fill = document.getElementById('progressFill');
+  if (fill) fill.style.width = `${safe(progress)}%`;
 }
+
 
 // ============================================================
 // DATA LOADING
 // ============================================================
 async function loadAnomalinomorOptions() {
-  let query = db.from('assignment_anomali').select('nomor_anomali, tipe').order('nomor_anomali');
+  let query = db.from('assignment_anomali')
+    .select('nomor_anomali, tipe')
+    .order('nomor_anomali')
+    .limit(500);  // anomali nomor unik jauh kurang dari 500, limit ini aman
   if (currentProfile?.role === 'ppl') {
     query = query.eq('tipe', 'keluarga');
   } else if (currentProfile?.role === 'pml') {
@@ -139,29 +156,9 @@ async function loadAnomalinomorOptions() {
 async function loadData() {
   showTableLoading();
   try {
-    let query = db.from('assignment_anomali').select('*').order('first_seen', { ascending: false });
+    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened';
 
-    if (currentProfile?.role === 'ppl') {
-      query = query.eq('tipe', 'keluarga');
-      const { data: mySlsList } = await db.rpc('get_my_sls');
-      const slsCodes = (mySlsList || []).map(r => r.kode_sls);
-      if (slsCodes.length > 0) {
-        query = query.in('kode_sls_gabungan', slsCodes);
-      } else {
-        allData = []; filteredData = []; renderAll(); return;
-      }
-    } else if (currentProfile?.role === 'pml') {
-      query = query.eq('tipe', 'usaha');
-      const { data: mySlsList } = await db.rpc('get_pml_sls');
-      const slsCodes = (mySlsList || []).map(r => r.kode_sls);
-      if (slsCodes.length > 0) {
-        query = query.in('kode_sls_gabungan', slsCodes);
-      } else {
-        allData = []; filteredData = []; renderAll(); return;
-      }
-    }
-
-    // Apply UI filters on database query level to bypass PostgREST row limits
+    // Baca filter aktif dari UI
     const status = document.getElementById('filterStatus')?.value;
     const jenis  = document.getElementById('filterJenis')?.value;
     const nomor  = document.getElementById('filterNomor')?.value;
@@ -169,39 +166,76 @@ async function loadData() {
     const sls    = document.getElementById('filterSLS')?.value.trim();
     const search = document.getElementById('filterSearch')?.value.trim();
 
-    if (status) {
-      query = query.eq('status', status);
-    }
-    if (jenis) {
-      if (jenis !== 'keduanya') {
-        query = query.eq('tipe', jenis);
+    // Builder: buat query dengan semua filter kecuali tipe
+    const buildQuery = (tipeOverride) => {
+      let q = db.from('assignment_anomali').select(COLS).order('first_seen', { ascending: false });
+      if (tipeOverride) q = q.eq('tipe', tipeOverride);
+      if (status) q = q.eq('status', status);
+      if (nomor) {
+        const [nTipe, nNomor] = nomor.split(':');
+        q = q.eq('tipe', nTipe).eq('nomor_anomali', parseInt(nNomor));
       }
-    }
-    if (nomor) {
-      const [nTipe, nNomor] = nomor.split(':');
-      query = query.eq('tipe', nTipe).eq('nomor_anomali', parseInt(nNomor));
-    }
-    if (ket) {
-      if (ket === 'selesai') {
-        query = query.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
-      } else if (ket === 'belum') {
-        query = query.eq('status', 'belum_ditindaklanjuti');
+      if (ket === 'selesai') q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+      else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
+      if (sls)    q = q.ilike('kode_sls_gabungan', `%${sls}%`);
+      if (search) q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
+      q = q.limit(1000);
+      return q;
+    };
+
+    // Tambahkan filter SLS berdasarkan role
+    const applyRoleFilter = async (q, tipe) => {
+      if (currentProfile?.role === 'ppl') {
+        const { data: sl } = await db.rpc('get_my_sls');
+        const codes = (sl || []).map(r => r.kode_sls);
+        if (codes.length === 0) return null;
+        return q.in('kode_sls_gabungan', codes);
+      } else if (currentProfile?.role === 'pml') {
+        const { data: sl } = await db.rpc('get_pml_sls');
+        const codes = (sl || []).map(r => r.kode_sls);
+        if (codes.length === 0) return null;
+        return q.in('kode_sls_gabungan', codes);
       }
-    }
-    if (sls) {
-      query = query.ilike('kode_sls_gabungan', `%${sls}%`);
-    }
-    if (search) {
-      query = query.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
+      return q;
+    };
+
+    let rows = [];
+
+    if (jenis === 'keduanya') {
+      // Ambil kedua tipe secara paralel, lalu tampilkan hanya assignment_id yang ada di KEDUANYA
+      const [qKK, qUsaha] = await Promise.all([
+        applyRoleFilter(buildQuery('keluarga'), 'keluarga'),
+        applyRoleFilter(buildQuery('usaha'),    'usaha')
+      ]);
+      if (!qKK || !qUsaha) { allData = []; filteredData = []; renderAll(); return; }
+      const [resKK, resUsaha] = await Promise.all([qKK, qUsaha]);
+      if (resKK.error) throw resKK.error;
+      if (resUsaha.error) throw resUsaha.error;
+
+      // Intersect: hanya assignment_id yang muncul di kedua tipe
+      const kkIds    = new Set((resKK.data || []).map(r => r.assignment_id));
+      const usahaIds = new Set((resUsaha.data || []).map(r => r.assignment_id));
+      const bothIds  = new Set([...kkIds].filter(id => usahaIds.has(id)));
+      rows = [
+        ...(resKK.data   || []).filter(r => bothIds.has(r.assignment_id)),
+        ...(resUsaha.data || []).filter(r => bothIds.has(r.assignment_id))
+      ];
+    } else {
+      // Tipe tunggal atau semua tipe (admin)
+      let tipeFilter = null;
+      if (currentProfile?.role === 'ppl')      tipeFilter = 'keluarga';
+      else if (currentProfile?.role === 'pml') tipeFilter = 'usaha';
+      else if (jenis && jenis !== 'keduanya')   tipeFilter = jenis;
+
+      let q = buildQuery(tipeFilter);
+      q = await applyRoleFilter(q, tipeFilter);
+      if (!q) { allData = []; filteredData = []; renderAll(); return; }
+      const { data, error } = await q;
+      if (error) throw error;
+      rows = data || [];
     }
 
-    // Use a high safe limit to capture all relevant results for the active filters
-    query = query.limit(5000);
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    allData = groupByAssignment(data || []);
+    allData = groupByAssignment(rows);
     filteredData = [...allData];
     sortData();
     renderAll();
