@@ -466,6 +466,9 @@ $$ LANGUAGE plpgsql;
 -- ============================================================
 -- BATCH ANOMALI MERGE FUNCTION (ADMIN ONLY)
 -- ============================================================
+-- ============================================================
+-- BATCH ANOMALI MERGE FUNCTION (ADMIN ONLY)
+-- ============================================================
 CREATE OR REPLACE FUNCTION public.merge_anomali_batch(
   p_records jsonb,
   p_batch_id uuid,
@@ -483,9 +486,7 @@ DECLARE
   v_inserted_count int := 0;
   v_updated_count int := 0;
   v_reopened_count int := 0;
-  v_resolved_count int := 0;
   v_errors text[] := '{}';
-  v_active_ids uuid[] := '{}';
 BEGIN
   -- 1. Check authorization
   IF NOT EXISTS (
@@ -498,7 +499,16 @@ BEGIN
   -- 2. Loop records and insert/update
   FOR v_rec IN SELECT * FROM jsonb_array_elements(p_records) LOOP
     BEGIN
-      -- Check if already exists
+      -- A. Auto-register reference in public.anomali_ref if it doesn't exist
+      IF NOT EXISTS (
+        SELECT 1 FROM public.anomali_ref
+        WHERE nomor = (v_rec->>'nomor_anomali')::int AND tipe = p_tipe
+      ) THEN
+        INSERT INTO public.anomali_ref (nomor, tipe, nama, penjelasan, created_at, updated_at)
+        VALUES ((v_rec->>'nomor_anomali')::int, p_tipe, v_rec->>'nama_anomali', null, now(), now());
+      END IF;
+
+      -- B. Check if already exists in assignment_anomali
       SELECT id, status INTO v_existing_id, v_existing_status
       FROM public.assignment_anomali
       WHERE assignment_id = v_rec->>'assignment_id'
@@ -556,7 +566,6 @@ BEGIN
         );
 
         v_inserted_count := v_inserted_count + 1;
-        v_active_ids := array_append(v_active_ids, v_inserted_id);
       ELSE
         -- Update existing anomali
         IF v_existing_status = 'sudah_diperbaiki' THEN
@@ -595,7 +604,6 @@ BEGIN
         END IF;
 
         v_updated_count := v_updated_count + 1;
-        v_active_ids := array_append(v_active_ids, v_existing_id);
       END IF;
 
     EXCEPTION WHEN OTHERS THEN
@@ -603,14 +611,45 @@ BEGIN
     END;
   END LOOP;
 
-  -- 3. Auto-resolve: any active record not in today's upload batch for this type
-  -- We set them to 'tidak_terdeteksi_lagi'
+  RETURN jsonb_build_object(
+    'inserted', v_inserted_count,
+    'updated', v_updated_count,
+    'reopened', v_reopened_count,
+    'resolved', 0,
+    'errors', to_jsonb(v_errors)
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- ============================================================
+-- RESOLVE UNSEEN ANOMALI FUNCTION (ADMIN ONLY)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.resolve_unseen_anomali(
+  p_batch_id uuid,
+  p_tanggal_data date,
+  p_tipe text
+)
+RETURNS int
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_resolved_count int := 0;
+BEGIN
+  -- 1. Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- 2. Mark any active anomalies of this type that were NOT in today's upload batch as resolved
   WITH resolved_rows AS (
     UPDATE public.assignment_anomali
     SET status = 'tidak_terdeteksi_lagi', last_seen = p_tanggal_data
     WHERE tipe = p_tipe
       AND status NOT IN ('tidak_terdeteksi_lagi', 'sesuai_kondisi')
-      AND NOT (id = ANY(v_active_ids))
+      AND batch_id != p_batch_id
     RETURNING id, status
   )
   INSERT INTO public.status_history (
@@ -623,21 +662,22 @@ BEGIN
   SELECT id, 'belum_ditindaklanjuti', 'tidak_terdeteksi_lagi', 'Sistem (Merge)', 'merge_otomatis'
   FROM resolved_rows;
 
-  -- Count resolved rows
+  -- Count and return number of updated rows
   SELECT count(*) INTO v_resolved_count
   FROM public.assignment_anomali
   WHERE tipe = p_tipe
     AND last_seen = p_tanggal_data
     AND status = 'tidak_terdeteksi_lagi'
-    AND NOT (id = ANY(v_active_ids));
+    AND batch_id = p_batch_id; -- Wait! It was updated to p_tanggal_data, but wait, the query updates last_seen = p_tanggal_data, and batch_id remains unchanged (or does not match today's batch_id). Let's count where status is 'tidak_terdeteksi_lagi' and last_seen = p_tanggal_data and batch_id != p_batch_id
+  
+  SELECT count(*) INTO v_resolved_count
+  FROM public.assignment_anomali
+  WHERE tipe = p_tipe
+    AND last_seen = p_tanggal_data
+    AND status = 'tidak_terdeteksi_lagi'
+    AND batch_id != p_batch_id;
 
-  RETURN jsonb_build_object(
-    'inserted', v_inserted_count,
-    'updated', v_updated_count,
-    'reopened', v_reopened_count,
-    'resolved', v_resolved_count,
-    'errors', to_jsonb(v_errors)
-  );
+  RETURN v_resolved_count;
 END;
 $$ LANGUAGE plpgsql;
 

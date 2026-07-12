@@ -251,31 +251,21 @@ async function startMerge() {
 }
 
 async function checkMissingReferences(allRecords) {
-  const uniqueUploaded = {};
-  allRecords.forEach(r => {
-    const key = `${r.tipe}|${r.nomor_anomali}`;
-    if (!uniqueUploaded[key]) {
-      uniqueUploaded[key] = {
-        tipe: r.tipe,
-        nomor: r.nomor_anomali,
-        nama: r.nama_anomali
-      };
-    }
-  });
+  // Query all references that do not have explanations filled out yet
+  const { data: emptyRefs, error } = await db
+    .from('anomali_ref')
+    .select('id, tipe, nomor, nama, penjelasan')
+    .or('penjelasan.is.null, penjelasan.eq.""');
 
-  const { data: refs, error } = await db.from('anomali_ref').select('tipe, nomor');
   if (error) {
-    console.error('Gagal memeriksa referensi anomali:', error);
+    console.error('Gagal memeriksa penjelasan referensi anomali:', error);
     return;
   }
 
-  const existingKeys = new Set((refs || []).map(r => `${r.tipe}|${r.nomor}`));
-  const missing = [];
-  Object.entries(uniqueUploaded).forEach(([key, val]) => {
-    if (!existingKeys.has(key)) {
-      missing.push(val);
-    }
-  });
+  // Filter emptyRefs to show only the ones that were present in the uploaded file (allRecords)
+  const uploadedKeys = new Set(allRecords.map(r => `${r.tipe}|${r.nomor_anomali}`));
+  
+  const missing = (emptyRefs || []).filter(r => uploadedKeys.has(`${r.tipe}|${r.nomor}`));
 
   const warnDiv = document.getElementById('newAnomaliesWarning');
   if (!warnDiv) return;
@@ -291,10 +281,10 @@ async function checkMissingReferences(allRecords) {
     <div class="alert alert-warning" style="display:block;border-left:4px solid var(--warning);padding:1rem">
       <div style="font-weight:600;margin-bottom:0.5rem;display:flex;align-items:center;gap:0.5rem">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warning)"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-        Terdeteksi ${missing.length} Anomali Baru (Belum Terdaftar)
+        Terdeteksi ${missing.length} Anomali Baru (Belum Memiliki Panduan Solusi)
       </div>
       <div style="font-size:0.8125rem;color:var(--text-subtle);margin-bottom:0.75rem">
-        Anomali berikut ditemukan dalam file Excel Anda namun belum memiliki penjelasan teknis/solusi di menu Referensi. Silakan lengkapi agar PPL mendapatkan panduan penanganannya.
+        Anomali berikut ditemukan dalam file Excel Anda namun belum memiliki penjelasan teknis/solusi di database. Silakan lengkapi secepatnya agar PPL mendapatkan panduan penanganannya.
       </div>
       <div style="display:flex;flex-direction:column;gap:0.5rem;background:var(--bg-card);padding:0.75rem;border-radius:var(--radius-md);border:1px solid var(--border);max-height:200px;overflow-y:auto">
         ${missing.map(m => `
@@ -303,7 +293,7 @@ async function checkMissingReferences(allRecords) {
               <span class="type-badge type-${m.tipe}" style="font-size:0.7rem;padding:0.1rem 0.35rem">${m.tipe.toUpperCase()} ${m.nomor}</span>
               <span style="font-weight:500;margin-left:0.25rem">${escHtml(m.nama)}</span>
             </div>
-            <button class="btn btn-secondary btn-sm" onclick="quickFillAddRefModal('${m.tipe}', ${m.nomor}, '${escHtml(m.nama).replace(/'/g, "\\'")}')" style="font-size:0.75rem;padding:0.25rem 0.5rem;white-space:nowrap">
+            <button class="btn btn-secondary btn-sm" onclick='openEditRefModal(${JSON.stringify(m)})' style="font-size:0.75rem;padding:0.25rem 0.5rem;white-space:nowrap">
               + Lengkapi Panduan
             </button>
           </div>
@@ -311,16 +301,6 @@ async function checkMissingReferences(allRecords) {
       </div>
     </div>
   `;
-}
-
-function quickFillAddRefModal(tipe, nomor, nama) {
-  editingRefId = null;
-  document.getElementById('refModalTitle').textContent = 'Tambah Referensi Anomali';
-  document.getElementById('refNomor').value = nomor;
-  document.getElementById('refTipe').value = tipe;
-  document.getElementById('refNama').value = nama;
-  document.getElementById('refPenjelasan').value = '';
-  document.getElementById('refModal').classList.add('open');
 }
 
 function setStep(n) {

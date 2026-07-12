@@ -260,6 +260,18 @@ async function mergeRecords(records, batchId, tanggalData, onProgress) {
 
       processed += chunk.length;
     }
+
+    // Resolve unseen anomalies of this type after all chunks of this type are processed
+    const { data: resCount, error: resErr } = await db.rpc('resolve_unseen_anomali', {
+      p_batch_id: batchId,
+      p_tanggal_data: tanggalData,
+      p_tipe: tipe
+    });
+    if (!resErr) {
+      results.resolved += resCount || 0;
+    } else {
+      console.error('Gagal menjalankan resolve_unseen_anomali:', resErr);
+    }
   }
 
   if (onProgress) onProgress(100);
