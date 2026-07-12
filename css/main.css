@@ -771,7 +771,7 @@ tbody td {
 
 /* ---- Responsive ---- */
 @media (max-width: 1024px) {
-  /* Keep 4 columns */
+  .stat-value { font-size: 1.5rem; }
 }
 
 @media (max-width: 768px) {
@@ -780,11 +780,9 @@ tbody td {
   .mobile-card-list { display: block; }
   .filter-row { gap: 0.5rem; }
   .filter-group { min-width: 100%; }
-  .stat-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 0.5rem !important; }
-  .stat-card { padding: 0.5rem 0.6rem !important; }
-  .stat-label { font-size: 0.55rem !important; margin-bottom: 0.2rem !important; }
-  .stat-value { font-size: 1.1rem !important; }
-  .stat-sub { display: none !important; }
+  .stat-value { font-size: 1.2rem; }
+  .stat-label { font-size: 0.65rem; }
+  .stat-sub { font-size: 0.65rem; }
   .bottom-sheet { max-height: 95vh; }
   .raw-data-grid { grid-template-columns: 1fr; }
 }
@@ -792,6 +790,81 @@ tbody td {
 @media (max-width: 480px) {
   .navbar-inner { padding: 0 1rem; }
   .page-content { padding: 0.75rem; }
+  .stat-value { font-size: 1rem; }
+  .stat-card { padding: 0.75rem; }
+}
+
+/* ---- Kecamatan Cards Grid ---- */
+.kecamatan-section {
+  margin-bottom: 1.5rem;
+}
+.section-title-kec {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+.kecamatan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.75rem;
+  max-height: 230px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card-2);
+}
+.kec-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 0.75rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.kec-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08);
+}
+.kec-card.active {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: var(--primary);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.12);
+}
+.kec-name {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 0.35rem;
+}
+.kec-stats {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+.kec-progress {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.kec-progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.kec-card.success-complete .kec-progress-fill {
+  background: var(--success);
 }
 
 /* ---- Skeleton Loader ---- */

@@ -854,3 +854,59 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_anomaly_counts_by_sls() TO anon, authenticated;
 
+-- ============================================================
+-- HELPER FUNCTION: GET KECAMATAN PROGRESS STATS
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_kecamatan_progress(
+  p_user_id uuid,
+  p_role text
+)
+RETURNS TABLE(kecamatan varchar, selesai bigint, total bigint, progress numeric)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_sls_codes text[] := '{}';
+BEGIN
+  -- Ambil kode SLS berdasarkan role
+  IF p_role = 'ppl' THEN
+    SELECT COALESCE(array_agg(kode_sls), '{}')
+      INTO v_sls_codes
+      FROM public.user_sls
+     WHERE user_id = p_user_id AND status = 'aktif';
+  ELSIF p_role = 'pml' THEN
+    SELECT COALESCE(array_agg(DISTINCT us.kode_sls), '{}')
+      INTO v_sls_codes
+      FROM public.user_sls us
+      JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
+     WHERE mp.pml_id = p_user_id;
+  END IF;
+
+  RETURN QUERY
+  SELECT 
+    COALESCE(NULLIF(w.nmkec, ''), COALESCE(NULLIF(a.raw_data->>'Nama Kecamatan', ''), 'LAINNYA'))::varchar as kecamatan,
+    COUNT(*) FILTER (WHERE a.status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::bigint as selesai,
+    COUNT(*)::bigint as total,
+    ROUND(
+      (COUNT(*) FILTER (WHERE a.status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::float / 
+       COUNT(*)::float) * 100
+    )::numeric as progress
+  FROM public.assignment_anomali a
+  LEFT JOIN public.master_wilayah w ON a.kode_sls_gabungan = w.kode_sls_gabungan
+  WHERE
+    (p_role IN ('superadmin', 'admin') OR a.kode_sls_gabungan = ANY(v_sls_codes))
+    AND (
+      CASE
+        WHEN p_role = 'ppl' THEN a.tipe = 'keluarga'
+        WHEN p_role = 'pml' THEN a.tipe = 'usaha'
+        ELSE true
+      END
+    )
+  GROUP BY COALESCE(NULLIF(w.nmkec, ''), COALESCE(NULLIF(a.raw_data->>'Nama Kecamatan', ''), 'LAINNYA'))
+  ORDER BY kecamatan ASC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_kecamatan_progress(uuid, text) TO anon, authenticated;
+

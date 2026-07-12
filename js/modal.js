@@ -281,9 +281,6 @@ async function saveChanges() {
     closeDetailModal();
     await loadData();
     await loadStats();
-    if (typeof loadKecamatanProgress === 'function') {
-      await loadKecamatanProgress();
-    }
   } catch (e) {
     showToast('Gagal menyimpan: ' + e.message, 'error');
   } finally {
