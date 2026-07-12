@@ -1051,7 +1051,7 @@ function renderWilayahPagination() {
 }
 
 function openImportWilayahModal() {
-  document.getElementById('importWilayahModal').classList.add('active');
+  document.getElementById('importWilayahModal').classList.add('open');
   document.getElementById('fileWilayah').value = '';
   document.getElementById('wilayahImportLabel').textContent = 'Pilih atau seret file di sini';
   document.getElementById('wilayahValidation').innerHTML = '';
@@ -1060,7 +1060,7 @@ function openImportWilayahModal() {
 }
 
 function closeImportWilayahModal() {
-  document.getElementById('importWilayahModal').classList.remove('active');
+  document.getElementById('importWilayahModal').classList.remove('open');
 }
 
 function handleWilayahDrop(e) {
