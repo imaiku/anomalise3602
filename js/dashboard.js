@@ -59,34 +59,54 @@ async function initDashboard() {
 // ============================================================
 async function loadStats() {
   try {
-    let query = db.from('assignment_anomali').select('assignment_id, status');
-
-    if (currentProfile?.role === 'ppl') {
-      const { data: mySlsList } = await db.rpc('get_my_sls');
-      const slsCodes = (mySlsList || []).map(r => r.kode_sls);
-      if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
-    }
-
-    const { data, error } = await query;
-    if (error) throw error;
-
-    const assignments = {};
-    (data || []).forEach(row => {
-      if (!assignments[row.assignment_id]) assignments[row.assignment_id] = [];
-      assignments[row.assignment_id].push(row.status);
+    const { data, error } = await db.rpc('get_dashboard_stats', {
+      p_user_id: currentProfile?.id || null,
+      p_role: currentProfile?.role || 'guest'
     });
 
-    const total   = Object.keys(assignments).length;
-    const DONE    = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
-    const selesai = Object.values(assignments).filter(ss => ss.every(s => DONE.has(s))).length;
-    const belum   = total - selesai;
-    const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
+    if (error) {
+      console.warn('Fungsi get_dashboard_stats belum ada di database, menggunakan fallback client-side');
+      let query = db.from('assignment_anomali').select('assignment_id, status').limit(2000);
+      if (currentProfile?.role === 'ppl') {
+        query = query.eq('tipe', 'keluarga');
+        const { data: mySlsList } = await db.rpc('get_my_sls');
+        const slsCodes = (mySlsList || []).map(r => r.kode_sls);
+        if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
+      } else if (currentProfile?.role === 'pml') {
+        query = query.eq('tipe', 'usaha');
+        const { data: mySlsList } = await db.rpc('get_pml_sls');
+        const slsCodes = (mySlsList || []).map(r => r.kode_sls);
+        if (slsCodes.length > 0) query = query.in('kode_sls_gabungan', slsCodes);
+      }
+      const { data: fallbackData } = await query;
+      const assignments = {};
+      (fallbackData || []).forEach(row => {
+        if (!assignments[row.assignment_id]) assignments[row.assignment_id] = [];
+        assignments[row.assignment_id].push(row.status);
+      });
+      const total   = Object.keys(assignments).length;
+      const DONE    = new Set(['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+      const selesai = Object.values(assignments).filter(ss => ss.every(s => DONE.has(s))).length;
+      const belum   = total - selesai;
+      const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
 
-    document.getElementById('statTotal').textContent    = total.toLocaleString('id');
-    document.getElementById('statBelum').textContent    = belum.toLocaleString('id');
-    document.getElementById('statSelesai').textContent  = selesai.toLocaleString('id');
-    document.getElementById('statProgress').textContent = `${progress}%`;
-    document.getElementById('progressFill').style.width = `${progress}%`;
+      document.getElementById('statTotal').textContent    = total.toLocaleString('id');
+      document.getElementById('statBelum').textContent    = belum.toLocaleString('id');
+      document.getElementById('statSelesai').textContent  = selesai.toLocaleString('id');
+      document.getElementById('statProgress').textContent = `${progress}%`;
+      document.getElementById('progressFill').style.width = `${progress}%`;
+      return;
+    }
+
+    document.getElementById('statTotal').textContent    = (data.total || 0).toLocaleString('id');
+    document.getElementById('statBelum').textContent    = (data.belum || 0).toLocaleString('id');
+    document.getElementById('statSelesai').textContent  = (data.selesai || 0).toLocaleString('id');
+    document.getElementById('statProgress').textContent = `${data.progress || 0}%`;
+    document.getElementById('progressFill').style.width = `${data.progress || 0}%`;
+  } catch (e) {
+    console.error('loadStats error:', e);
+  }
+}
   } catch (e) {
     console.error('loadStats error:', e);
   }
@@ -96,7 +116,13 @@ async function loadStats() {
 // DATA LOADING
 // ============================================================
 async function loadAnomalinomorOptions() {
-  const { data } = await db.from('assignment_anomali').select('nomor_anomali, tipe').order('nomor_anomali');
+  let query = db.from('assignment_anomali').select('nomor_anomali, tipe').order('nomor_anomali');
+  if (currentProfile?.role === 'ppl') {
+    query = query.eq('tipe', 'keluarga');
+  } else if (currentProfile?.role === 'pml') {
+    query = query.eq('tipe', 'usaha');
+  }
+  const { data } = await query;
   const seen   = new Set();
   const select = document.getElementById('filterNomor');
   (data || []).forEach(row => {
@@ -116,20 +142,70 @@ async function loadData() {
     let query = db.from('assignment_anomali').select('*').order('first_seen', { ascending: false });
 
     if (currentProfile?.role === 'ppl') {
+      query = query.eq('tipe', 'keluarga');
       const { data: mySlsList } = await db.rpc('get_my_sls');
       const slsCodes = (mySlsList || []).map(r => r.kode_sls);
       if (slsCodes.length > 0) {
         query = query.in('kode_sls_gabungan', slsCodes);
       } else {
-        allData = []; renderAll(); return;
+        allData = []; filteredData = []; renderAll(); return;
+      }
+    } else if (currentProfile?.role === 'pml') {
+      query = query.eq('tipe', 'usaha');
+      const { data: mySlsList } = await db.rpc('get_pml_sls');
+      const slsCodes = (mySlsList || []).map(r => r.kode_sls);
+      if (slsCodes.length > 0) {
+        query = query.in('kode_sls_gabungan', slsCodes);
+      } else {
+        allData = []; filteredData = []; renderAll(); return;
       }
     }
+
+    // Apply UI filters on database query level to bypass PostgREST row limits
+    const status = document.getElementById('filterStatus')?.value;
+    const jenis  = document.getElementById('filterJenis')?.value;
+    const nomor  = document.getElementById('filterNomor')?.value;
+    const ket    = document.getElementById('filterKeterangan')?.value;
+    const sls    = document.getElementById('filterSLS')?.value.trim();
+    const search = document.getElementById('filterSearch')?.value.trim();
+
+    if (status) {
+      query = query.eq('status', status);
+    }
+    if (jenis) {
+      if (jenis !== 'keduanya') {
+        query = query.eq('tipe', jenis);
+      }
+    }
+    if (nomor) {
+      const [nTipe, nNomor] = nomor.split(':');
+      query = query.eq('tipe', nTipe).eq('nomor_anomali', parseInt(nNomor));
+    }
+    if (ket) {
+      if (ket === 'selesai') {
+        query = query.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+      } else if (ket === 'belum') {
+        query = query.eq('status', 'belum_ditindaklanjuti');
+      }
+    }
+    if (sls) {
+      query = query.ilike('kode_sls_gabungan', `%${sls}%`);
+    }
+    if (search) {
+      query = query.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%`);
+    }
+
+    // Use a high safe limit to capture all relevant results for the active filters
+    query = query.limit(5000);
 
     const { data, error } = await query;
     if (error) throw error;
 
     allData = groupByAssignment(data || []);
-    applyFilters();
+    filteredData = [...allData];
+    sortData();
+    renderAll();
+    updateFilterChips();
   } catch (e) {
     console.error('loadData error:', e);
     showToast('Gagal memuat data: ' + e.message, 'error');
@@ -210,33 +286,8 @@ function buildAnomaliString(group) {
 // FILTER & SORT
 // ============================================================
 function applyFilters() {
-  const status = document.getElementById('filterStatus').value;
-  const jenis  = document.getElementById('filterJenis').value;
-  const nomor  = document.getElementById('filterNomor').value;
-  const ket    = document.getElementById('filterKeterangan').value;
-  const sls    = document.getElementById('filterSLS').value.trim().toLowerCase();
-  const search = document.getElementById('filterSearch').value.trim().toLowerCase();
-
-  filteredData = allData.filter(group => {
-    if (status && !group.rows.some(r => r.status === status)) return false;
-    if (jenis  && getJenis(group) !== jenis) return false;
-    if (nomor) {
-      const [nTipe, nNomor] = nomor.split(':');
-      if (!group.rows.some(r => r.tipe === nTipe && String(r.nomor_anomali) === nNomor)) return false;
-    }
-    if (ket && getKeterangan(group) !== ket) return false;
-    if (sls && !group.kode_sls_gabungan.toLowerCase().includes(sls)) return false;
-    if (search) {
-      const searchable = [group.assignment_id, group.nama_kk || '', ...group.nama_usaha_list].join(' ').toLowerCase();
-      if (!searchable.includes(search)) return false;
-    }
-    return true;
-  });
-
-  sortData();
   currentPage = 1;
-  renderAll();
-  updateFilterChips();
+  loadData();
 }
 
 function applyFiltersDebounced() {
