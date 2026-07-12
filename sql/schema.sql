@@ -1000,3 +1000,43 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.import_master_wilayah_batch(jsonb) TO authenticated;
+
+-- ============================================================
+-- Ringkasan Progres per Kecamatan
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_kecamatan_progress()
+RETURNS TABLE(
+  kode_kec VARCHAR,
+  nmkec VARCHAR,
+  total_anomali BIGINT,
+  selesai_anomali BIGINT,
+  persen_progress NUMERIC
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    k.kode_kec,
+    k.nmkec,
+    COUNT(a.id)::BIGINT as total_anomali,
+    COUNT(a.id) FILTER (WHERE a.status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::BIGINT as selesai_anomali,
+    COALESCE(
+      ROUND(
+        (COUNT(a.id) FILTER (WHERE a.status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))::NUMERIC / 
+         NULLIF(COUNT(a.id), 0)::NUMERIC) * 100, 
+        1
+      ),
+      0.0
+    ) as persen_progress
+  FROM public.wilayah_kec k
+  LEFT JOIN public.wilayah_desa d ON k.kode_kec = d.kode_kec
+  LEFT JOIN public.assignment_anomali a ON a.kode_desa = d.kode_desa
+  GROUP BY k.kode_kec, k.nmkec
+  ORDER BY k.nmkec;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_kecamatan_progress() TO anon, authenticated;

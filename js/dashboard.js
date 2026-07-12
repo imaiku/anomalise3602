@@ -13,6 +13,7 @@ let sortField       = 'first_seen';
 let sortDir         = 'desc';
 let showReopenHighlight = false;
 let debounceTimer   = null;
+let kecProgressData = [];
 
 // ============================================================
 // INIT
@@ -50,7 +51,7 @@ async function initDashboard() {
   }
 
   // Run stats + dropdown options in parallel with the main table data
-  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadData()]);
+  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
 }
 
 // ============================================================
@@ -346,6 +347,7 @@ function buildAnomaliString(group) {
 // ============================================================
 function applyFilters() {
   currentPage = 1;
+  renderKecamatanProgress();
   loadData();
 }
 
@@ -807,6 +809,103 @@ async function onSLSChange() {
     } catch (err) {
       console.error('Error loading subsls:', err);
     }
+  }
+}
+
+async function loadKecamatanProgress() {
+  const container = document.getElementById('kecProgressGrid');
+  if (!container) return;
+
+  container.innerHTML = Array(6).fill(0).map(() => `
+    <div class="kec-progress-card" style="opacity:0.6">
+      <div class="skeleton skeleton-text" style="width:70%;margin-bottom:0.4rem;height:12px"></div>
+      <div class="skeleton skeleton-text" style="width:40%;height:10px;margin-bottom:0.4rem"></div>
+      <div class="kec-progress-bar"><div class="kec-progress-fill" style="width:0%"></div></div>
+    </div>
+  `).join('');
+
+  try {
+    const { data, error } = await db.rpc('get_kecamatan_progress');
+    if (error) throw error;
+    kecProgressData = data || [];
+    renderKecamatanProgress();
+  } catch (err) {
+    console.error('Error loading kecamatan progress:', err);
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--error);font-size:0.8rem">Gagal memuat progres: ${err.message}</div>`;
+  }
+}
+
+function renderKecamatanProgress() {
+  const container = document.getElementById('kecProgressGrid');
+  if (!container) return;
+
+  if (!kecProgressData || kecProgressData.length === 0) {
+    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--text-subtle);font-size:0.8rem">Tidak ada data progres wilayah</div>`;
+    return;
+  }
+
+  container.innerHTML = kecProgressData.map(k => {
+    const pct = parseFloat(k.persen_progress || 0);
+    let colorClass = 'progress-red';
+    if (pct >= 80) colorClass = 'progress-green';
+    else if (pct >= 50) colorClass = 'progress-orange';
+
+    const isActive = selectedKec === k.kode_kec;
+
+    return `
+      <div class="kec-progress-card ${isActive ? 'active-filter' : ''}" onclick="toggleKecFilter('${k.kode_kec}')">
+        <div class="kec-progress-name" title="${escHtml(k.nmkec)}">${escHtml(k.nmkec)}</div>
+        <div class="kec-progress-meta">
+          <span>${pct.toFixed(1)}%</span>
+          <span>${k.selesai_anomali} / ${k.total_anomali}</span>
+        </div>
+        <div class="kec-progress-bar">
+          <div class="kec-progress-fill ${colorClass}" style="width: ${pct}%"></div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+async function toggleKecFilter(kodeKec) {
+  const kecSelect = document.getElementById('filterKecamatan');
+  if (!kecSelect) return;
+
+  if (selectedKec === kodeKec) {
+    kecSelect.value = '';
+    selectedKec = '';
+    selectedDes = '';
+    selectedSLS = '';
+    selectedSub = '';
+  } else {
+    kecSelect.value = kodeKec;
+    selectedKec = kodeKec;
+    selectedDes = '';
+    selectedSLS = '';
+    selectedSub = '';
+  }
+
+  await onKecamatanChange();
+  applyFilters();
+}
+
+let kecProgressExpanded = false;
+
+function toggleKecProgress() {
+  kecProgressExpanded = !kecProgressExpanded;
+  const grid = document.getElementById('kecProgressGrid');
+  const btn = document.getElementById('btnToggleKecProgress');
+  const icon = document.getElementById('toggleKecIcon');
+  if (!grid || !btn) return;
+
+  if (kecProgressExpanded) {
+    grid.classList.remove('collapsed');
+    btn.querySelector('span').textContent = 'Sembunyikan';
+    if (icon) icon.style.transform = 'rotate(180deg)';
+  } else {
+    grid.classList.add('collapsed');
+    btn.querySelector('span').textContent = 'Tampilkan';
+    if (icon) icon.style.transform = 'rotate(0deg)';
   }
 }
 

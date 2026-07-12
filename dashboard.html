@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,39 +10,79 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
   <style>
-    .anomali-list-str { font-size:0.75rem; color: var(--text-muted); }
-    .anomali-list-str strong { color: var(--text); }
-    .sort-icon { display:inline-block; margin-left:3px; opacity:0.4; font-size:0.7rem; }
-    th.sorted .sort-icon { opacity:1; color: var(--primary); }
+    .anomali-list-str {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .anomali-list-str strong {
+      color: var(--text);
+    }
+
+    .sort-icon {
+      display: inline-block;
+      margin-left: 3px;
+      opacity: 0.4;
+      font-size: 0.7rem;
+    }
+
+    th.sorted .sort-icon {
+      opacity: 1;
+      color: var(--primary);
+    }
+
     .reopen-badge {
-      display:inline-block;
-      font-size:0.65rem;
-      font-weight:700;
-      text-transform:uppercase;
-      letter-spacing:0.04em;
+      display: inline-block;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
       background: var(--warning-bg);
       color: #92400e;
       padding: 0.1rem 0.4rem;
       border-radius: 4px;
-      margin-left:0.35rem;
+      margin-left: 0.35rem;
     }
-    .dark .reopen-badge { color: #fde68a; }
+
+    .dark .reopen-badge {
+      color: #fde68a;
+    }
+
     .filter-active-chip {
-      display:inline-flex;
-      align-items:center;
-      gap:0.3rem;
-      background: rgba(249,115,22,0.1);
-      border: 1px solid rgba(249,115,22,0.3);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid rgba(249, 115, 22, 0.3);
       color: var(--primary);
-      padding:0.2rem 0.5rem;
-      border-radius:9999px;
-      font-size:0.75rem;
-      cursor:pointer;
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      cursor: pointer;
     }
-    .filter-active-chip:hover { background: rgba(249,115,22,0.18); }
-    #filterActiveBar { display:flex; gap:0.5rem; flex-wrap:wrap; margin-top:0.75rem; }
-    .sls-code { font-family: monospace; font-size:0.8rem; }
-    .assignment-id-cell { font-family: monospace; font-size:0.75rem; color: var(--text-muted); }
+
+    .filter-active-chip:hover {
+      background: rgba(249, 115, 22, 0.18);
+    }
+
+    #filterActiveBar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    .sls-code {
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+
+    .assignment-id-cell {
+      font-family: monospace;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
     td a.fasih-link {
       color: var(--primary);
       font-size: 0.75rem;
@@ -50,37 +91,72 @@
       gap: 0.2rem;
       text-decoration: none;
     }
-    td a.fasih-link:hover { text-decoration: underline; }
+
+    td a.fasih-link:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
+
 <body>
   <!-- Navbar -->
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="navbar-brand">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary)"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          style="color:var(--primary)">
+          <path d="M3 3v18h18" />
+          <path d="m19 9-5 5-4-4-3 3" />
+        </svg>
         Dashboard <span>Anomali</span>
-        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab. Lebak</span>
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab.
+          Lebak</span>
       </div>
       <div class="navbar-actions">
         <!-- Reopen Highlight Toggle -->
-        <button class="btn btn-secondary btn-sm" id="reopenToggle" onclick="toggleReopenHighlight()" title="Tampilkan highlight assignment yang pernah re-open">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+        <button class="btn btn-secondary btn-sm" id="reopenToggle" onclick="toggleReopenHighlight()"
+          title="Tampilkan highlight assignment yang pernah re-open">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" x2="4" y1="22" y2="15" />
+          </svg>
           <span id="reopenToggleText">Re-open</span>
         </button>
         <!-- Theme -->
         <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" id="themeBtn">
-          <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-          <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>
+          <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
+            <circle cx="12" cy="12" r="4" />
+            <path
+              d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+          </svg>
+          <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
+          </svg>
         </button>
         <!-- Admin Panel Button -->
-        <a href="/admin.html" class="btn btn-secondary btn-sm hidden" id="adminNavBtn" style="display:inline-flex;align-items:center;gap:0.25rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="9" y1="9" x2="21" y2="9"/><line x1="9" y1="15" x2="21" y2="15"/></svg>
+        <a href="/admin.html" class="btn btn-secondary btn-sm hidden" id="adminNavBtn"
+          style="display:inline-flex;align-items:center;gap:0.25rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <line x1="9" y1="3" x2="9" y2="21" />
+            <line x1="9" y1="9" x2="21" y2="9" />
+            <line x1="9" y1="15" x2="21" y2="15" />
+          </svg>
           Panel Admin
         </a>
         <!-- User info -->
-        <div style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.75rem;background:var(--bg-card-2);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.8125rem;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+        <div
+          style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0.75rem;background:var(--bg-card-2);border:1px solid var(--border);border-radius:var(--radius-md);font-size:0.8125rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="5" />
+            <path d="M20 21a8 8 0 1 0-16 0" />
+          </svg>
           <span id="userDisplayName">Memuat...</span>
           <span id="userRoleBadge" class="type-badge" style="font-size:0.65rem;padding:0.15rem 0.4rem;"></span>
         </div>
@@ -90,7 +166,12 @@
         </a>
         <!-- Logout Button -->
         <button class="btn btn-ghost btn-icon hidden" onclick="logout()" id="logoutNavBtn" title="Keluar">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" />
+            <line x1="21" x2="9" y1="12" y2="12" />
+          </svg>
         </button>
       </div>
     </div>
@@ -117,68 +198,85 @@
       <div class="stat-card clear">
         <div class="stat-label">Progress</div>
         <div class="stat-value" id="statProgress">—%</div>
-        <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Kecamatan Progress Section -->
+    <div class="stat-card" style="margin-bottom:1.5rem;padding:1rem 1.25rem;display:block">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <div class="table-title" style="font-size:1rem;font-weight:600;margin:0">Progres per Kecamatan</div>
+          <button class="btn btn-secondary btn-xs" id="btnToggleKecProgress" onclick="toggleKecProgress()"
+            style="padding:0.15rem 0.4rem;font-size:0.7rem;display:flex;align-items:center;gap:0.15rem;height:22px;cursor:pointer">
+            <span>Tampilkan</span>
+            <svg id="toggleKecIcon" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              style="transition:transform 0.2s">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
+      </div>
+      <div class="kec-progress-grid collapsed" id="kecProgressGrid" style="border:none;background:transparent;padding-left:0;padding-right:0;padding-bottom:0">
+        <!-- Diisi secara dinamis oleh JavaScript -->
       </div>
     </div>
 
     <!-- Filter Bar -->
-    <div class="filter-bar">
-      <div class="filter-row">
+    <!-- Filter Bar -->
+    <div class="filter-bar" style="padding:0.75rem 1rem;margin-bottom:1rem">
+      <div class="filter-row" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;width:100%">
+        <!-- Search (Occupies left side/takes space) -->
+        <input type="text" class="filter-select" id="filterSearch" placeholder="Cari SLS, KK, usaha, atau ID..."
+          oninput="applyFiltersDebounced()" style="flex:1;min-width:200px;height:38px;margin-bottom:0">
+
         <!-- Status -->
-        <div class="filter-group">
-          <label class="filter-label">Status</label>
-          <select class="filter-select" id="filterStatus" onchange="applyFilters()">
-            <option value="">Semua Status</option>
-            <option value="belum_ditindaklanjuti">Belum Ditindaklanjuti</option>
-            <option value="sesuai_kondisi">Sesuai Kondisi Lapangan</option>
-            <option value="sudah_diperbaiki">Sudah Diperbaiki</option>
-            <option value="tidak_terdeteksi_lagi">Tidak Terdeteksi Lagi</option>
-          </select>
-        </div>
+        <select class="filter-select" id="filterStatus" onchange="applyFilters()" style="width:150px;height:38px;margin-bottom:0">
+          <option value="">Status: Semua</option>
+          <option value="belum_ditindaklanjuti">Belum Ditindaklanjuti</option>
+          <option value="sesuai_kondisi">Sesuai Kondisi</option>
+          <option value="sudah_diperbaiki">Sudah Diperbaiki</option>
+          <option value="tidak_terdeteksi_lagi">Tidak Terdeteksi Lagi</option>
+        </select>
+
         <!-- Jenis Anomali -->
-        <div class="filter-group">
-          <label class="filter-label">Jenis</label>
-          <select class="filter-select" id="filterJenis" onchange="applyFilters()">
-            <option value="">Semua Jenis</option>
-            <option value="keluarga">Keluarga</option>
-            <option value="usaha">Usaha</option>
-            <option value="keduanya">Keluarga &amp; Usaha</option>
-          </select>
-        </div>
+        <select class="filter-select" id="filterJenis" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+          <option value="">Jenis: Semua</option>
+          <option value="keluarga">Keluarga</option>
+          <option value="usaha">Usaha</option>
+          <option value="keduanya">Keluarga &amp; Usaha</option>
+        </select>
+
         <!-- Nomor Anomali -->
-        <div class="filter-group">
-          <label class="filter-label">Nomor Anomali</label>
-          <select class="filter-select" id="filterNomor" onchange="applyFilters()">
-            <option value="">Semua Nomor</option>
-          </select>
-        </div>
-        <!-- Pilih Wilayah Button -->
-        <div class="filter-group">
-          <label class="filter-label">Filter Wilayah</label>
-          <button class="btn btn-secondary" onclick="openWilayahFilterModal()" style="padding:0.45rem 0.75rem;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-card);color:var(--text);font-weight:500;font-size:0.875rem;cursor:pointer">
-            Pilih Wilayah
-          </button>
-        </div>
+        <select class="filter-select" id="filterNomor" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+          <option value="">Nomor: Semua</option>
+        </select>
+
         <!-- Keterangan -->
-        <div class="filter-group">
-          <label class="filter-label">Keterangan</label>
-          <select class="filter-select" id="filterKeterangan" onchange="applyFilters()">
-            <option value="">Semua</option>
-            <option value="belum">Belum Selesai</option>
-            <option value="selesai">Selesai</option>
-          </select>
-        </div>
-        <!-- Search (1 Field for everything) -->
-        <div class="filter-group" style="flex:1;min-width:200px">
-          <label class="filter-label">Cari</label>
-          <input type="text" class="filter-select" id="filterSearch" placeholder="Cari SLS, KK, usaha, atau ID..." oninput="applyFiltersDebounced()" style="width:100%">
-        </div>
-        <div style="display:flex;gap:0.5rem;align-items:flex-end">
-          <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
-            Reset
-          </button>
-        </div>
+        <select class="filter-select" id="filterKeterangan" onchange="applyFilters()" style="width:150px;height:38px;margin-bottom:0">
+          <option value="">Keterangan: Semua</option>
+          <option value="belum">Belum Selesai</option>
+          <option value="selesai">Selesai</option>
+        </select>
+
+        <!-- Pilih Wilayah Button -->
+        <button class="btn btn-secondary" onclick="openWilayahFilterModal()"
+          style="padding:0 0.75rem;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-card);color:var(--text);font-weight:500;font-size:0.875rem;cursor:pointer;white-space:nowrap;margin-bottom:0">
+          Pilih Wilayah
+        </button>
+
+        <!-- Reset Button -->
+        <button class="btn btn-secondary" onclick="resetFilters()" style="height:38px;padding:0 0.75rem;display:flex;align-items:center;gap:0.25rem;white-space:nowrap;margin-bottom:0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+          Reset
+        </button>
       </div>
       <!-- Active Filter Chips -->
       <div id="filterActiveBar"></div>
@@ -192,7 +290,8 @@
           <div class="table-count" id="tableCount">Memuat...</div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem">
-          <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()" style="padding:0.35rem 0.6rem;font-size:0.8rem">
+          <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()"
+            style="padding:0.35rem 0.6rem;font-size:0.8rem">
             <option value="25">25 / halaman</option>
             <option value="50">50 / halaman</option>
             <option value="100">100 / halaman</option>
@@ -206,7 +305,8 @@
           <thead>
             <tr>
               <th class="col-checkbox no-sort">
-                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)" style="cursor:pointer;accent-color:var(--primary)">
+                <input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"
+                  style="cursor:pointer;accent-color:var(--primary)">
               </th>
               <th onclick="sortTable('assignment_id')">Assignment ID <span class="sort-icon">↕</span></th>
               <th onclick="sortTable('kode_sls_gabungan')">Kode SLS <span class="sort-icon">↕</span></th>
@@ -218,7 +318,11 @@
             </tr>
           </thead>
           <tbody id="tableBody">
-            <tr><td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>
+            <tr>
+              <td colspan="8" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <div class="spinner" style="margin:0 auto"></div>
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -238,11 +342,19 @@
     <span class="fab-count" id="fabCount">0 dipilih</span>
     <div class="fab-divider"></div>
     <button class="fab-btn" onclick="copySelectedIds()">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+      </svg>
       Salin Assignment ID
     </button>
     <button class="fab-close" onclick="clearSelection()" title="Batal pilih">
-      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" x2="6" y1="6" y2="18" />
+        <line x1="6" x2="18" y1="6" y2="18" />
+      </svg>
     </button>
   </div>
 
@@ -259,8 +371,14 @@
             <div class="bottom-sheet-title" id="sheetTitle">Detail Anomali</div>
             <div class="bottom-sheet-subtitle" id="sheetSubtitle"></div>
           </div>
-          <a id="fasihLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="margin-top:0.1rem">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+          <a id="fasihLink" href="#" target="_blank" rel="noopener" class="btn btn-secondary btn-sm"
+            style="margin-top:0.1rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" x2="21" y1="14" y2="3" />
+            </svg>
             Buka Fasih-SM
           </a>
         </div>
@@ -269,7 +387,13 @@
       <div class="bottom-sheet-footer">
         <button class="btn btn-secondary" onclick="closeDetailModal()">Tutup</button>
         <button class="btn btn-primary" id="saveBtn" onclick="saveChanges()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"/><path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7"/><path d="M7 3v4a1 1 0 0 0 1 1h7"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path
+              d="M15.2 3a2 2 0 0 1 1.4.6l3.8 3.8a2 2 0 0 1 .6 1.4V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" />
+            <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
+            <path d="M7 3v4a1 1 0 0 0 1 1h7" />
+          </svg>
           Simpan Perubahan
         </button>
       </div>
@@ -307,35 +431,59 @@
       </div>
       <div class="bottom-sheet-body">
         <!-- Type hint (sama dengan login page) -->
-        <div id="modalLoginTypeHint" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;transition:all 0.2s">
-          <div id="modalLoginTypeDot" style="width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex-shrink:0;transition:background 0.2s"></div>
+        <div id="modalLoginTypeHint"
+          style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.5rem 0.75rem;font-size:0.8rem;color:var(--text-muted);margin-bottom:1rem;display:flex;align-items:center;gap:0.5rem;transition:all 0.2s">
+          <div id="modalLoginTypeDot"
+            style="width:8px;height:8px;border-radius:50%;background:var(--border-strong);flex-shrink:0;transition:background 0.2s">
+          </div>
           <span id="modalLoginTypeText">Masukkan Sobat ID atau email</span>
         </div>
         <!-- Error alert -->
         <div id="loginModalError" class="alert alert-error hidden" style="margin-bottom:1rem">
-          <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" x2="12" y1="8" y2="12" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </svg>
           <span id="loginModalErrorText">Terjadi kesalahan</span>
         </div>
         <div class="form-group mb-3">
           <label class="form-label" for="loginEmail" id="modalLoginEmailLabel">Username / Sobat ID</label>
-          <input type="text" id="loginEmail" class="form-input" placeholder="Sobat ID (angka) atau email" autocomplete="username" oninput="detectModalLoginType(this.value)">
+          <input type="text" id="loginEmail" class="form-input" placeholder="Sobat ID (angka) atau email"
+            autocomplete="username" oninput="detectModalLoginType(this.value)">
         </div>
         <div class="form-group" style="margin-bottom:1.25rem">
           <label class="form-label" for="loginPassword" id="modalLoginPassLabel">Password / NIK</label>
           <div style="position:relative">
-            <input type="password" id="loginPassword" class="form-input" placeholder="NIK atau password" autocomplete="current-password" style="padding-right:2.5rem">
-            <button type="button" onclick="toggleModalPassword()" style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0.2rem;display:flex;align-items:center">
-              <svg id="modalEyeOpen" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg id="modalEyeClosed" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>
+            <input type="password" id="loginPassword" class="form-input" placeholder="NIK atau password"
+              autocomplete="current-password" style="padding-right:2.5rem">
+            <button type="button" onclick="toggleModalPassword()"
+              style="position:absolute;right:0.75rem;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0.2rem;display:flex;align-items:center">
+              <svg id="modalEyeOpen" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg id="modalEyeClosed" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                class="hidden">
+                <path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" />
+                <path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                <line x1="2" x2="22" y1="2" y2="22" />
+              </svg>
             </button>
           </div>
         </div>
       </div>
       <div class="bottom-sheet-footer" style="display:flex;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeLoginModal()" style="flex:1">Batal</button>
-        <button class="btn btn-primary" id="loginModalSubmitBtn" onclick="handleModalLoginSubmit()" style="flex:1;display:flex;align-items:center;justify-content:center;gap:0.5rem">
+        <button class="btn btn-primary" id="loginModalSubmitBtn" onclick="handleModalLoginSubmit()"
+          style="flex:1;display:flex;align-items:center;justify-content:center;gap:0.5rem">
           <span id="loginModalBtnText">Masuk &amp; Simpan</span>
-          <span id="loginModalSpinner" class="spinner hidden" style="width:14px;height:14px;border-width:2px;border-color:rgba(255,255,255,0.3);border-top-color:#fff"></span>
+          <span id="loginModalSpinner" class="spinner hidden"
+            style="width:14px;height:14px;border-width:2px;border-color:rgba(255,255,255,0.3);border-top-color:#fff"></span>
         </button>
       </div>
     </div>
@@ -416,4 +564,5 @@
     }
   </script>
 </body>
+
 </html>
