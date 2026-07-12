@@ -149,7 +149,7 @@ function renderAnomaliItem(row, refMap, historyList) {
             let vDisplay = String(v);
             
             // 1. Format nominal uang / Rupiah
-            if (kClean.includes('biaya') || kClean.includes('pendapatan') || kClean.includes('pengeluaran') || kClean.includes('gaji') || kClean.includes('rupiah') || kClean.includes('selisih') || kClean.includes('omset') || kClean.includes('omzet')) {
+            if (kClean.includes('biaya') || kClean.includes('pendapatan') || kClean.includes('pengeluaran') || kClean.includes('gaji') || kClean.includes('rupiah') || kClean.includes('selisih') || kClean.includes('omset') || kClean.includes('omzet') || (kClean.includes('listrik') && !kClean.includes('daya'))) {
               const num = parseFloat(v);
               if (!isNaN(num)) {
                 vDisplay = num < 0 ? `-Rp${Math.abs(num).toLocaleString('id')}` : `Rp${num.toLocaleString('id')}`;
@@ -160,13 +160,13 @@ function renderAnomaliItem(row, refMap, historyList) {
               const num = parseFloat(v);
               vDisplay = !isNaN(num) ? `${v} m²` : vDisplay;
             } 
-            // 3. Decode daya listrik terpasang
-            else if (kClean === 'dayalistrik' || kClean === 'daya') {
+            // 3. Decode daya terpasang
+            else if (kClean === 'dayalistrik' || kClean === 'daya' || kClean === 'dayaterpasangvalue' || kClean === 'dayaterpasang') {
               const dMap = { '1': '450 watt', '2': '900 watt', '3': '1.300 watt', '4': '2.200 watt', '5': '> 2.200 watt' };
               vDisplay = dMap[String(v).trim()] || `${v} Watt/VA`;
             } 
             // 4. Decode memproduksi sendiri
-            else if (kClean.includes('produksisendiri') || kClean.includes('produkssendiri')) {
+            else if (kClean.includes('produksisendiri') || kClean.includes('produkssendiri') || kClean.includes('produk_sendiri')) {
               const valStr = String(v).trim();
               if (valStr === '1') vDisplay = 'Ya';
               else if (valStr === '2') vDisplay = 'Tidak';
@@ -192,6 +192,13 @@ function renderAnomaliItem(row, refMap, historyList) {
               };
               vDisplay = buMap[valStr] || vDisplay;
             }
+            // 6. Format persentase / rasio
+            else if (kClean.includes('rasio') || kClean.includes('persen')) {
+              const num = parseFloat(v);
+              if (!isNaN(num)) {
+                vDisplay = `${num.toFixed(2)}%`;
+              }
+            } 
             
             return `<div>
               <span style="color:var(--text-muted); font-size:0.75rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
