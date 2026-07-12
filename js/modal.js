@@ -145,6 +145,47 @@ function renderAnomaliItem(row, refMap, historyList) {
       <span class="status-badge ${statusConf.color}" style="margin-left:auto">${statusConf.label}</span>
     </div>
     ${ref?.penjelasan ? `<div class="anomali-explanation">${escHtml(ref.penjelasan)}</div>` : ''}
+    
+    <!-- Relevant Raw Data Highlight (Dynamic Context) -->
+    ${(() => {
+      if (!row.raw_data || Object.keys(row.raw_data).length === 0) return '';
+      
+      // Kata kunci pencarian kolom yang relevan berdasarkan nomor/nama anomali
+      const nom = row.nomor_anomali;
+      const namaLow = (row.nama_anomali || ref?.nama || '').toLowerCase();
+      const keywords = [];
+
+      if (nom === 8 || namaLow.includes('kbli')) {
+        keywords.push('kbli', 'sbr', 'prelist', 'utama');
+      } else if (namaLow.includes('gaji') || namaLow.includes('pendapatan') || namaLow.includes('upah')) {
+        keywords.push('gaji', 'pendapatan', 'upah', 'omset', 'omzet', 'rupiah', 'nilai');
+      } else if (namaLow.includes('art') || namaLow.includes('anggota') || namaLow.includes('keluarga')) {
+        keywords.push('art', 'nama', 'kk', 'nik', 'hubungan');
+      } else {
+        // Fallback umum: ambil kolom yang bernilai beda / berisi data perbandingan
+        keywords.push('sbr', 'prelist', 'beda', 'selisih', 'akhir', 'awal', 'pendataan', 'cacah');
+      }
+
+      // Filter key-value yang sesuai dengan kata kunci di atas
+      const matched = Object.entries(row.raw_data).filter(([k, v]) => {
+        if (v === null || v === '' || v === '-') return false;
+        const kLow = k.toLowerCase();
+        return keywords.some(kw => kLow.includes(kw));
+      });
+
+      if (matched.length === 0) return '';
+
+      return `<div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-sm); padding:0.6rem 0.8rem; margin: 0.5rem 0 0.875rem 0; font-size:0.8rem">
+        <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.35rem">Data Terkait Anomali:</div>
+        <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap:0.4rem 0.75rem">
+          ${matched.map(([k, v]) => `<div>
+            <span style="color:var(--text-muted); font-size:0.75rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
+            <strong style="color:var(--primary); font-size:0.85rem">${escHtml(String(v))}</strong>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    })()}
+
     <div class="anomali-status-row">
       <div class="form-group">
         <label class="form-label-sm">Status Tindak Lanjut</label>
