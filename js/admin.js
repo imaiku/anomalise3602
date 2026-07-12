@@ -443,8 +443,40 @@ async function renderUsers() {
     return;
   }
 
-  const { data: slsData } = await db.from('user_sls').select('user_id, kode_sls').eq('status', 'aktif');
-  const { data: relData } = await db.from('pml_ppl').select('pml_id, ppl_id');
+  let slsData = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data, error } = await db.from('user_sls')
+      .select('user_id, kode_sls')
+      .eq('status', 'aktif')
+      .range(fromSls, fromSls + 999);
+    if (error) { console.error(error); break; }
+    if (!data || data.length === 0) {
+      hasMoreSls = false;
+    } else {
+      slsData = slsData.concat(data);
+      if (data.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
+    }
+  }
+
+  let relData = [];
+  let fromRel = 0;
+  let hasMoreRel = true;
+  while (hasMoreRel) {
+    const { data, error } = await db.from('pml_ppl')
+      .select('pml_id, ppl_id')
+      .range(fromRel, fromRel + 999);
+    if (error) { console.error(error); break; }
+    if (!data || data.length === 0) {
+      hasMoreRel = false;
+    } else {
+      relData = relData.concat(data);
+      if (data.length < 1000) hasMoreRel = false;
+      else fromRel += 1000;
+    }
+  }
 
   const pplSlsMap = {};
   (slsData || []).forEach(s => {
