@@ -53,7 +53,8 @@ async function renderSheetBody() {
 
   const rowIds = rows.map(r => r.id);
   const { data: history } = await db
-    .from('status_history').select('*')
+    .from('status_history')
+    .select('*, profiles:diubah_oleh_id(role)')
     .in('assignment_anomali_id', rowIds)
     .order('created_at', { ascending: false }).limit(50);
 
@@ -113,13 +114,15 @@ function renderAnomaliItem(row, refMap, historyList) {
     .map(([val, conf]) => `<option value="${val}" ${row.status === val ? 'selected' : ''}>${conf.label}</option>`).join('');
 
   const historyHtml = historyList.length > 0
-    ? historyList.slice(0, 5).map(h =>
-        `<div class="history-item">
+    ? historyList.slice(0, 5).map(h => {
+        const roleText = h.profiles?.role ? h.profiles.role.toUpperCase() : 'SISTEM';
+        return `<div class="history-item">
           <span class="${h.sumber === 'merge_otomatis' ? 'history-source-auto' : 'history-source-manual'}">[${h.sumber === 'merge_otomatis' ? 'Sistem' : 'Manual'}]</span>
-          ${formatDate(h.created_at, true)} \u00b7 ${escHtml(h.diubah_oleh_nama || 'Sistem')}
+          ${formatDate(h.created_at, true)} \u00b7 ${escHtml(h.diubah_oleh_nama || 'Sistem')} - <strong style="font-size:0.7rem;color:var(--primary)">${escHtml(roleText)}</strong>
           <br>${escHtml(STATUS_CONFIG[h.status_lama]?.label || h.status_lama || '\u2014')} \u2192 ${escHtml(STATUS_CONFIG[h.status_baru]?.label || h.status_baru)}
           ${h.catatan ? `<br><em style="font-size:0.75rem">${escHtml(h.catatan)}</em>` : ''}
-        </div>`).join('')
+        </div>`;
+      }).join('')
     : '<div class="history-item">Belum ada riwayat perubahan</div>';
 
   return `<div class="anomali-item">
