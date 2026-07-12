@@ -607,7 +607,10 @@ function filterUsers() {
   const role   = document.getElementById('userRoleFilter').value;
   filteredUsers = allUsers.filter(u =>
     (!role   || u.role === role) &&
-    (!search || u.nama.toLowerCase().includes(search) || (u.sobatid || '').toLowerCase().includes(search))
+    (!search || 
+      u.nama.toLowerCase().includes(search) || 
+      (u.sobatid || '').toLowerCase().includes(search) ||
+      (u.email_ref || '').toLowerCase().includes(search))
   );
   sortUsersData();
   currentUserPage = 1;
