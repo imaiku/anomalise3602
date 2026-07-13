@@ -8,7 +8,7 @@ let allData         = [];   // grouped by assignment_id
 let filteredData    = [];
 let selectedIds     = new Set();
 let currentPage     = 1;
-let pageSize        = 25;
+let pageSize        = 10;
 let sortField       = 'first_seen';
 let sortDir         = 'desc';
 let showReopenHighlight = false;
@@ -583,7 +583,7 @@ function groupByAssignment(rows) {
         anomali_keluarga:  [],
         anomali_usaha:     [],
         is_ever_reopened:  false,
-        show_anomaly:      row.show_anomaly !== undefined ? row.show_anomaly : true,
+        show_anomaly:      row.show_anomaly !== undefined ? row.show_anomaly : false,
         is_rejected:       row.is_rejected !== undefined ? row.is_rejected : false,
         first_seen:        row.first_seen,
         last_seen:         row.last_seen,

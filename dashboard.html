@@ -126,11 +126,14 @@
             <span id="userRoleBadge" class="type-badge" style="font-size:0.65rem;padding:0.15rem 0.4rem;"></span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="dropdown-chevron"><path d="m6 9 6 6 6-6"/></svg>
+              class="dropdown-chevron">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </div>
           <div class="dropdown-menu" id="profileDropdownMenu">
             <!-- Admin Panel Button (shown only to admin/superadmin) -->
-            <a href="/admin.html" class="dropdown-item hidden" id="adminNavBtn" style="text-decoration:none;color:inherit">
+            <a href="/admin.html" class="dropdown-item hidden" id="adminNavBtn"
+              style="text-decoration:none;color:inherit">
               <span class="dropdown-item-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -146,12 +149,15 @@
 
             <button class="dropdown-item" onclick="toggleTheme(); event.stopPropagation();">
               <span class="dropdown-item-icon">
-                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
-                  <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="hidden">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
                 </svg>
-                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
                 </svg>
               </span>
@@ -223,16 +229,26 @@
           </button>
         </div>
         <div id="kecNavControls" class="hidden" style="display:flex;gap:0.35rem;align-items:center">
-          <button class="btn btn-secondary btn-xs" onclick="prevKecPage()" id="btnKecPrev" style="cursor:pointer;padding:0.2rem">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          <button class="btn btn-secondary btn-xs" onclick="prevKecPage()" id="btnKecPrev"
+            style="cursor:pointer;padding:0.2rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5">
+              <polyline points="15 18 9 12 15 6" />
+            </svg>
           </button>
-          <span id="kecPageIndicator" style="font-size:0.75rem;color:var(--text-muted);min-width:35px;text-align:center;font-weight:500">1/6</span>
-          <button class="btn btn-secondary btn-xs" onclick="nextKecPage()" id="btnKecNext" style="cursor:pointer;padding:0.2rem">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          <span id="kecPageIndicator"
+            style="font-size:0.75rem;color:var(--text-muted);min-width:35px;text-align:center;font-weight:500">1/6</span>
+          <button class="btn btn-secondary btn-xs" onclick="nextKecPage()" id="btnKecNext"
+            style="cursor:pointer;padding:0.2rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
           </button>
         </div>
       </div>
-      <div class="kec-progress-grid collapsed" id="kecProgressGrid" style="border:none;background:transparent;padding-left:0;padding-right:0;padding-bottom:0">
+      <div class="kec-progress-grid collapsed" id="kecProgressGrid"
+        style="border:none;background:transparent;padding-left:0;padding-right:0;padding-bottom:0">
         <!-- Diisi secara dinamis oleh JavaScript -->
       </div>
     </div>
@@ -246,7 +262,8 @@
           oninput="applyFiltersDebounced()" style="flex:1;min-width:200px;height:38px;margin-bottom:0">
 
         <!-- Status -->
-        <select class="filter-select" id="filterStatus" onchange="applyFilters()" style="width:150px;height:38px;margin-bottom:0">
+        <select class="filter-select" id="filterStatus" onchange="applyFilters()"
+          style="width:150px;height:38px;margin-bottom:0">
           <option value="">Status: Semua</option>
           <option value="belum_ditindaklanjuti">Belum Ditindaklanjuti</option>
           <option value="sesuai_kondisi">Sesuai Kondisi</option>
@@ -255,7 +272,8 @@
         </select>
 
         <!-- Jenis Anomali -->
-        <select class="filter-select" id="filterJenis" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+        <select class="filter-select" id="filterJenis" onchange="applyFilters()"
+          style="width:130px;height:38px;margin-bottom:0">
           <option value="">Jenis: Semua</option>
           <option value="keluarga">Keluarga</option>
           <option value="usaha">Usaha</option>
@@ -263,32 +281,44 @@
         </select>
 
         <!-- Nomor Anomali -->
-        <select class="filter-select" id="filterNomor" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+        <select class="filter-select" id="filterNomor" onchange="applyFilters()"
+          style="width:130px;height:38px;margin-bottom:0">
           <option value="">Nomor: Semua</option>
         </select>
 
         <!-- Keterangan -->
-        <select class="filter-select" id="filterKeterangan" onchange="applyFilters()" style="width:150px;height:38px;margin-bottom:0">
+        <select class="filter-select" id="filterKeterangan" onchange="applyFilters()"
+          style="width:150px;height:38px;margin-bottom:0">
           <option value="">Keterangan: Semua</option>
           <option value="belum">Belum Selesai</option>
           <option value="selesai">Selesai</option>
         </select>
 
         <!-- Reject (Hanya untuk Admin/Superadmin) -->
-        <select class="filter-select hidden" id="filterReject" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+        <select class="filter-select hidden" id="filterReject" onchange="applyFilters()"
+          style="width:130px;height:38px;margin-bottom:0">
           <option value="">Reject: Semua</option>
           <option value="ya">Hanya Reject</option>
           <option value="tidak">Belum Reject</option>
         </select>
 
         <!-- Petugas (PPL/PML) Autocomplete Search -->
-        <div class="filter-autocomplete-container hidden" id="petugasFilterContainer" style="position:relative;width:210px;margin-bottom:0">
-          <input type="text" class="filter-select" id="filterPetugasInput" placeholder="Cari Petugas (Email/Nama)..." 
-            oninput="onPetugasSearchInput(this.value)" style="width:100%;height:38px;margin-bottom:0;padding-right:2rem;box-sizing:border-box">
-          <button id="btnClearPetugas" onclick="clearSelectedPetugas()" style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-subtle);cursor:pointer;display:none;align-items:center;padding:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+        <div class="filter-autocomplete-container hidden" id="petugasFilterContainer"
+          style="position:relative;width:210px;margin-bottom:0">
+          <input type="text" class="filter-select" id="filterPetugasInput" placeholder="Cari Petugas (Email/Nama)..."
+            oninput="onPetugasSearchInput(this.value)"
+            style="width:100%;height:38px;margin-bottom:0;padding-right:2rem;box-sizing:border-box">
+          <button id="btnClearPetugas" onclick="clearSelectedPetugas()"
+            style="position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-subtle);cursor:pointer;display:none;align-items:center;padding:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5">
+              <line x1="18" x2="6" y1="6" y2="18" />
+              <line x1="6" x2="18" y1="6" y2="18" />
+            </svg>
           </button>
-          <div id="petugasSuggestions" class="autocomplete-suggestions" style="position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);display:none"></div>
+          <div id="petugasSuggestions" class="autocomplete-suggestions"
+            style="position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:200px;overflow-y:auto;z-index:100;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1);display:none">
+          </div>
         </div>
 
         <!-- Pilih Wilayah Button -->
@@ -299,7 +329,8 @@
 
         <!-- Reopen Highlight Toggle (hidden by default, only shown to admin/superadmin in js) -->
         <button class="btn btn-secondary hidden" id="reopenToggle" onclick="toggleReopenHighlight()"
-          title="Tampilkan highlight assignment yang pernah re-open" style="height:38px;display:flex;align-items:center;gap:0.25rem;margin-bottom:0">
+          title="Tampilkan highlight assignment yang pernah re-open"
+          style="height:38px;display:flex;align-items:center;gap:0.25rem;margin-bottom:0">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
@@ -309,7 +340,8 @@
         </button>
 
         <!-- Reset Button -->
-        <button class="btn btn-secondary" onclick="resetFilters()" style="height:38px;padding:0 0.75rem;display:flex;align-items:center;gap:0.25rem;white-space:nowrap;margin-bottom:0">
+        <button class="btn btn-secondary" onclick="resetFilters()"
+          style="height:38px;padding:0 0.75rem;display:flex;align-items:center;gap:0.25rem;white-space:nowrap;margin-bottom:0">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
@@ -332,6 +364,7 @@
         <div style="display:flex;align-items:center;gap:0.5rem">
           <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()"
             style="padding:0.35rem 0.6rem;font-size:0.8rem">
+            <option value="10" selected>10 / halaman</option>
             <option value="25">25 / halaman</option>
             <option value="50">50 / halaman</option>
             <option value="100">100 / halaman</option>
@@ -461,12 +494,23 @@
       </div>
       <div class="bottom-sheet-footer" style="display:flex; gap:0.5rem; justify-content:flex-end; flex-wrap:wrap">
         <button class="btn btn-secondary" onclick="closeBulkModal()">Batal</button>
-        <button class="btn btn-secondary" id="bulkOpenAllBtn" onclick="openAllBulkTabs()" style="background:var(--secondary); color:var(--text); border:1px solid var(--border)">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+        <button class="btn btn-secondary" id="bulkOpenAllBtn" onclick="openAllBulkTabs()"
+          style="background:var(--secondary); color:var(--text); border:1px solid var(--border)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+            <polyline points="15 3 21 3 21 9" />
+            <line x1="10" x2="21" y1="14" y2="3" />
+          </svg>
           Buka Semua Fasih-SM
         </button>
         <button class="btn btn-primary" id="bulkSaveBtn" onclick="saveBulkChanges()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
           Simpan Perubahan
         </button>
       </div>

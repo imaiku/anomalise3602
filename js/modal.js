@@ -95,7 +95,7 @@ async function renderSheetBody() {
   
   const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
   if (isAdmin) {
-    const showAnomalyVal = rows[0]?.show_anomaly !== false;
+    const showAnomalyVal = rows[0]?.show_anomaly === true;
     const isRejectedVal = rows[0]?.is_rejected === true;
 
     html += `<div class="card mb-4" style="padding:0.875rem 1rem; border: 1px solid var(--border); border-left: 4px solid var(--primary)">
@@ -424,6 +424,10 @@ function handleOverlayClick(e) { if (e.target === document.getElementById('detai
 let bulkSelectedData = [];
 function openBulkModal() {
   if (!selectedIds.size) return;
+  if (selectedIds.size > 10) {
+    showToast('Maksimal assignment yang dapat dibuka bersamaan adalah 10!', 'warning');
+    return;
+  }
   bulkSelectedData = allData.filter(g => selectedIds.has(g.assignment_id));
   renderBulkSheetBody();
   
@@ -474,38 +478,56 @@ function renderBulkSheetBody() {
   const body = document.getElementById('bulkSheetBody');
   if (!body) return;
   
-  let html = '';
+  let html = `<div style="overflow-x:auto">
+    <table class="table" style="width:100%; font-size:0.8rem; border-collapse:collapse">
+      <thead>
+        <tr style="border-bottom:2px solid var(--border)">
+          <th style="padding:0.75rem; text-align:left">Nama KK / Usaha</th>
+          <th style="padding:0.75rem; text-align:center; width:130px">Tampilkan Anomali</th>
+          <th style="padding:0.75rem; text-align:center; width:90px">Reject</th>
+          <th style="padding:0.75rem; text-align:center; width:180px">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>`;
+      
   bulkSelectedData.forEach((g, idx) => {
-    const showAnomalyVal = g.show_anomaly !== false;
+    const showAnomalyVal = g.show_anomaly === true;
     const isRejectedVal = g.is_rejected === true;
-    const name = g.nama_kk || g.nama_usaha_list[0] || '—';
+    
+    const nameParts = [];
+    if (g.nama_kk) nameParts.push(g.nama_kk);
+    if (g.nama_usaha_list.length > 0) {
+      nameParts.push(g.nama_usaha_list.join(', '));
+    }
+    const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
     const fasihUrl = buildFasihLink(g.assignment_id);
     
     html += `
-    <div class="card mb-3" style="padding: 1rem; border: 1px solid var(--border); border-left: 4px solid var(--primary)">
-      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem">
-        <div>
-          <div style="font-weight:600; font-size:0.85rem">${escHtml(name)}</div>
-          <div style="color:var(--text-muted); font-size:0.75rem">${g.kode_sls_gabungan} &nbsp;·&nbsp; ${g.assignment_id.slice(0, 8)}...</div>
-        </div>
-        <a href="${fasihUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:0.25rem">
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
-          Fasih-SM
-        </a>
-      </div>
-      <div style="display:flex; gap:1.5rem; font-size:0.8rem; flex-wrap:wrap">
-        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer">
-          <input type="checkbox" class="bulk-show-cb" data-idx="${idx}" ${showAnomalyVal ? 'checked' : ''} onchange="onBulkShowAnomalyToggle(${idx}, this.checked)" style="width:15px; height:15px; accent-color:var(--primary)">
-          <span>Tampilkan Anomali</span>
-        </label>
-        <label id="bulkRejectLabel-${idx}" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; color:${showAnomalyVal ? 'var(--text)' : 'var(--text-muted)'}">
-          <input type="checkbox" class="bulk-reject-cb" id="bulkReject-${idx}" data-idx="${idx}" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:15px; height:15px; accent-color:var(--primary)">
-          <span>Reject</span>
-        </label>
-      </div>
-    </div>`;
+        <tr style="border-bottom:1px solid var(--border)">
+          <td style="padding:0.75rem">
+            <div style="font-weight:600; color:var(--text)">${escHtml(combinedName)}</div>
+            <div style="font-size:0.7rem; color:var(--text-muted)">${g.kode_sls_gabungan} &nbsp;·&nbsp; ${g.assignment_id.slice(0, 8)}...</div>
+          </td>
+          <td style="padding:0.75rem; text-align:center">
+            <input type="checkbox" class="bulk-show-cb" data-idx="${idx}" ${showAnomalyVal ? 'checked' : ''} onchange="onBulkShowAnomalyToggle(${idx}, this.checked)" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer">
+          </td>
+          <td style="padding:0.75rem; text-align:center">
+            <input type="checkbox" class="bulk-reject-cb" id="bulkReject-${idx}" data-idx="${idx}" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer">
+          </td>
+          <td style="padding:0.75rem; text-align:center; white-space:nowrap">
+            <a href="${fasihUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+              Buka
+            </a>
+            <button id="btnRejectApi-${idx}" onclick="rejectIndividualAssignment(${idx}, '${g.assignment_id}')" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem; background:var(--error); color:#fff; border:none; margin-left:0.25rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+              Reject API
+            </button>
+          </td>
+        </tr>`;
   });
   
+  html += `</tbody></table></div>`;
   body.innerHTML = html;
 }
 function onBulkShowAnomalyToggle(idx, checked) {
@@ -534,7 +556,7 @@ async function saveBulkChanges() {
     
     for (let i = 0; i < bulkSelectedData.length; i++) {
       const g = bulkSelectedData[i];
-      const showAnomalyVal = showCbs[i]?.checked ?? true;
+      const showAnomalyVal = showCbs[i]?.checked ?? false;
       const isRejectedVal = rejectCbs[i]?.checked ?? false;
       
       const { error: updErr } = await db
@@ -744,5 +766,97 @@ async function handleModalLoginSubmit() {
     btn.disabled = false;
     if (btnText) btnText.textContent = 'Masuk & Simpan';
     spinner?.classList.add('hidden');
+  }
+}
+
+// ============================================================
+// FASIH-SM API REJECT INTEGRATION
+// ============================================================
+async function callRejectAPI(assignmentId) {
+  try {
+    const response = await fetch('https://fasih-sm.bps.go.id/app/api/assignment-approval/api/v2/approval', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        assignmentId: assignmentId,
+        statusApproval: "false",
+        comment: JSON.stringify({ dataKey: "", notes: [] })
+      })
+    });
+    
+    if (response.ok) {
+      showToast(`Assignment ${assignmentId.slice(0, 8)}... berhasil direject di Fasih-SM!`, 'success');
+      return true;
+    } else {
+      const errText = await response.text();
+      throw new Error(errText || `HTTP error ${response.status}`);
+    }
+  } catch (err) {
+    console.error('Reject API error:', err);
+    showToast(`Gagal reject ${assignmentId.slice(0, 8)}...: ${err.message}. Pastikan Anda sudah login di Fasih-SM dan mengaktifkan ekstensi CORS jika diperlukan.`, 'error');
+    return false;
+  }
+}
+
+async function rejectIndividualAssignment(idx, assignmentId) {
+  const btn = document.getElementById(`btnRejectApi-${idx}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Processing...';
+  }
+  
+  const success = await callRejectAPI(assignmentId);
+  
+  if (success) {
+    const showCb = document.querySelectorAll('.bulk-show-cb')[idx];
+    const rejectCb = document.getElementById(`bulkReject-${idx}`);
+    
+    if (showCb) {
+      showCb.checked = true;
+      onBulkShowAnomalyToggle(idx, true);
+    }
+    if (rejectCb) {
+      rejectCb.checked = true;
+    }
+  }
+  
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg> Reject API`;
+  }
+}
+
+async function rejectAllBulkAssignments() {
+  const btn = document.getElementById('bulkRejectAllBtn');
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Rejecting...';
+  }
+  
+  let successCount = 0;
+  for (let i = 0; i < bulkSelectedData.length; i++) {
+    const g = bulkSelectedData[i];
+    const success = await callRejectAPI(g.assignment_id);
+    if (success) {
+      successCount++;
+      const showCb = document.querySelectorAll('.bulk-show-cb')[i];
+      const rejectCb = document.getElementById(`bulkReject-${i}`);
+      if (showCb) {
+        showCb.checked = true;
+        onBulkShowAnomalyToggle(i, true);
+      }
+      if (rejectCb) {
+        rejectCb.checked = true;
+      }
+    }
+  }
+  
+  showToast(`Selesai memproses reject: ${successCount} dari ${bulkSelectedData.length} berhasil.`, 'info');
+  
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg> Reject Semua (API)`;
   }
 }
