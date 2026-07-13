@@ -433,12 +433,29 @@ function openBulkModal() {
     document.body.style.overflow = 'hidden';
     window.history.pushState({ modalOpen: 'bulk' }, '');
   }
+}
 
-  // Buka tab baru untuk semua assignment yang dipilih secara sinkron
+function openAllBulkTabs() {
+  if (bulkSelectedData.length === 0) return;
+  const count = bulkSelectedData.length;
+  if (count > 5) {
+    if (!confirm(`Apakah Anda yakin ingin membuka ${count} tab Fasih-SM sekaligus?`)) {
+      return;
+    }
+  }
+  
   bulkSelectedData.forEach(g => {
     const url = buildFasihLink(g.assignment_id);
-    window.open(url, '_blank');
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   });
+  
+  showToast(`Membuka ${count} tautan Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
 }
 function closeBulkModal(triggerHistoryBack = true) {
   const modal = document.getElementById('bulkModal');
