@@ -44,7 +44,7 @@ const ROLES = {
 
 // Build Fasih-SM link from assignment ID
 function buildFasihLink(assignmentId) {
-  return `https://fasih-sm.bps.go.id/app/assignment-detail/${assignmentId}`;
+  return `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${assignmentId}/edit`;
 }
 
 // Build full SLS code from parts

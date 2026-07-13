@@ -91,7 +91,32 @@ async function renderSheetBody() {
     console.error('Error fetching regional details:', err);
   }
 
-  let html = `<div class="card mb-4" style="padding:0.875rem 1rem">
+  let html = '';
+  
+  const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+  if (isAdmin) {
+    const showAnomalyVal = rows[0]?.show_anomaly !== false;
+    const isRejectedVal = rows[0]?.is_rejected === true;
+
+    html += `<div class="card mb-4" style="padding:0.875rem 1rem; border: 1px solid var(--border); border-left: 4px solid var(--primary)">
+      <div style="font-weight:600; font-size:0.85rem; color:var(--text); margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
+        Status Reject Assignment (Monitoring Admin)
+      </div>
+      <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.8125rem">
+        <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:var(--text)">
+          <input type="checkbox" id="modalShowAnomaly" ${showAnomalyVal ? 'checked' : ''} onchange="onShowAnomalyToggle(this.checked)" style="width:16px; height:16px; accent-color:var(--primary)">
+          <span>Tampilkan Anomali <span style="color:var(--text-subtle); font-size:0.75rem">(tampilkan list anomali di akun petugas PPL/PML)</span></span>
+        </label>
+        <label id="modalRejectLabel" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:${showAnomalyVal ? 'var(--text)' : 'var(--text-muted)'}">
+          <input type="checkbox" id="modalReject" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary)">
+          <span>Reject <span style="color:var(--text-subtle); font-size:0.75rem">(telah direject di Fasih-SM)</span></span>
+        </label>
+      </div>
+    </div>`;
+  }
+
+  html += `<div class="card mb-4" style="padding:0.875rem 1rem">
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem 1.5rem;font-size:0.8125rem">
       <div><span style="color:var(--text-muted)">Kepala Keluarga</span><br><strong>${escHtml(nama_kk || '\u2014')}</strong></div>
       <div style="grid-column:1/-1"><span style="color:var(--text-muted)">Alamat</span><br><strong>${escHtml(alamat)}</strong></div>
@@ -260,6 +285,20 @@ function onCatatanChange(rowId, v) { if (!pendingChanges[rowId]) pendingChanges[
 function toggleHistory(id)  { const el = document.getElementById(id); if (el) el.classList.toggle('hidden'); }
 function toggleRawData()    { const el = document.getElementById('rawDataSection'); if (el) el.classList.toggle('hidden'); }
 
+function onShowAnomalyToggle(checked) {
+  const rejectCb = document.getElementById('modalReject');
+  const rejectLabel = document.getElementById('modalRejectLabel');
+  if (rejectCb) {
+    rejectCb.disabled = !checked;
+    if (!checked) {
+      rejectCb.checked = false;
+    }
+  }
+  if (rejectLabel) {
+    rejectLabel.style.color = checked ? 'var(--text)' : 'var(--text-muted)';
+  }
+}
+
 let afterLoginCallback = null;
 
 async function saveChanges() {
@@ -272,8 +311,30 @@ async function saveChanges() {
     return;
   }
   if (!canEdit) return;
+  
   const changes = Object.entries(pendingChanges);
-  if (changes.length === 0) { showToast('Tidak ada perubahan untuk disimpan', 'info'); return; }
+  const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+  
+  let hasCheckboxChanges = false;
+  let showAnomalyChecked = true;
+  let isRejectedChecked = false;
+  
+  if (isAdmin) {
+    showAnomalyChecked = document.getElementById('modalShowAnomaly')?.checked ?? true;
+    isRejectedChecked = document.getElementById('modalReject')?.checked ?? false;
+    
+    const initialShowAnomaly = currentGroup.show_anomaly !== false;
+    const initialIsRejected = currentGroup.is_rejected === true;
+    
+    if (showAnomalyChecked !== initialShowAnomaly || isRejectedChecked !== initialIsRejected) {
+      hasCheckboxChanges = true;
+    }
+  }
+
+  if (changes.length === 0 && !hasCheckboxChanges) {
+    showToast('Tidak ada perubahan untuk disimpan', 'info');
+    return;
+  }
 
   const saveBtn = document.getElementById('saveBtn');
   saveBtn.disabled = true;
@@ -282,6 +343,24 @@ async function saveChanges() {
   try {
     const sessionName = getSessionName(currentProfile);
     const now = new Date().toISOString();
+
+    if (isAdmin && hasCheckboxChanges) {
+      const { error: updErr } = await db
+        .from('assignment_anomali')
+        .update({
+          show_anomaly: showAnomalyChecked,
+          is_rejected: isRejectedChecked,
+          updated_at: now,
+          updated_by_nama: sessionName,
+          updated_by_id: currentProfile.id
+        })
+        .eq('assignment_id', currentAssignmentId);
+        
+      if (updErr) throw updErr;
+      
+      currentGroup.show_anomaly = showAnomalyChecked;
+      currentGroup.is_rejected = isRejectedChecked;
+    }
 
     for (const [rowId, ch] of changes) {
       const { data: cur } = await db.from('assignment_anomali').select('status,catatan').eq('id', rowId).single();

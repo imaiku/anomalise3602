@@ -47,6 +47,11 @@ async function initDashboard() {
     document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
     reopenToggle?.classList.toggle('hidden', !isAdmin);
 
+    const rejectFilter = document.getElementById('filterReject');
+    if (rejectFilter) {
+      rejectFilter.classList.toggle('hidden', !isAdmin);
+    }
+
     const showPetugasFilter = !['ppl', 'pml'].includes(currentProfile.role);
     const container = document.getElementById('petugasFilterContainer');
     if (container) {
@@ -60,6 +65,9 @@ async function initDashboard() {
     adminNavBtn?.classList.add('hidden');
     reopenToggle?.classList.add('hidden');
     
+    const rejectFilter = document.getElementById('filterReject');
+    if (rejectFilter) rejectFilter.classList.add('hidden');
+
     // Guest gets access to filterPetugas container
     const container = document.getElementById('petugasFilterContainer');
     if (container) {
@@ -224,9 +232,9 @@ async function loadStats() {
 
     // Fallback: fungsi RPC belum dijalankan di database.
     console.warn('get_dashboard_stats tidak tersedia, menggunakan fallback');
-    // Ambil semua baris assignment_id + status (hanya 2 kolom, cepat)
+    // Ambil semua baris assignment_id + status (hanya 3 kolom, cepat)
     let baseQ = db.from('assignment_anomali')
-      .select('assignment_id, status')
+      .select('assignment_id, status, show_anomaly')
       .limit(50000);
     if (statsRole === 'ppl') {
       baseQ = baseQ.eq('tipe', 'keluarga');
@@ -256,7 +264,10 @@ async function loadStats() {
     let anomaliSelesai = 0;
     let anomaliBelum = 0;
 
+    const isPetugas = ['ppl', 'pml'].includes(statsRole);
     (rows || []).forEach(r => {
+      if (isPetugas && r.show_anomaly === false) return; // Skip hidden anomalies
+
       anomaliTotal++;
       if (DONE.has(r.status)) anomaliSelesai++; else anomaliBelum++;
 
@@ -302,16 +313,34 @@ function renderStats(total, belum, selesai, progress, anomTotal = 0, anomBelum =
 // DATA LOADING
 // ============================================================
 async function loadAnomalinomorOptions() {
-  const { data } = await db.from('anomali_ref')
-    .select('nomor, tipe')
-    .order('nomor');
   const select = document.getElementById('filterNomor');
   if (!select) return;
+
+  const currentVal = select.value;
+
+  // Baca filter jenis dari UI
+  let jenis = document.getElementById('filterJenis')?.value;
+  
+  // Jika PPL, paksa ke keluarga
+  if (currentProfile?.role === 'ppl') {
+    jenis = 'keluarga';
+  }
+
+  let query = db.from('anomali_ref').select('nomor, tipe').order('nomor');
+  if (jenis && jenis !== 'keduanya') {
+    query = query.eq('tipe', jenis);
+  }
+
+  const { data } = await query;
+
   // Clear existing options except first
   while (select.options.length > 1) {
     select.remove(1);
   }
+
   const seen = new Set();
+  let hasSelectedValue = false;
+
   (data || []).forEach(row => {
     const key = `${row.tipe}:${row.nomor}`;
     if (seen.has(key)) return;
@@ -320,13 +349,23 @@ async function loadAnomalinomorOptions() {
     opt.value       = key;
     opt.textContent = `Anomali ${row.nomor} (${row.tipe === 'keluarga' ? 'KK' : 'Usaha'})`;
     select.appendChild(opt);
+
+    if (key === currentVal) {
+      hasSelectedValue = true;
+    }
   });
+
+  if (hasSelectedValue) {
+    select.value = currentVal;
+  } else {
+    select.value = '';
+  }
 }
 
 async function loadData() {
   showTableLoading();
   try {
-    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened';
+    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected';
 
     // Baca filter aktif dari UI
     const status = document.getElementById('filterStatus')?.value;
@@ -339,6 +378,11 @@ async function loadData() {
     const buildQuery = (tipeOverride, selectCols = COLS, noLimit = false) => {
       let q = db.from('assignment_anomali').select(selectCols).order('first_seen', { ascending: false });
       if (tipeOverride) q = q.eq('tipe', tipeOverride);
+      
+      const isPetugas = currentProfile && ['ppl', 'pml'].includes(currentProfile.role);
+      if (isPetugas) {
+        q = q.eq('show_anomaly', true);
+      }
       
       // Pencarian gabungan (Search SLS, KK, usaha, atau ID)
       if (search) {
@@ -479,6 +523,11 @@ async function loadData() {
       rows = data || [];
     }
 
+    // Filter show_anomaly for PPL and PML
+    if (currentProfile && ['ppl', 'pml'].includes(currentProfile.role)) {
+      rows = rows.filter(r => r.show_anomaly !== false);
+    }
+
     allData = groupByAssignment(rows);
     
     // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
@@ -498,6 +547,11 @@ async function loadData() {
         const groupKet = getKeterangan(group);
         if (groupKet !== ket) return false;
       }
+
+      // 4. Reject Filter
+      const rejectFilterVal = document.getElementById('filterReject')?.value;
+      if (rejectFilterVal === 'ya' && !group.is_rejected) return false;
+      if (rejectFilterVal === 'tidak' && group.is_rejected) return false;
       
       return true;
     });
@@ -529,6 +583,8 @@ function groupByAssignment(rows) {
         anomali_keluarga:  [],
         anomali_usaha:     [],
         is_ever_reopened:  false,
+        show_anomaly:      row.show_anomaly !== undefined ? row.show_anomaly : true,
+        is_rejected:       row.is_rejected !== undefined ? row.is_rejected : false,
         first_seen:        row.first_seen,
         last_seen:         row.last_seen,
         rows:              []
@@ -588,6 +644,7 @@ function applyFilters() {
   currentPage = 1;
   renderKecamatanProgress();
   loadStats();
+  loadAnomalinomorOptions();
   loadData();
 }
 
@@ -597,7 +654,7 @@ function applyFiltersDebounced() {
 }
 
 function resetFilters() {
-  ['filterStatus', 'filterJenis', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS']
+  ['filterStatus', 'filterJenis', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS', 'filterReject']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
@@ -696,6 +753,7 @@ function renderTable(pageData) {
           Fasih-SM
         </a>` : ''}
         ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
+        ${group.is_rejected ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : ''}
       </td>
       <td>${escHtml(combinedName)}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
@@ -725,7 +783,11 @@ function renderMobileCards(pageData) {
     return `<div class="mobile-card ${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''}" data-id="${group.assignment_id}">
       <div class="mobile-card-header">
         <div>
-          <div class="mobile-card-id">${group.assignment_id.slice(0, 8)}... ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}</div>
+          <div class="mobile-card-id">
+            ${group.assignment_id.slice(0, 8)}... 
+            ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
+            ${group.is_rejected ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : ''}
+          </div>
           <div class="mobile-card-name">${escHtml(group.nama_kk || group.nama_usaha_list[0] || '—')}</div>
         </div>
         <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${group.assignment_id}', this)" style="cursor:pointer;accent-color:var(--primary);width:18px;height:18px">
@@ -845,6 +907,33 @@ function updateFab() {
   const count = selectedIds.size;
   document.getElementById('fabCount').textContent = `${count} baris dipilih`;
   document.getElementById('fabBar').classList.toggle('visible', count > 0);
+  
+  const openBtn = document.getElementById('fabOpenBtn');
+  if (openBtn) {
+    const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+    openBtn.style.display = (count > 0 && isAdmin) ? 'flex' : 'none';
+  }
+}
+
+function openSelectedLinks() {
+  if (!selectedIds.size) return;
+  const count = selectedIds.size;
+  if (count > 5) {
+    if (!confirm(`Apakah Anda yakin ingin membuka ${count} tab Fasih-SM sekaligus?`)) {
+      return;
+    }
+  }
+  
+  let delay = 0;
+  Array.from(selectedIds).forEach(id => {
+    const url = buildFasihLink(id);
+    setTimeout(() => {
+      window.open(url, '_blank');
+    }, delay);
+    delay += 250;
+  });
+  
+  showToast(`Membuka ${count} tautan Fasih-SM`, 'success');
 }
 
 function copySelectedIds() {
@@ -880,6 +969,7 @@ function updateFilterChips() {
   const nomor  = document.getElementById('filterNomor').value;
   const ket    = document.getElementById('filterKeterangan').value;
   const search = document.getElementById('filterSearch').value.trim();
+  const reject = document.getElementById('filterReject')?.value;
 
   // Helper untuk mengambil label teks yang terpilih
   const getSelectText = id => {
@@ -897,6 +987,7 @@ function updateFilterChips() {
     (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
     (!selectedDes && selectedKec) && { label: `Kec: ${getSelectText('filterKecamatan')}`, clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); applyWilayahFilter(); } },
     ket    && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
+    reject && { label: `Reject: ${reject === 'ya' ? 'Ya' : 'Tidak'}`, clear: () => { document.getElementById('filterReject').value = ''; applyFilters(); } },
     search && { label: `Cari: "${search}"`,                        clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
   ].filter(Boolean);
 

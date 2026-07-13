@@ -129,6 +129,17 @@ function parseAnomaliName(namaStr, tipe) {
   return { nomor: parseInt(match[1]), nama: match[2].trim() };
 }
 
+function mapTindakLanjutToStatus(val) {
+  const str = String(val || '').toLowerCase().trim();
+  if (str.includes('perbaikan')) {
+    return 'sudah_diperbaiki';
+  }
+  if (str.includes('kondisi') || str.includes('sesuai')) {
+    return 'sesuai_kondisi';
+  }
+  return 'belum_ditindaklanjuti';
+}
+
 // ---- Convert rows to records ----
 function rowsToRecordsFull(rows, tipe, tanggalData) {
   // Dynamically locate the header row by looking for key columns
@@ -189,6 +200,7 @@ function rowsToRecordsFull(rows, tipe, tanggalData) {
       kode_sub_sls:   get('Sub SLS'),
       nomor_anomali:  nomor,
       nama_anomali:   nama,
+      tindak_lanjut_status: mapTindakLanjutToStatus(get('Tindak Lanjut')),
       first_seen:     tanggalData,
       last_seen:      tanggalData,
       raw_data:       Object.keys(rawData).length > 0 ? rawData : null

@@ -577,6 +577,7 @@ DECLARE
   v_updated_count int := 0;
   v_reopened_count int := 0;
   v_errors text[] := '{}';
+  v_target_status varchar;
 BEGIN
   -- 1. Check authorization
   IF NOT EXISTS (
@@ -596,6 +597,7 @@ BEGIN
       kode_sls text,
       kode_sub_sls text,
       nama_entitas text,
+      tindak_lanjut_status text,
       raw_data jsonb
     )
   LOOP
@@ -660,13 +662,14 @@ BEGIN
       IF v_existing_id IS NULL THEN
         -- Insert new anomali
         v_inserted_id := gen_random_uuid();
+        v_target_status := COALESCE(NULLIF(v_rec.tindak_lanjut_status, ''), 'belum_ditindaklanjuti');
         INSERT INTO public.assignment_anomali (
           id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls,
           nomor_anomali, nama_anomali, status, raw_data, first_seen, last_seen, batch_id
         ) VALUES (
           v_inserted_id, v_rec.assignment_id, p_tipe, NULLIF(v_rec.nama_entitas, ''),
           v_rec.kode_desa, v_rec.kode_sls, v_rec.kode_sub_sls,
-          v_rec.nomor_anomali, v_rec.nama_anomali, 'belum_ditindaklanjuti',
+          v_rec.nomor_anomali, v_rec.nama_anomali, v_target_status,
           v_rec.raw_data, p_tanggal_data, p_tanggal_data, p_batch_id
         );
 
@@ -674,13 +677,15 @@ BEGIN
         INSERT INTO public.status_history (
           assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
         ) VALUES (
-          v_inserted_id, null, 'belum_ditindaklanjuti', 'Sistem (Merge)', 'merge_otomatis'
+          v_inserted_id, null, v_target_status, 'Sistem (Merge)', 'merge_otomatis'
         );
 
         v_inserted_count := v_inserted_count + 1;
       ELSE
         -- Update existing anomali
-        IF v_existing_status IN ('sudah_diperbaiki', 'tidak_terdeteksi_lagi') THEN
+        v_target_status := COALESCE(NULLIF(v_rec.tindak_lanjut_status, ''), 'belum_ditindaklanjuti');
+
+        IF v_existing_status IN ('sudah_diperbaiki', 'tidak_terdeteksi_lagi') AND v_target_status = 'belum_ditindaklanjuti' THEN
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
@@ -702,8 +707,17 @@ BEGIN
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
             nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
+            status = CASE WHEN v_target_status != 'belum_ditindaklanjuti' THEN v_target_status ELSE status END,
             updated_at = now()
           WHERE id = v_existing_id;
+
+          IF v_target_status != 'belum_ditindaklanjuti' AND v_existing_status != v_target_status THEN
+            INSERT INTO public.status_history (
+              assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
+            ) VALUES (
+              v_existing_id, v_existing_status, v_target_status, 'Sistem (Merge)', 'merge_otomatis'
+            );
+          END IF;
 
           v_updated_count := v_updated_count + 1;
         END IF;
@@ -823,7 +837,8 @@ BEGIN
   INTO v_anomali_total, v_anomali_done, v_anomali_todo
   FROM public.assignment_anomali
   WHERE
-    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes));
+    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
+    AND (p_role IN ('superadmin', 'admin', 'guest') OR show_anomaly = true);
 
   -- 2. Hitung berdasarkan assignment_id
   WITH group_status AS (
@@ -833,6 +848,7 @@ BEGIN
     FROM public.assignment_anomali
     WHERE
       (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
+      AND (p_role IN ('superadmin', 'admin', 'guest') OR show_anomaly = true)
     GROUP BY assignment_id
   )
   SELECT

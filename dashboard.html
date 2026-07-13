@@ -274,6 +274,13 @@
           <option value="selesai">Selesai</option>
         </select>
 
+        <!-- Reject (Hanya untuk Admin/Superadmin) -->
+        <select class="filter-select hidden" id="filterReject" onchange="applyFilters()" style="width:130px;height:38px;margin-bottom:0">
+          <option value="">Reject: Semua</option>
+          <option value="ya">Hanya Reject</option>
+          <option value="tidak">Belum Reject</option>
+        </select>
+
         <!-- Petugas (PPL/PML) Autocomplete Search -->
         <div class="filter-autocomplete-container hidden" id="petugasFilterContainer" style="position:relative;width:210px;margin-bottom:0">
           <input type="text" class="filter-select" id="filterPetugasInput" placeholder="Cari Petugas (Email/Nama)..." 
@@ -380,6 +387,15 @@
         <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
       </svg>
       Salin Assignment ID
+    </button>
+    <button class="fab-btn" id="fabOpenBtn" onclick="openSelectedLinks()" style="display:none">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+        <polyline points="15 3 21 3 21 9" />
+        <line x1="10" x2="21" y1="14" y2="3" />
+      </svg>
+      Buka
     </button>
     <button class="fab-close" onclick="clearSelection()" title="Batal pilih">
       <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
