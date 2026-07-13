@@ -44,6 +44,7 @@ async function initDashboard() {
     
     const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role);
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
+    document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
     reopenToggle?.classList.toggle('hidden', !isAdmin);
   } else {
     if (userDisplayName) userDisplayName.textContent = 'Guest';
@@ -232,22 +233,35 @@ async function loadData() {
     let rows = [];
 
     if (jenis === 'keduanya') {
-      // Ambil ID assignment saja secara paralel tanpa limit agar tidak terpotong saat irisan
-      const [qKK, qUsaha] = await Promise.all([
-        applyRoleFilter(buildQuery('keluarga', 'assignment_id', true), 'keluarga'),
-        applyRoleFilter(buildQuery('usaha',    'assignment_id', true), 'usaha')
-      ]);
-      if (!qKK || !qUsaha) { allData = []; filteredData = []; renderAll(); return; }
-      const [resKK, resUsaha] = await Promise.all([qKK, qUsaha]);
-      if (resKK.error) throw resKK.error;
-      if (resUsaha.error) throw resUsaha.error;
+      let nA = null;
+      let nT = null;
+      if (nomor) {
+        const parts = nomor.split(':');
+        nT = parts[0];
+        nA = parseInt(parts[1]);
+      }
 
-      // Intersect: hanya assignment_id yang muncul di kedua tipe
-      const kkIds    = new Set((resKK.data || []).map(r => r.assignment_id));
-      const usahaIds = new Set((resUsaha.data || []).map(r => r.assignment_id));
-      const bothIds  = [...kkIds].filter(id => usahaIds.has(id));
+      const rpcParams = {
+        p_status: status || null,
+        p_nomor_anomali: nA,
+        p_nomor_tipe: nT,
+        p_ket: ket || null,
+        p_search: search || null,
+        p_kec_code: selectedKec || null,
+        p_desa_code: selectedDes || null,
+        p_sls_code: selectedSub || selectedSLS || null
+      };
 
-      if (bothIds.length === 0) {
+      if (currentProfile?.role === 'ppl') {
+        rpcParams.p_ppl_user_id = currentProfile.id;
+      } else if (currentProfile?.role === 'pml') {
+        rpcParams.p_pml_user_id = currentProfile.id;
+      }
+
+      const { data: intersectIds, error: rpcErr } = await db.rpc('get_both_type_assignments', rpcParams);
+      if (rpcErr) throw rpcErr;
+
+      if (!intersectIds || intersectIds.length === 0) {
         allData = [];
         filteredData = [];
         renderAll();
@@ -255,7 +269,7 @@ async function loadData() {
       }
 
       // Ambil detail baris data lengkap untuk ID-ID yang beririsan (batasi 1000 ID teratas)
-      const targetIds = bothIds.slice(0, 1000);
+      const targetIds = intersectIds.map(r => r.assignment_id).slice(0, 1000);
       let qFinal = db.from('assignment_anomali').select(COLS).in('assignment_id', targetIds).order('first_seen', { ascending: false });
       qFinal = await applyRoleFilter(qFinal);
       const resFinal = await qFinal;

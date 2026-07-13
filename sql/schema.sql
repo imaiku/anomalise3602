@@ -1028,3 +1028,75 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_unassigned_sls_summary() TO anon, authenticated;
+
+-- ============================================================
+-- Get Assignment IDs that have BOTH Keluarga & Usaha Anomalies
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.get_both_type_assignments(
+  p_status text DEFAULT NULL,
+  p_nomor_anomali int DEFAULT NULL,
+  p_nomor_tipe text DEFAULT NULL,
+  p_ket text DEFAULT NULL,
+  p_search text DEFAULT NULL,
+  p_kec_code text DEFAULT NULL,
+  p_desa_code text DEFAULT NULL,
+  p_sls_code text DEFAULT NULL,
+  p_ppl_user_id uuid DEFAULT NULL,
+  p_pml_user_id uuid DEFAULT NULL
+)
+RETURNS TABLE(assignment_id uuid)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_sls_codes text[] := NULL;
+BEGIN
+  -- Get SLS codes for PPL/PML if applicable
+  IF p_ppl_user_id IS NOT NULL THEN
+    SELECT array_agg(kode_sls) INTO v_sls_codes FROM public.user_sls WHERE user_id = p_ppl_user_id AND status = 'aktif';
+  ELSIF p_pml_user_id IS NOT NULL THEN
+    SELECT array_agg(DISTINCT us.kode_sls) INTO v_sls_codes 
+    FROM public.user_sls us JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id 
+    WHERE mp.pml_id = p_pml_user_id;
+  END IF;
+
+  RETURN QUERY
+  WITH filtered AS (
+    SELECT a.assignment_id, a.tipe
+    FROM public.assignment_anomali a
+    WHERE a.status != 'tidak_terdeteksi_lagi'
+      AND (p_status IS NULL OR a.status = p_status)
+      -- Keterangan filter
+      AND (
+        p_ket IS NULL 
+        OR (p_ket = 'selesai' AND a.status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi'))
+        OR (p_ket = 'belum' AND a.status = 'belum_ditindaklanjuti')
+      )
+      -- Nomor filter
+      AND (
+        p_nomor_anomali IS NULL 
+        OR (a.nomor_anomali = p_nomor_anomali AND a.tipe = p_nomor_tipe)
+      )
+      -- Search filter
+      AND (
+        p_search IS NULL 
+        OR a.assignment_id::text ILIKE '%' || p_search || '%'
+        OR a.nama_entitas ILIKE '%' || p_search || '%'
+        OR a.kode_sls_gabungan ILIKE '%' || p_search || '%'
+      )
+      -- Wilayah filter
+      AND (p_sls_code IS NULL OR a.kode_sls_gabungan = p_sls_code)
+      AND (p_sls_code IS NOT NULL OR p_desa_code IS NULL OR a.kode_desa = p_desa_code)
+      AND (p_sls_code IS NOT NULL OR p_desa_code IS NOT NULL OR p_kec_code IS NULL OR a.kode_desa LIKE p_kec_code || '%')
+      -- Role filter
+      AND (v_sls_codes IS NULL OR a.kode_sls_gabungan = ANY(v_sls_codes))
+  )
+  SELECT f.assignment_id
+  FROM filtered f
+  GROUP BY f.assignment_id
+  HAVING count(DISTINCT f.tipe) = 2;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_both_type_assignments(text, int, text, text, text, text, text, text, uuid, uuid) TO anon, authenticated;
