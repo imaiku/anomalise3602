@@ -25,8 +25,9 @@ async function initDashboard() {
   const userDisplayName = document.getElementById('userDisplayName');
   const userRoleBadge   = document.getElementById('userRoleBadge');
   const loginNavBtn     = document.getElementById('loginNavBtn');
-  const logoutNavBtn    = document.getElementById('logoutNavBtn');
   const adminNavBtn     = document.getElementById('adminNavBtn');
+  const profileDropdown = document.getElementById('profileDropdown');
+  const reopenToggle    = document.getElementById('reopenToggle');
 
   if (currentProfile) {
     const name = getSessionName(currentProfile);
@@ -39,15 +40,18 @@ async function initDashboard() {
       userRoleBadge.style.display = 'inline-block';
     }
     loginNavBtn?.classList.add('hidden');
-    logoutNavBtn?.classList.remove('hidden');
+    profileDropdown?.classList.remove('hidden');
+    
     const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role);
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
+    reopenToggle?.classList.toggle('hidden', !isAdmin);
   } else {
     if (userDisplayName) userDisplayName.textContent = 'Guest';
     if (userRoleBadge)   userRoleBadge.style.display = 'none';
     loginNavBtn?.classList.remove('hidden');
-    logoutNavBtn?.classList.add('hidden');
+    profileDropdown?.classList.add('hidden');
     adminNavBtn?.classList.add('hidden');
+    reopenToggle?.classList.add('hidden');
   }
 
   // Run stats + dropdown options in parallel with the main table data
@@ -921,4 +925,23 @@ document.addEventListener('DOMContentLoaded', () => {
       initDashboard();
     }
   })();
+});
+
+// Dropdown toggle logic
+function toggleProfileDropdown(event) {
+  event.stopPropagation();
+  document.getElementById('profileDropdown')?.classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('profileDropdown')?.classList.remove('open');
+});
+
+// Escape key listener for modals
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (typeof closeDetailModal === 'function') closeDetailModal();
+    // Also close admin name modal if open
+    document.getElementById('adminNameModal')?.classList.remove('open');
+  }
 });

@@ -1317,3 +1317,23 @@ document.addEventListener('DOMContentLoaded', () => {
     await initAdmin();
   })();
 });
+
+// Dropdown toggle logic
+function toggleProfileDropdown(event) {
+  event.stopPropagation();
+  document.getElementById('profileDropdown')?.classList.toggle('open');
+}
+
+document.addEventListener('click', () => {
+  document.getElementById('profileDropdown')?.classList.remove('open');
+});
+
+// Escape key listener for modals
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (typeof closeRefModal === 'function') closeRefModal();
+    if (typeof closeUserModal === 'function') closeUserModal();
+    if (typeof closeImportWilayahModal === 'function') closeImportWilayahModal();
+    if (typeof closeOverwriteModal === 'function') closeOverwriteModal();
+  }
+});
