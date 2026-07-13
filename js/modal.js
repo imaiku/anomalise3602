@@ -420,11 +420,149 @@ function closeDetailModal(triggerHistoryBack = true) {
 }
 function handleOverlayClick(e) { if (e.target === document.getElementById('detailModal')) closeDetailModal(); }
 
+// BULK EDIT MODAL CONTROLLER
+let bulkSelectedData = [];
+function openBulkModal() {
+  if (!selectedIds.size) return;
+  bulkSelectedData = allData.filter(g => selectedIds.has(g.assignment_id));
+  renderBulkSheetBody();
+  
+  const modal = document.getElementById('bulkModal');
+  if (modal) {
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
+    window.history.pushState({ modalOpen: 'bulk' }, '');
+  }
+
+  // Buka tab baru untuk semua assignment yang dipilih secara sinkron
+  bulkSelectedData.forEach(g => {
+    const url = buildFasihLink(g.assignment_id);
+    window.open(url, '_blank');
+  });
+}
+function closeBulkModal(triggerHistoryBack = true) {
+  const modal = document.getElementById('bulkModal');
+  if (modal && modal.classList.contains('open')) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    if (triggerHistoryBack && window.history.state?.modalOpen === 'bulk') {
+      window.history.back();
+    }
+  }
+}
+function handleBulkOverlayClick(e) {
+  if (e.target === document.getElementById('bulkModal')) closeBulkModal();
+}
+function renderBulkSheetBody() {
+  const body = document.getElementById('bulkSheetBody');
+  if (!body) return;
+  
+  let html = '';
+  bulkSelectedData.forEach((g, idx) => {
+    const showAnomalyVal = g.show_anomaly !== false;
+    const isRejectedVal = g.is_rejected === true;
+    const name = g.nama_kk || g.nama_usaha_list[0] || '—';
+    const fasihUrl = buildFasihLink(g.assignment_id);
+    
+    html += `
+    <div class="card mb-3" style="padding: 1rem; border: 1px solid var(--border); border-left: 4px solid var(--primary)">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:0.75rem">
+        <div>
+          <div style="font-weight:600; font-size:0.85rem">${escHtml(name)}</div>
+          <div style="color:var(--text-muted); font-size:0.75rem">${g.kode_sls_gabungan} &nbsp;·&nbsp; ${g.assignment_id.slice(0, 8)}...</div>
+        </div>
+        <a href="${fasihUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="display:inline-flex; align-items:center; gap:0.25rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+          Fasih-SM
+        </a>
+      </div>
+      <div style="display:flex; gap:1.5rem; font-size:0.8rem; flex-wrap:wrap">
+        <label style="display:flex; align-items:center; gap:0.4rem; cursor:pointer">
+          <input type="checkbox" class="bulk-show-cb" data-idx="${idx}" ${showAnomalyVal ? 'checked' : ''} onchange="onBulkShowAnomalyToggle(${idx}, this.checked)" style="width:15px; height:15px; accent-color:var(--primary)">
+          <span>Tampilkan Anomali</span>
+        </label>
+        <label id="bulkRejectLabel-${idx}" style="display:flex; align-items:center; gap:0.4rem; cursor:pointer; color:${showAnomalyVal ? 'var(--text)' : 'var(--text-muted)'}">
+          <input type="checkbox" class="bulk-reject-cb" id="bulkReject-${idx}" data-idx="${idx}" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:15px; height:15px; accent-color:var(--primary)">
+          <span>Reject</span>
+        </label>
+      </div>
+    </div>`;
+  });
+  
+  body.innerHTML = html;
+}
+function onBulkShowAnomalyToggle(idx, checked) {
+  const rejectCb = document.getElementById(`bulkReject-${idx}`);
+  const label = document.getElementById(`bulkRejectLabel-${idx}`);
+  if (rejectCb) {
+    rejectCb.disabled = !checked;
+    if (!checked) {
+      rejectCb.checked = false;
+    }
+  }
+  if (label) {
+    label.style.color = checked ? 'var(--text)' : 'var(--text-muted)';
+  }
+}
+async function saveBulkChanges() {
+  const saveBtn = document.getElementById('bulkSaveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Menyimpan...';
+  
+  try {
+    const sessionName = getSessionName(currentProfile);
+    const now = new Date().toISOString();
+    const showCbs = document.querySelectorAll('.bulk-show-cb');
+    const rejectCbs = document.querySelectorAll('.bulk-reject-cb');
+    
+    for (let i = 0; i < bulkSelectedData.length; i++) {
+      const g = bulkSelectedData[i];
+      const showAnomalyVal = showCbs[i]?.checked ?? true;
+      const isRejectedVal = rejectCbs[i]?.checked ?? false;
+      
+      const { error: updErr } = await db
+        .from('assignment_anomali')
+        .update({
+          show_anomaly: showAnomalyVal,
+          is_rejected: isRejectedVal,
+          updated_at: now,
+          updated_by_nama: sessionName,
+          updated_by_id: currentProfile.id
+        })
+        .eq('assignment_id', g.assignment_id);
+        
+      if (updErr) throw updErr;
+      
+      g.show_anomaly = showAnomalyVal;
+      g.is_rejected = isRejectedVal;
+    }
+    
+    showToast('Perubahan massal berhasil disimpan', 'success');
+    clearSelection();
+    closeBulkModal(true);
+    await loadData();
+    await loadStats();
+  } catch (err) {
+    showToast('Gagal menyimpan: ' + err.message, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg> Simpan Perubahan`;
+  }
+}
+
 // Listen to browser popstate to close modal on back button press
 window.addEventListener('popstate', (e) => {
   const modal = document.getElementById('detailModal');
   if (modal && modal.classList.contains('open')) {
-    closeDetailModal(false);
+    if (!e.state || e.state.modalOpen !== 'detail') {
+      closeDetailModal(false);
+    }
+  }
+  const bulkModal = document.getElementById('bulkModal');
+  if (bulkModal && bulkModal.classList.contains('open')) {
+    if (!e.state || e.state.modalOpen !== 'bulk') {
+      closeBulkModal(false);
+    }
   }
 });
 

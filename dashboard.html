@@ -388,7 +388,7 @@
       </svg>
       Salin Assignment ID
     </button>
-    <button class="fab-btn" id="fabOpenBtn" onclick="openSelectedLinks()" style="display:none">
+    <button class="fab-btn" id="fabOpenBtn" onclick="openBulkModal()" style="display:none">
       <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
@@ -442,6 +442,27 @@
             <path d="M17 21v-7a1 1 0 0 0-1-1H8a1 1 0 0 0-1 1v7" />
             <path d="M7 3v4a1 1 0 0 0 1 1h7" />
           </svg>
+          Simpan Perubahan
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Bulk Edit / Reject Monitoring -->
+  <div class="modal-overlay" id="bulkModal" onclick="handleBulkOverlayClick(event)">
+    <div class="bottom-sheet" id="bulkSheet" style="max-width: 600px; max-height: 85vh;">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Monitoring Reject Assignment</div>
+        <div class="bottom-sheet-subtitle">Atur status reject dan tampilan anomali untuk assignment terpilih.</div>
+      </div>
+      <div class="bottom-sheet-body" id="bulkSheetBody" style="overflow-y:auto; padding-bottom:2rem">
+        <!-- List of selected assignments will be rendered here -->
+      </div>
+      <div class="bottom-sheet-footer">
+        <button class="btn btn-secondary" onclick="closeBulkModal()">Batal</button>
+        <button class="btn btn-primary" id="bulkSaveBtn" onclick="saveBulkChanges()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
           Simpan Perubahan
         </button>
       </div>

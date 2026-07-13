@@ -915,28 +915,7 @@ function updateFab() {
   }
 }
 
-function openSelectedLinks() {
-  if (!selectedIds.size) return;
-  const count = selectedIds.size;
-  if (count > 5) {
-    if (!confirm(`Apakah Anda yakin ingin membuka ${count} tab Fasih-SM sekaligus?`)) {
-      return;
-    }
-  }
-  
-  Array.from(selectedIds).forEach(id => {
-    const url = buildFasihLink(id);
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  });
-  
-  showToast(`Membuka ${count} tautan Fasih-SM. Harap periksa apakah ada ikon pop-up terblokir di kolom alamat browser.`, 'success');
-}
+
 
 function copySelectedIds() {
   if (!selectedIds.size) return;
