@@ -924,16 +924,12 @@ function openSelectedLinks() {
     }
   }
   
-  let delay = 0;
   Array.from(selectedIds).forEach(id => {
     const url = buildFasihLink(id);
-    setTimeout(() => {
-      window.open(url, '_blank');
-    }, delay);
-    delay += 250;
+    window.open(url, '_blank');
   });
   
-  showToast(`Membuka ${count} tautan Fasih-SM`, 'success');
+  showToast(`Membuka ${count} tautan Fasih-SM. Harap izinkan pop-up jika terblokir browser.`, 'success');
 }
 
 function copySelectedIds() {
