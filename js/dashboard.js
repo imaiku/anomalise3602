@@ -339,13 +339,6 @@ async function loadData() {
     const buildQuery = (tipeOverride, selectCols = COLS, noLimit = false) => {
       let q = db.from('assignment_anomali').select(selectCols).order('first_seen', { ascending: false });
       if (tipeOverride) q = q.eq('tipe', tipeOverride);
-      if (status) q = q.eq('status', status);
-      if (nomor) {
-        const [nTipe, nNomor] = nomor.split(':');
-        q = q.eq('tipe', nTipe).eq('nomor_anomali', parseInt(nNomor));
-      }
-      if (ket === 'selesai') q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
-      else if (ket === 'belum') q = q.eq('status', 'belum_ditindaklanjuti');
       
       // Pencarian gabungan (Search SLS, KK, usaha, atau ID)
       if (search) {
@@ -444,10 +437,10 @@ async function loadData() {
       }
 
       const rpcParams = {
-        p_status: status || null,
-        p_nomor_anomali: nA,
-        p_nomor_tipe: nT,
-        p_ket: ket || null,
+        p_status: null, // Move filtering to frontend to preserve grouping integrity
+        p_nomor_anomali: null,
+        p_nomor_tipe: null,
+        p_ket: null,
         p_search: search || null,
         p_kec_code: selectedKec || null,
         p_desa_code: selectedDes || null,
@@ -487,7 +480,28 @@ async function loadData() {
     }
 
     allData = groupByAssignment(rows);
-    filteredData = [...allData];
+    
+    // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
+    filteredData = allData.filter(group => {
+      // 1. Status Filter
+      if (status && !group.rows.some(r => r.status === status)) return false;
+      
+      // 2. Nomor Filter
+      if (nomor) {
+        const [nTipe, nNomor] = nomor.split(':');
+        const hasNomor = group.rows.some(r => r.tipe === nTipe && r.nomor_anomali === parseInt(nNomor));
+        if (!hasNomor) return false;
+      }
+      
+      // 3. Keterangan (ket) Filter
+      if (ket) {
+        const groupKet = getKeterangan(group);
+        if (groupKet !== ket) return false;
+      }
+      
+      return true;
+    });
+
     sortData();
     renderAll();
     updateFilterChips();

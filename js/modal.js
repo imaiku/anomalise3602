@@ -436,8 +436,17 @@ async function handleModalLoginSubmit() {
 
   try {
     let email = emailInput;
-    if (/^\d+$/.test(emailInput)) {
+    if (!email.includes('@')) {
       email = `${emailInput}@anomali3602.se`;
+    } else if (!email.endsWith('@anomali3602.se')) {
+      try {
+        const { data: resolvedEmail } = await db.rpc('resolve_auth_email', { p_email: email });
+        if (resolvedEmail) {
+          email = resolvedEmail;
+        }
+      } catch (e) {
+        console.error('Failed to resolve auth email:', e);
+      }
     }
 
     const { data: authData, error: authErr } = await db.auth.signInWithPassword({ email, password });

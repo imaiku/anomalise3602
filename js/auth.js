@@ -12,7 +12,19 @@ function toAuthEmail(username) {
 
 // Login function
 async function login(username, password) {
-  const email = toAuthEmail(username);
+  let email = username.trim();
+  if (!email.includes('@')) {
+    email = `${email}@anomali3602.se`;
+  } else if (!email.endsWith('@anomali3602.se')) {
+    try {
+      const { data: resolvedEmail } = await db.rpc('resolve_auth_email', { p_email: email });
+      if (resolvedEmail) {
+        email = resolvedEmail;
+      }
+    } catch (e) {
+      console.error('Failed to resolve auth email:', e);
+    }
+  }
   const { data, error } = await db.auth.signInWithPassword({ email, password });
   if (error) throw error;
   return data;
