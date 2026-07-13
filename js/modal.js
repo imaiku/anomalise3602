@@ -30,6 +30,9 @@ async function openDetail(assignmentId) {
   await renderSheetBody();
   document.getElementById('detailModal').classList.add('open');
   document.body.style.overflow = 'hidden';
+
+  // Push state to browser history for mobile back button control
+  window.history.pushState({ modalOpen: 'detail' }, '');
 }
 
 async function renderSheetBody() {
@@ -325,12 +328,26 @@ async function saveChanges() {
   }
 }
 
-function closeDetailModal() {
-  document.getElementById('detailModal').classList.remove('open');
-  document.body.style.overflow = '';
-  currentAssignmentId = null; currentGroup = null; pendingChanges = {};
+function closeDetailModal(triggerHistoryBack = true) {
+  const modal = document.getElementById('detailModal');
+  if (modal && modal.classList.contains('open')) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+    currentAssignmentId = null; currentGroup = null; pendingChanges = {};
+    if (triggerHistoryBack && window.history.state?.modalOpen === 'detail') {
+      window.history.back();
+    }
+  }
 }
 function handleOverlayClick(e) { if (e.target === document.getElementById('detailModal')) closeDetailModal(); }
+
+// Listen to browser popstate to close modal on back button press
+window.addEventListener('popstate', (e) => {
+  const modal = document.getElementById('detailModal');
+  if (modal && modal.classList.contains('open')) {
+    closeDetailModal(false);
+  }
+});
 
 // ============================================================
 // INLINE LOGIN MODAL CONTROLLER
