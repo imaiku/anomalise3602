@@ -258,23 +258,10 @@ async function loadData() {
         rpcParams.p_pml_user_id = currentProfile.id;
       }
 
-      const { data: intersectIds, error: rpcErr } = await db.rpc('get_both_type_assignments', rpcParams);
+      const { data: resAnomalies, error: rpcErr } = await db.rpc('get_both_type_anomalies', rpcParams);
       if (rpcErr) throw rpcErr;
 
-      if (!intersectIds || intersectIds.length === 0) {
-        allData = [];
-        filteredData = [];
-        renderAll();
-        return;
-      }
-
-      // Ambil detail baris data lengkap untuk ID-ID yang beririsan (batasi 1000 ID teratas)
-      const targetIds = intersectIds.map(r => r.assignment_id).slice(0, 1000);
-      let qFinal = db.from('assignment_anomali').select(COLS).in('assignment_id', targetIds).order('first_seen', { ascending: false });
-      qFinal = await applyRoleFilter(qFinal);
-      const resFinal = await qFinal;
-      if (resFinal.error) throw resFinal.error;
-      rows = resFinal.data || [];
+      rows = resAnomalies || [];
     } else {
       // Tipe tunggal atau semua tipe
       let tipeFilter = null;
