@@ -46,6 +46,12 @@ async function initDashboard() {
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
     document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
     reopenToggle?.classList.toggle('hidden', !isAdmin);
+
+    const showPetugasFilter = !['ppl', 'pml'].includes(currentProfile.role);
+    const container = document.getElementById('petugasFilterContainer');
+    if (container) {
+      container.classList.toggle('hidden', !showPetugasFilter);
+    }
   } else {
     if (userDisplayName) userDisplayName.textContent = 'Guest';
     if (userRoleBadge)   userRoleBadge.style.display = 'none';
@@ -53,6 +59,12 @@ async function initDashboard() {
     profileDropdown?.classList.add('hidden');
     adminNavBtn?.classList.add('hidden');
     reopenToggle?.classList.add('hidden');
+    
+    // Guest gets access to filterPetugas container
+    const container = document.getElementById('petugasFilterContainer');
+    if (container) {
+      container.classList.remove('hidden');
+    }
   }
 
   // Run stats + dropdown options in parallel with the main table data
@@ -60,13 +72,146 @@ async function initDashboard() {
 }
 
 // ============================================================
+// PETUGAS AUTOCOMPLETE SEARCH (Guest & Admin)
+// ============================================================
+let selectedPetugas = null;
+let searchDebounce = null;
+
+async function onPetugasSearchInput(val) {
+  const suggestionsDiv = document.getElementById('petugasSuggestions');
+  const btnClear = document.getElementById('btnClearPetugas');
+  if (!suggestionsDiv) return;
+
+  if (!val.trim()) {
+    suggestionsDiv.innerHTML = '';
+    suggestionsDiv.style.display = 'none';
+    if (btnClear) btnClear.style.display = 'none';
+    return;
+  }
+
+  if (btnClear) btnClear.style.display = 'flex';
+
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(async () => {
+    try {
+      let data = [];
+      let dbError = null;
+      
+      // Coba panggil RPC search_petugas (aman untuk guest)
+      const rpcRes = await db.rpc('search_petugas', { p_query: val.trim() });
+      if (!rpcRes.error) {
+        data = rpcRes.data || [];
+      } else {
+        dbError = rpcRes.error;
+        // Fallback untuk Admin/Superadmin jika RPC belum didefinisikan di database
+        const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+        if (isAdmin) {
+          const { data: fallbackData, error: fallbackError } = await db
+            .from('profiles')
+            .select('id, role, nama, email_ref')
+            .in('role', ['ppl', 'pml'])
+            .eq('is_active', true)
+            .or(`email_ref.ilike.%${val.trim()}%,nama.ilike.%${val.trim()}%`)
+            .limit(10);
+          if (!fallbackError) {
+            data = fallbackData || [];
+            dbError = null; // Teratasi oleh fallback
+          } else {
+            dbError = fallbackError;
+            console.error('Fallback query error:', fallbackError);
+          }
+        } else {
+          console.error('RPC search_petugas error:', rpcRes.error);
+        }
+      }
+
+      if (dbError) {
+        suggestionsDiv.innerHTML = `<div style="padding:0.5rem 0.75rem;font-size:0.8rem;color:var(--error)">Database Error: ${escHtml(dbError.message || 'Gagal terhubung')}</div>`;
+        suggestionsDiv.style.display = 'block';
+        return;
+      }
+
+      if (data.length === 0) {
+        suggestionsDiv.innerHTML = `<div style="padding:0.5rem 0.75rem;font-size:0.8rem;color:var(--text-subtle)">Tidak ada petugas ditemukan</div>`;
+        suggestionsDiv.style.display = 'block';
+        return;
+      }
+
+      suggestionsDiv.innerHTML = data.map(p => `
+        <div class="suggestion-item" 
+             style="padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;border-bottom:1px solid var(--border);color:var(--text);transition:background 0.15s" 
+             onclick="selectPetugas('${p.id}', '${p.role}', '${escHtml(p.nama)}', '${escHtml(p.email_ref || '')}')"
+             onmouseover="this.style.background='var(--border)'" 
+             onmouseout="this.style.background='none'">
+          <strong>${escHtml(p.nama)}</strong> (${p.role.toUpperCase()}) <br/>
+          <span style="font-size:0.7rem;color:var(--text-subtle)">${escHtml(p.email_ref || '—')}</span>
+        </div>
+      `).join('');
+      suggestionsDiv.style.display = 'block';
+    } catch (err) {
+      console.error('Error searching petugas:', err);
+    }
+  }, 250);
+}
+
+function selectPetugas(id, role, nama, email) {
+  selectedPetugas = { id, role, nama, email };
+  
+  const input = document.getElementById('filterPetugasInput');
+  if (input) {
+    input.value = `${nama} (${role.toUpperCase()})`;
+  }
+  
+  const suggestionsDiv = document.getElementById('petugasSuggestions');
+  if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+  
+  const btnClear = document.getElementById('btnClearPetugas');
+  if (btnClear) btnClear.style.display = 'flex';
+  
+  applyFilters();
+}
+
+function clearSelectedPetugas() {
+  selectedPetugas = null;
+  
+  const input = document.getElementById('filterPetugasInput');
+  if (input) input.value = '';
+  
+  const btnClear = document.getElementById('btnClearPetugas');
+  if (btnClear) btnClear.style.display = 'none';
+  
+  const suggestionsDiv = document.getElementById('petugasSuggestions');
+  if (suggestionsDiv) suggestionsDiv.style.display = 'none';
+  
+  applyFilters();
+}
+
+// Close autocomplete suggestions on clicking outside
+document.addEventListener('click', (e) => {
+  const container = document.getElementById('petugasFilterContainer');
+  if (container && !container.contains(e.target)) {
+    const suggestions = document.getElementById('petugasSuggestions');
+    if (suggestions) suggestions.style.display = 'none';
+  }
+});
+
+// ============================================================
 // STATS
 // ============================================================
 async function loadStats() {
   try {
+    let statsUserId = currentProfile?.id || null;
+    let statsRole = currentProfile?.role || 'guest';
+
+    const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
+    if (isFilterAllowed && selectedPetugas) {
+      statsUserId = selectedPetugas.id;
+      statsRole = selectedPetugas.role;
+    }
+
     const { data, error } = await db.rpc('get_dashboard_stats', {
-      p_user_id: currentProfile?.id || null,
-      p_role: currentProfile?.role || 'guest'
+      p_user_id: statsUserId,
+      p_role: statsRole
     });
 
     if (!error && data) {
@@ -83,16 +228,24 @@ async function loadStats() {
     let baseQ = db.from('assignment_anomali')
       .select('assignment_id, status')
       .limit(50000);
-    if (currentProfile?.role === 'ppl') {
+    if (statsRole === 'ppl') {
       baseQ = baseQ.eq('tipe', 'keluarga');
-      const { data: sl } = await db.rpc('get_my_sls');
+      const { data: sl } = await db.from('user_sls').select('kode_sls').eq('user_id', statsUserId).eq('status', 'aktif');
       const codes = (sl || []).map(r => r.kode_sls);
       if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
-    } else if (currentProfile?.role === 'pml') {
+      else baseQ = baseQ.in('kode_sls_gabungan', ['NONE']);
+    } else if (statsRole === 'pml') {
       baseQ = baseQ.eq('tipe', 'usaha');
-      const { data: sl } = await db.rpc('get_pml_sls');
-      const codes = (sl || []).map(r => r.kode_sls);
-      if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
+      const { data: ppls } = await db.from('pml_ppl').select('ppl_id').eq('pml_id', statsUserId);
+      const pplIds = (ppls || []).map(r => r.ppl_id);
+      if (pplIds.length > 0) {
+        const { data: sl } = await db.from('user_sls').select('kode_sls').eq('status', 'aktif').in('user_id', pplIds);
+        const codes = (sl || []).map(r => r.kode_sls);
+        if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
+        else baseQ = baseQ.in('kode_sls_gabungan', ['NONE']);
+      } else {
+        baseQ = baseQ.in('kode_sls_gabungan', ['NONE']);
+      }
     }
     const { data: rows, error: rowErr } = await baseQ;
     if (rowErr) throw rowErr;
@@ -227,6 +380,55 @@ async function loadData() {
         if (codes.length === 0) return null;
         return q.in('kode_sls_gabungan', codes);
       }
+
+      // Jika login as guest/admin/superadmin, dan memfilter petugas tertentu
+      const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
+      if (isFilterAllowed && selectedPetugas) {
+        let codes = [];
+        const rpcRes = await db.rpc('get_petugas_sls', {
+          p_user_id: selectedPetugas.id,
+          p_role: selectedPetugas.role
+        });
+        
+        if (!rpcRes.error) {
+          codes = (rpcRes.data || []).map(r => r.kode_sls);
+        } else {
+          // Fallback untuk Admin jika fungsi RPC get_petugas_sls belum dibuat
+          const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+          if (isAdmin) {
+            if (selectedPetugas.role === 'ppl') {
+              const { data: sl, error: slErr } = await db
+                .from('user_sls')
+                .select('kode_sls')
+                .eq('user_id', selectedPetugas.id)
+                .eq('status', 'aktif');
+              if (slErr) throw slErr;
+              codes = (sl || []).map(r => r.kode_sls);
+            } else if (selectedPetugas.role === 'pml') {
+              const { data: ppls, error: pplsErr } = await db
+                .from('pml_ppl')
+                .select('ppl_id')
+                .eq('pml_id', selectedPetugas.id);
+              if (pplsErr) throw pplsErr;
+              const pplIds = (ppls || []).map(r => r.ppl_id);
+              if (pplIds.length > 0) {
+                const { data: sl, error: slErr } = await db
+                  .from('user_sls')
+                  .select('kode_sls')
+                  .eq('status', 'aktif')
+                  .in('user_id', pplIds);
+                if (slErr) throw slErr;
+                codes = (sl || []).map(r => r.kode_sls);
+              }
+            }
+          } else {
+            console.error('RPC get_petugas_sls error:', rpcRes.error);
+          }
+        }
+
+        if (codes.length === 0) return null;
+        return q.in('kode_sls_gabungan', codes);
+      }
       return q;
     };
 
@@ -256,6 +458,15 @@ async function loadData() {
         rpcParams.p_ppl_user_id = currentProfile.id;
       } else if (currentProfile?.role === 'pml') {
         rpcParams.p_pml_user_id = currentProfile.id;
+      }
+
+      const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
+      if (isFilterAllowed && selectedPetugas) {
+        if (selectedPetugas.role === 'ppl') {
+          rpcParams.p_ppl_user_id = selectedPetugas.id;
+        } else if (selectedPetugas.role === 'pml') {
+          rpcParams.p_pml_user_id = selectedPetugas.id;
+        }
       }
 
       const { data: resAnomalies, error: rpcErr } = await db.rpc('get_both_type_anomalies', rpcParams);
@@ -362,6 +573,7 @@ function buildAnomaliString(group) {
 function applyFilters() {
   currentPage = 1;
   renderKecamatanProgress();
+  loadStats();
   loadData();
 }
 
@@ -376,6 +588,12 @@ function resetFilters() {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+
+  selectedPetugas = null;
+  const input = document.getElementById('filterPetugasInput');
+  if (input) input.value = '';
+  const btnClear = document.getElementById('btnClearPetugas');
+  if (btnClear) btnClear.style.display = 'none';
 
   selectedKec = '';
   selectedDes = '';
@@ -659,6 +877,7 @@ function updateFilterChips() {
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
     jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value  = ''; applyFilters(); } },
     nomor  && { label: `Nomor: ${nomor.split(':')[1]} (${nomor.split(':')[0] === 'keluarga' ? 'KK' : 'Usaha'})`, clear: () => { document.getElementById('filterNomor').value = ''; applyFilters(); } },
+    selectedPetugas && { label: `Petugas: ${selectedPetugas.nama}`, clear: () => { clearSelectedPetugas(); } },
     selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
     (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
     (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
