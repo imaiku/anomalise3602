@@ -850,16 +850,63 @@ async function loadKecamatanProgress() {
   }
 }
 
+let currentKecPage = 0;
+const kecPageSize = 5;
+
+function prevKecPage() {
+  if (currentKecPage > 0) {
+    currentKecPage--;
+    renderKecamatanProgress();
+  }
+}
+
+function nextKecPage() {
+  const maxPage = Math.ceil(kecProgressData.length / kecPageSize) - 1;
+  if (currentKecPage < maxPage) {
+    currentKecPage++;
+    renderKecamatanProgress();
+  }
+}
+
 function renderKecamatanProgress() {
   const container = document.getElementById('kecProgressGrid');
   if (!container) return;
 
   if (!kecProgressData || kecProgressData.length === 0) {
     container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--text-subtle);font-size:0.8rem">Tidak ada data progres wilayah</div>`;
+    const nav = document.getElementById('kecNavControls');
+    if (nav) nav.classList.add('hidden');
     return;
   }
 
-  container.innerHTML = kecProgressData.map(k => {
+  const isMobile = window.innerWidth <= 768;
+  const isCollapsed = container.classList.contains('collapsed');
+  const nav = document.getElementById('kecNavControls');
+
+  let pageData = kecProgressData;
+  if (isMobile) {
+    if (nav && !isCollapsed) nav.classList.remove('hidden');
+    const totalPages = Math.ceil(kecProgressData.length / kecPageSize);
+    const maxPage = totalPages - 1;
+    if (currentKecPage > maxPage) currentKecPage = maxPage;
+    if (currentKecPage < 0) currentKecPage = 0;
+
+    const start = currentKecPage * kecPageSize;
+    pageData = kecProgressData.slice(start, start + kecPageSize);
+
+    // Update indicator and buttons
+    const ind = document.getElementById('kecPageIndicator');
+    if (ind) ind.textContent = `${currentKecPage + 1}/${totalPages}`;
+    
+    const btnPrev = document.getElementById('btnKecPrev');
+    const btnNext = document.getElementById('btnKecNext');
+    if (btnPrev) btnPrev.disabled = currentKecPage === 0;
+    if (btnNext) btnNext.disabled = currentKecPage === maxPage;
+  } else {
+    if (nav) nav.classList.add('hidden');
+  }
+
+  container.innerHTML = pageData.map(k => {
     const pct = parseFloat(k.persen_progress || 0);
     let colorClass = 'progress-red';
     if (pct >= 80) colorClass = 'progress-green';
@@ -911,16 +958,21 @@ function toggleKecProgress() {
   const grid = document.getElementById('kecProgressGrid');
   const btn = document.getElementById('btnToggleKecProgress');
   const icon = document.getElementById('toggleKecIcon');
+  const nav = document.getElementById('kecNavControls');
   if (!grid || !btn) return;
+
+  const isMobile = window.innerWidth <= 768;
 
   if (kecProgressExpanded) {
     grid.classList.remove('collapsed');
     btn.querySelector('span').textContent = 'Sembunyikan';
     if (icon) icon.style.transform = 'rotate(180deg)';
+    if (isMobile && nav) nav.classList.remove('hidden');
   } else {
     grid.classList.add('collapsed');
     btn.querySelector('span').textContent = 'Tampilkan';
     if (icon) icon.style.transform = 'rotate(0deg)';
+    if (nav) nav.classList.add('hidden');
   }
 }
 

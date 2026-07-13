@@ -209,7 +209,7 @@
 
     <!-- Kecamatan Progress Section -->
     <div class="stat-card" style="margin-bottom:1.5rem;padding:1rem 1.25rem;display:block">
-      <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
         <div style="display:flex;align-items:center;gap:0.5rem">
           <div class="table-title" style="font-size:1rem;font-weight:600;margin:0">Progres per Kecamatan</div>
           <button class="btn btn-secondary btn-xs" id="btnToggleKecProgress" onclick="toggleKecProgress()"
@@ -220,6 +220,15 @@
               style="transition:transform 0.2s">
               <polyline points="6 9 12 15 18 9" />
             </svg>
+          </button>
+        </div>
+        <div id="kecNavControls" class="hidden" style="display:flex;gap:0.35rem;align-items:center">
+          <button class="btn btn-secondary btn-xs" onclick="prevKecPage()" id="btnKecPrev" style="cursor:pointer;padding:0.2rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span id="kecPageIndicator" style="font-size:0.75rem;color:var(--text-muted);min-width:35px;text-align:center;font-weight:500">1/6</span>
+          <button class="btn btn-secondary btn-xs" onclick="nextKecPage()" id="btnKecNext" style="cursor:pointer;padding:0.2rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
         </div>
       </div>
