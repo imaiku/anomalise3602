@@ -182,8 +182,8 @@ async function loadData() {
     const search = document.getElementById('filterSearch')?.value.trim();
 
     // Builder: buat query dengan semua filter kecuali tipe
-    const buildQuery = (tipeOverride) => {
-      let q = db.from('assignment_anomali').select(COLS).order('first_seen', { ascending: false });
+    const buildQuery = (tipeOverride, selectCols = COLS, noLimit = false) => {
+      let q = db.from('assignment_anomali').select(selectCols).order('first_seen', { ascending: false });
       if (tipeOverride) q = q.eq('tipe', tipeOverride);
       if (status) q = q.eq('status', status);
       if (nomor) {
@@ -209,7 +209,7 @@ async function loadData() {
         q = q.like('kode_desa', `${selectedKec}%`);
       }
 
-      q = q.limit(1000);
+      if (!noLimit) q = q.limit(1000);
       return q;
     };
 
@@ -232,10 +232,10 @@ async function loadData() {
     let rows = [];
 
     if (jenis === 'keduanya') {
-      // Ambil kedua tipe secara paralel, lalu tampilkan hanya assignment_id yang ada di KEDUANYA
+      // Ambil ID assignment saja secara paralel tanpa limit agar tidak terpotong saat irisan
       const [qKK, qUsaha] = await Promise.all([
-        applyRoleFilter(buildQuery('keluarga'), 'keluarga'),
-        applyRoleFilter(buildQuery('usaha'),    'usaha')
+        applyRoleFilter(buildQuery('keluarga', 'assignment_id', true), 'keluarga'),
+        applyRoleFilter(buildQuery('usaha',    'assignment_id', true), 'usaha')
       ]);
       if (!qKK || !qUsaha) { allData = []; filteredData = []; renderAll(); return; }
       const [resKK, resUsaha] = await Promise.all([qKK, qUsaha]);
@@ -245,11 +245,22 @@ async function loadData() {
       // Intersect: hanya assignment_id yang muncul di kedua tipe
       const kkIds    = new Set((resKK.data || []).map(r => r.assignment_id));
       const usahaIds = new Set((resUsaha.data || []).map(r => r.assignment_id));
-      const bothIds  = new Set([...kkIds].filter(id => usahaIds.has(id)));
-      rows = [
-        ...(resKK.data   || []).filter(r => bothIds.has(r.assignment_id)),
-        ...(resUsaha.data || []).filter(r => bothIds.has(r.assignment_id))
-      ];
+      const bothIds  = [...kkIds].filter(id => usahaIds.has(id));
+
+      if (bothIds.length === 0) {
+        allData = [];
+        filteredData = [];
+        renderAll();
+        return;
+      }
+
+      // Ambil detail baris data lengkap untuk ID-ID yang beririsan (batasi 1000 ID teratas)
+      const targetIds = bothIds.slice(0, 1000);
+      let qFinal = db.from('assignment_anomali').select(COLS).in('assignment_id', targetIds).order('first_seen', { ascending: false });
+      qFinal = await applyRoleFilter(qFinal);
+      const resFinal = await qFinal;
+      if (resFinal.error) throw resFinal.error;
+      rows = resFinal.data || [];
     } else {
       // Tipe tunggal atau semua tipe
       let tipeFilter = null;
@@ -940,8 +951,35 @@ document.addEventListener('click', () => {
 // Escape key listener for modals
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
-    if (typeof closeDetailModal === 'function') closeDetailModal();
-    // Also close admin name modal if open
+    // 1. Detail Modal
+    const detailModal = document.getElementById('detailModal');
+    if (detailModal && detailModal.classList.contains('open')) {
+      if (typeof closeDetailModal === 'function') {
+        closeDetailModal();
+      } else {
+        detailModal.classList.remove('open');
+        document.body.style.overflow = '';
+      }
+    }
+    // 2. Wilayah Filter Modal
+    const wilModal = document.getElementById('wilayahFilterModal');
+    if (wilModal && wilModal.classList.contains('open')) {
+      if (typeof closeWilayahFilterModal === 'function') {
+        closeWilayahFilterModal();
+      } else {
+        wilModal.classList.remove('open');
+      }
+    }
+    // 3. Login Modal
+    const logModal = document.getElementById('loginModal');
+    if (logModal && logModal.classList.contains('open')) {
+      if (typeof closeLoginModal === 'function') {
+        closeLoginModal();
+      } else {
+        logModal.classList.remove('open');
+      }
+    }
+    // 4. Admin Name Modal
     document.getElementById('adminNameModal')?.classList.remove('open');
   }
 });
