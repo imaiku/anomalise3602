@@ -779,6 +779,7 @@ async function callRejectAPI(assignmentId) {
       headers: {
         'Content-Type': 'application/json'
       },
+      credentials: 'include',
       body: JSON.stringify({
         assignmentId: assignmentId,
         statusApproval: "false",
