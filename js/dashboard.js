@@ -926,10 +926,16 @@ function openSelectedLinks() {
   
   Array.from(selectedIds).forEach(id => {
     const url = buildFasihLink(id);
-    window.open(url, '_blank');
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   });
   
-  showToast(`Membuka ${count} tautan Fasih-SM. Harap izinkan pop-up jika terblokir browser.`, 'success');
+  showToast(`Membuka ${count} tautan Fasih-SM. Harap periksa apakah ada ikon pop-up terblokir di kolom alamat browser.`, 'success');
 }
 
 function copySelectedIds() {
