@@ -211,11 +211,7 @@ async function loadStats() {
     let statsUserId = currentProfile?.id || null;
     let statsRole = (currentProfile?.role || 'guest').toLowerCase();
 
-    const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
-    if (isFilterAllowed && selectedPetugas) {
-      statsUserId = selectedPetugas.id;
-      statsRole = selectedPetugas.role.toLowerCase();
-    }
+    // Keep statsUserId and statsRole as the logged-in user to keep the top stats intact.
 
     const { data, error } = await db.rpc('get_dashboard_stats', {
       p_user_id: statsUserId,
@@ -934,7 +930,8 @@ function updateTableCount() {
   let text = total === 0 
     ? 'Tidak ada data' 
     : `Menampilkan ${start}–${end} dari ${hasActiveFilters ? displayTotal : (isTruncated ? '1.000+' : dbTotal)}`;
-  if (hasActiveFilters && total < allData.length) {
+  const dbTotalNum = parseInt(dbTotal.replace(/\./g, '')) || 0;
+  if (hasActiveFilters && (total < allData.length || allData.length < dbTotalNum)) {
     text += ` (difilter dari ${dbTotal})`;
   }
   document.getElementById('tableCount').textContent = text;
