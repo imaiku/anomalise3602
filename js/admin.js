@@ -82,6 +82,10 @@ function showSection(sectionId, updateHash = true) {
   document.getElementById(`panel-${sectionId}`)?.classList.add('active');
   document.getElementById(`nav-${sectionId}`)?.classList.add('active');
 
+  if (sectionId === 'users') {
+    loadUsers();
+  }
+
   if (updateHash) {
     window.location.hash = sectionId;
   }
@@ -498,6 +502,7 @@ async function loadUsers() {
       <td><div class="skeleton skeleton-text" style="width: 80px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 50px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 160px;"></div></td>
+      <td><div class="skeleton skeleton-text" style="width: 100px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px; text-align: center; margin: 0 auto;"></div></td>
       <td><div class="skeleton skeleton-text" style="width: 60px;"></div></td>
@@ -591,12 +596,28 @@ async function loadUsers() {
     else if (item.tipe === 'usaha') anomalyMap[code].usaha += parseInt(item.total_anomali);
   });
 
-  // Pass 1: Calculate PPL anomaly counts and store in a temporary map
+  // Fetch all kecamatan to map names
+  const { data: kecList, error: kecErr } = await db.from('wilayah_kec').select('kode_kec, nmkec');
+  const kecMap = {};
+  if (!kecErr && kecList) {
+    kecList.forEach(k => {
+      kecMap[k.kode_kec] = k.nmkec;
+    });
+  }
+
+  // Pass 1: Calculate PPL anomaly counts, kecamatan and store in a temporary map
   const pplAnomalyCounts = {};
   all.forEach(u => {
     if (u.role === 'ppl') {
       u.slsCount = pplSlsMap[u.id]?.size || 0;
       let count = 0;
+      let kecName = '—';
+      if (pplSlsMap[u.id] && pplSlsMap[u.id].size > 0) {
+        const firstSls = [...pplSlsMap[u.id]][0];
+        const kecCode = firstSls.slice(0, 7);
+        kecName = kecMap[kecCode] || '—';
+      }
+      u.kecamatan = kecName;
       pplSlsMap[u.id]?.forEach(code => {
         count += anomalyMap[code]?.keluarga || 0;
       });
@@ -619,9 +640,17 @@ async function loadUsers() {
       }
       u.slsCount = uniqueSls.size;
       u.anomalyCount = count;
+      let kecName = '—';
+      if (uniqueSls.size > 0) {
+        const firstSls = [...uniqueSls][0];
+        const kecCode = firstSls.slice(0, 7);
+        kecName = kecMap[kecCode] || '—';
+      }
+      u.kecamatan = kecName;
     } else if (u.role !== 'ppl') {
       u.slsCount = 0;
       u.anomalyCount = 0;
+      u.kecamatan = '—';
     }
   });
 
@@ -665,6 +694,7 @@ function sortUsersData() {
       case 'sobatid':       va = a.sobatid || '';      vb = b.sobatid || ''; break;
       case 'role':          va = a.role;               vb = b.role; break;
       case 'email':         va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
+      case 'kecamatan':     va = (a.kecamatan || '').toLowerCase(); vb = (b.kecamatan || '').toLowerCase(); break;
       case 'sls':           va = a.slsCount;           vb = b.slsCount; break;
       case 'anomaly_count': va = a.anomalyCount || 0;  vb = b.anomalyCount || 0; break;
       case 'is_active':     va = a.is_active ? 1 : 0;  vb = b.is_active ? 1 : 0; break;
@@ -691,7 +721,7 @@ function renderUsers() {
 
   const tbody = document.getElementById('userTableBody');
   if (pageData.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9"><div class="empty-state"><div class="empty-state-title">Tidak ada pengguna ditemukan</div></div></td></tr>`;
     const pag = document.getElementById('userPagination');
     if (pag) pag.innerHTML = '';
     return;
@@ -704,6 +734,7 @@ function renderUsers() {
       <td class="mono">${escHtml(u.sobatid || '—')}</td>
       <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
       <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
+      <td style="color:var(--text-muted)">${escHtml(u.kecamatan || '—')}</td>
       <td><span class="chip">${u.slsCount} SLS</span></td>
       <td style="text-align:center"><strong>${u.anomalyCount || 0}</strong></td>
       <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
@@ -1337,3 +1368,30 @@ document.addEventListener('keydown', (e) => {
     if (typeof closeOverwriteModal === 'function') closeOverwriteModal();
   }
 });
+
+function exportUsersToExcel() {
+  if (!allUsers || allUsers.length === 0) {
+    showToast('Tidak ada data pengguna untuk diexport', 'error');
+    return;
+  }
+
+  // Format data: Nama | Kecamatan | Petugas | SLS | JML Anomali
+  const dataToExport = allUsers.map(u => ({
+    'Nama': u.nama,
+    'Kecamatan': u.kecamatan || '—',
+    'Petugas': u.role.toUpperCase(),
+    'SLS': u.slsCount ? `${u.slsCount} SLS` : '0 SLS',
+    'JML Anomali': u.anomalyCount || 0
+  }));
+
+  try {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    XLSX.utils.book_append_sheet(wb, ws, 'Kelola Pengguna');
+    XLSX.writeFile(wb, 'kelola_pengguna.xlsx');
+    showToast('Pengguna berhasil diexport ke Excel!', 'success');
+  } catch (err) {
+    console.error('Export Excel error:', err);
+    showToast('Gagal export Excel: ' + err.message, 'error');
+  }
+}

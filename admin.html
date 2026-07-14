@@ -450,6 +450,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
             Import Excel Massal
           </button>
+          <button class="btn btn-secondary" onclick="exportUsersToExcel()" style="gap:0.35rem; display:inline-flex; align-items:center; height:38px; margin-bottom:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            Export Excel
+          </button>
           <input type="text" class="filter-select" id="userSearch" placeholder="Cari nama / sobatid..." oninput="filterUsers()" style="max-width:220px">
           <select class="filter-select" id="userRoleFilter" onchange="filterUsers()" style="max-width:140px">
             <option value="">Semua Role</option>
@@ -469,12 +473,13 @@
               <th onclick="sortUsers('sobatid')" style="cursor:pointer;white-space:nowrap">Sobat ID <span class="sort-icon" id="sort-sobatid" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('role')" style="cursor:pointer;white-space:nowrap">Role <span class="sort-icon" id="sort-role" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('email')" style="cursor:pointer;white-space:nowrap">Email <span class="sort-icon" id="sort-email" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              <th onclick="sortUsers('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sort-icon" id="sort-kecamatan" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('anomaly_count')" style="cursor:pointer;white-space:nowrap;text-align:center">Jml Anomali <span class="sort-icon" id="sort-anomaly_count" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
               <th class="no-sort col-aksi-user">Aksi</th>
             </tr></thead>
-            <tbody id="userTableBody"><tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <tbody id="userTableBody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
           </table>
           <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">

@@ -446,6 +446,15 @@ async function loadData() {
         q = q.like('kode_desa', `${selectedKec}%`);
       }
 
+      // Filter Nomor Anomali Server-side (Handles cases where matching rows are far down)
+      if (selectedNomorList && selectedNomorList.length > 0) {
+        const orConditions = selectedNomorList.map(val => {
+          const [tipe, nomor] = val.split(':');
+          return `and(tipe.eq.${tipe},nomor_anomali.eq.${nomor})`;
+        }).join(',');
+        q = q.or(orConditions);
+      }
+
       if (!noLimit) q = q.limit(1000);
       return q;
     };
@@ -517,14 +526,7 @@ async function loadData() {
 
     let rows = [];
 
-    if (jenis === 'keduanya') {
-      let nA = null;
-      let nT = null;
-      if (nomor) {
-        const parts = nomor.split(':');
-        nT = parts[0];
-        nA = parseInt(parts[1]);
-      }
+    if (jenis === 'keduanya' && selectedNomorList.length === 0) {
 
       const rpcParams = {
         p_status: null, // Move filtering to frontend to preserve grouping integrity
