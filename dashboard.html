@@ -271,14 +271,18 @@
           <option value="tidak_terdeteksi_lagi">Tidak Terdeteksi Lagi</option>
         </select>
 
-        <!-- Jenis Anomali -->
-        <select class="filter-select" id="filterJenis" onchange="applyFilters()"
-          style="width:130px;height:38px;margin-bottom:0">
-          <option value="">Jenis: Semua</option>
-          <option value="keluarga">Keluarga</option>
-          <option value="usaha">Usaha</option>
-          <option value="keduanya">Keluarga &amp; Usaha</option>
-        </select>
+        <!-- Jenis Anomali Checkbox Group -->
+        <div style="display:flex; align-items:center; gap:0.75rem; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.35rem 0.75rem; height:38px; box-sizing:border-box">
+          <span style="font-size:0.8rem; color:var(--text-muted); font-weight:500">Jenis:</span>
+          <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.8rem; cursor:pointer; margin:0; color:var(--text)">
+            <input type="checkbox" id="filterJenisKeluarga" onchange="applyFilters()" style="width:14px; height:14px; accent-color:var(--primary); cursor:pointer">
+            Keluarga
+          </label>
+          <label style="display:flex; align-items:center; gap:0.25rem; font-size:0.8rem; cursor:pointer; margin:0; color:var(--text)">
+            <input type="checkbox" id="filterJenisUsaha" onchange="applyFilters()" style="width:14px; height:14px; accent-color:var(--primary); cursor:pointer">
+            Usaha
+          </label>
+        </div>
 
         <!-- Nomor Anomali -->
         <select class="filter-select" id="filterNomor" onchange="applyFilters()"

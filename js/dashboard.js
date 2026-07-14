@@ -319,7 +319,11 @@ async function loadAnomalinomorOptions() {
   const currentVal = select.value;
 
   // Baca filter jenis dari UI
-  let jenis = document.getElementById('filterJenis')?.value;
+  const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
+  const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
+  let jenis = (isKeluargaChecked && isUsahaChecked) ? 'keduanya' :
+              isKeluargaChecked ? 'keluarga' :
+              isUsahaChecked ? 'usaha' : '';
   
   // Jika PPL, paksa ke keluarga
   if (currentProfile?.role === 'ppl') {
@@ -369,7 +373,11 @@ async function loadData() {
 
     // Baca filter aktif dari UI
     const status = document.getElementById('filterStatus')?.value;
-    const jenis  = document.getElementById('filterJenis')?.value;
+    const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
+    const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
+    const jenis = (isKeluargaChecked && isUsahaChecked) ? 'keduanya' :
+                  isKeluargaChecked ? 'keluarga' :
+                  isUsahaChecked ? 'usaha' : '';
     const nomor  = document.getElementById('filterNomor')?.value;
     const ket    = document.getElementById('filterKeterangan')?.value;
     const search = document.getElementById('filterSearch')?.value.trim();
@@ -655,11 +663,16 @@ function applyFiltersDebounced() {
 }
 
 function resetFilters() {
-  ['filterStatus', 'filterJenis', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS', 'filterReject']
+  ['filterStatus', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS', 'filterReject']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
+
+  const cbKeluarga = document.getElementById('filterJenisKeluarga');
+  if (cbKeluarga) cbKeluarga.checked = false;
+  const cbUsaha = document.getElementById('filterJenisUsaha');
+  if (cbUsaha) cbUsaha.checked = false;
 
   selectedPetugas = null;
   const input = document.getElementById('filterPetugasInput');
@@ -749,7 +762,7 @@ function renderTable(pageData) {
       <td>
         <div class="assignment-id-cell">${group.assignment_id.slice(0, 8)}...</div>
         ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
-        <a href="${buildFasihLink(group.assignment_id)}" target="_blank" rel="noopener" class="fasih-link" onclick="event.stopPropagation()">
+        <a href="https://fasih-sm.bps.go.id/app/assignment-detail/${group.assignment_id}" target="_blank" rel="noopener" class="fasih-link" onclick="event.stopPropagation()">
           <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
           Fasih-SM
         </a>` : ''}
@@ -867,7 +880,8 @@ function updateTableCount() {
 
   // Cek apakah ada filter aktif yang membatasi dataset
   const hasActiveFilters = document.getElementById('filterStatus')?.value ||
-                           document.getElementById('filterJenis')?.value ||
+                           document.getElementById('filterJenisKeluarga')?.checked ||
+                           document.getElementById('filterJenisUsaha')?.checked ||
                            document.getElementById('filterNomor')?.value ||
                            document.getElementById('filterKeterangan')?.value ||
                            selectedKec || selectedDes || selectedSLS || selectedSub ||
@@ -949,7 +963,8 @@ function toggleReopenHighlight() {
 function updateFilterChips() {
   const bar    = document.getElementById('filterActiveBar');
   const status = document.getElementById('filterStatus').value;
-  const jenis  = document.getElementById('filterJenis').value;
+  const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
+  const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
   const nomor  = document.getElementById('filterNomor').value;
   const ket    = document.getElementById('filterKeterangan').value;
   const search = document.getElementById('filterSearch').value.trim();
@@ -963,7 +978,8 @@ function updateFilterChips() {
 
   const chips = [
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
-    jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value  = ''; applyFilters(); } },
+    isKeluargaChecked && { label: `Jenis: Keluarga`,               clear: () => { document.getElementById('filterJenisKeluarga').checked = false; applyFilters(); } },
+    isUsahaChecked && { label: `Jenis: Usaha`,                     clear: () => { document.getElementById('filterJenisUsaha').checked = false; applyFilters(); } },
     nomor  && { label: `Nomor: ${nomor.split(':')[1]} (${nomor.split(':')[0] === 'keluarga' ? 'KK' : 'Usaha'})`, clear: () => { document.getElementById('filterNomor').value = ''; applyFilters(); } },
     selectedPetugas && { label: `Petugas: ${selectedPetugas.nama}`, clear: () => { clearSelectedPetugas(); } },
     selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
