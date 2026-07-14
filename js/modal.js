@@ -462,6 +462,29 @@ function openAllBulkTabs() {
   showToast(`Membuka ${count} tautan Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
 }
 
+function editAllBulkTabs() {
+  if (bulkSelectedData.length === 0) return;
+  const count = bulkSelectedData.length;
+  if (count > 5) {
+    if (!confirm(`Apakah Anda yakin ingin membuka ${count} tab Edit Fasih-SM sekaligus?`)) {
+      return;
+    }
+  }
+  
+  bulkSelectedData.forEach(g => {
+    const url = `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${g.assignment_id}/edit`;
+    const a = document.createElement('a');
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  });
+  
+  showToast(`Membuka ${count} tautan Edit Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
+}
+
 function toggleAllBulkShow(checked) {
   const showCbs = document.querySelectorAll('.bulk-show-cb');
   showCbs.forEach((cb, idx) => {
