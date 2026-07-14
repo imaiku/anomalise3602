@@ -42,7 +42,7 @@ async function initDashboard() {
     loginNavBtn?.classList.add('hidden');
     profileDropdown?.classList.remove('hidden');
     
-    const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role);
+    const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role.toLowerCase());
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
     document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
     reopenToggle?.classList.toggle('hidden', !isAdmin);
@@ -52,7 +52,7 @@ async function initDashboard() {
       rejectFilter.classList.toggle('hidden', !isAdmin);
     }
 
-    const showPetugasFilter = !['ppl', 'pml'].includes(currentProfile.role);
+    const showPetugasFilter = !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
     const container = document.getElementById('petugasFilterContainer');
     if (container) {
       container.classList.toggle('hidden', !showPetugasFilter);
@@ -209,12 +209,12 @@ document.addEventListener('click', (e) => {
 async function loadStats() {
   try {
     let statsUserId = currentProfile?.id || null;
-    let statsRole = currentProfile?.role || 'guest';
+    let statsRole = (currentProfile?.role || 'guest').toLowerCase();
 
-    const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
+    const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
     if (isFilterAllowed && selectedPetugas) {
       statsUserId = selectedPetugas.id;
-      statsRole = selectedPetugas.role;
+      statsRole = selectedPetugas.role.toLowerCase();
     }
 
     const { data, error } = await db.rpc('get_dashboard_stats', {
@@ -474,21 +474,21 @@ async function loadData() {
       }
 
       // Jika login as guest/admin/superadmin, dan memfilter petugas tertentu
-      const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
+      const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
       if (isFilterAllowed && selectedPetugas) {
         let codes = [];
         const rpcRes = await db.rpc('get_petugas_sls', {
           p_user_id: selectedPetugas.id,
-          p_role: selectedPetugas.role
+          p_role: selectedPetugas.role.toLowerCase()
         });
         
         if (!rpcRes.error) {
           codes = (rpcRes.data || []).map(r => r.kode_sls);
         } else {
           // Fallback untuk Admin jika fungsi RPC get_petugas_sls belum dibuat
-          const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+          const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role.toLowerCase());
           if (isAdmin) {
-            if (selectedPetugas.role === 'ppl') {
+            if (selectedPetugas.role.toLowerCase() === 'ppl') {
               const { data: sl, error: slErr } = await db
                 .from('user_sls')
                 .select('kode_sls')
@@ -496,7 +496,7 @@ async function loadData() {
                 .eq('status', 'aktif');
               if (slErr) throw slErr;
               codes = (sl || []).map(r => r.kode_sls);
-            } else if (selectedPetugas.role === 'pml') {
+            } else if (selectedPetugas.role.toLowerCase() === 'pml') {
               const { data: ppls, error: pplsErr } = await db
                 .from('pml_ppl')
                 .select('ppl_id')
@@ -600,7 +600,8 @@ async function loadData() {
 
       // 4. Reject Filter
       const rejectFilterVal = document.getElementById('filterReject')?.value;
-      if (rejectFilterVal === 'ya' && !group.is_rejected) return false;
+      if (rejectFilterVal === 'ya' && (!group.is_rejected || !group.is_api_synced)) return false;
+      if (rejectFilterVal === 'pending' && (!group.is_rejected || group.is_api_synced)) return false;
       if (rejectFilterVal === 'tidak' && group.is_rejected) return false;
       
       return true;

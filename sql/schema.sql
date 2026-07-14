@@ -242,7 +242,7 @@ RETURNS TABLE(kode_sls VARCHAR) AS $$
   SELECT DISTINCT us.kode_sls
   FROM public.user_sls us
   JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
-  WHERE mp.pml_id = auth.uid();
+  WHERE mp.pml_id = auth.uid() AND us.status = 'aktif';
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
 -- PROFILES: own row + superadmin/admin sees all
@@ -816,17 +816,17 @@ DECLARE
   v_sls_codes text[] := '{}';
 BEGIN
   -- Ambil kode SLS berdasarkan role
-  IF p_role = 'ppl' THEN
+  IF lower(p_role) = 'ppl' THEN
     SELECT COALESCE(array_agg(kode_sls), '{}')
       INTO v_sls_codes
       FROM public.user_sls
      WHERE user_id = p_user_id AND status = 'aktif';
-  ELSIF p_role = 'pml' THEN
+  ELSIF lower(p_role) = 'pml' THEN
     SELECT COALESCE(array_agg(DISTINCT us.kode_sls), '{}')
       INTO v_sls_codes
       FROM public.user_sls us
       JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
-     WHERE mp.pml_id = p_user_id;
+     WHERE mp.pml_id = p_user_id AND us.status = 'aktif';
   END IF;
 
   -- 1. Hitung total anomali secara individu (baris mentah)
@@ -837,8 +837,8 @@ BEGIN
   INTO v_anomali_total, v_anomali_done, v_anomali_todo
   FROM public.assignment_anomali
   WHERE
-    (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
-    AND (p_role IN ('superadmin', 'admin', 'guest') OR show_anomaly = true);
+    (lower(p_role) IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
+    AND (lower(p_role) IN ('superadmin', 'admin', 'guest') OR show_anomaly = true);
 
   -- 2. Hitung berdasarkan assignment_id
   WITH group_status AS (
@@ -847,8 +847,8 @@ BEGIN
       bool_and(status IN ('sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi')) AS is_done
     FROM public.assignment_anomali
     WHERE
-      (p_role IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
-      AND (p_role IN ('superadmin', 'admin', 'guest') OR show_anomaly = true)
+      (lower(p_role) IN ('superadmin', 'admin', 'guest') OR kode_sls_gabungan = ANY(v_sls_codes))
+      AND (lower(p_role) IN ('superadmin', 'admin', 'guest') OR show_anomaly = true)
     GROUP BY assignment_id
   )
   SELECT
