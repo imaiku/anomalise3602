@@ -313,17 +313,11 @@ function renderStats(total, belum, selesai, progress, anomTotal = 0, anomBelum =
 // DATA LOADING
 // ============================================================
 async function loadAnomalinomorOptions() {
-  const select = document.getElementById('filterNomor');
-  if (!select) return;
-
-  const currentVal = select.value;
+  const dropdown = document.getElementById('nomorChecklistDropdown');
+  if (!dropdown) return;
 
   // Baca filter jenis dari UI
-  const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
-  const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
-  let jenis = (isKeluargaChecked && isUsahaChecked) ? 'keduanya' :
-              isKeluargaChecked ? 'keluarga' :
-              isUsahaChecked ? 'usaha' : '';
+  let jenis = document.getElementById('filterJenis')?.value;
   
   // Jika PPL, paksa ke keluarga
   if (currentProfile?.role === 'ppl') {
@@ -335,36 +329,84 @@ async function loadAnomalinomorOptions() {
     query = query.eq('tipe', jenis);
   }
 
-  const { data } = await query;
-
-  // Clear existing options except first
-  while (select.options.length > 1) {
-    select.remove(1);
+  const { data, error } = await query;
+  if (error) {
+    console.error('Error fetching anomali_ref:', error);
+    return;
   }
 
+  const checkedSet = new Set(getSelectedNomorFilters());
   const seen = new Set();
-  let hasSelectedValue = false;
+  let html = '';
 
-  (data || []).forEach(row => {
-    const key = `${row.tipe}:${row.nomor}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    const opt = document.createElement('option');
-    opt.value       = key;
-    opt.textContent = `Anomali ${row.nomor} (${row.tipe === 'keluarga' ? 'KK' : 'Usaha'})`;
-    select.appendChild(opt);
-
-    if (key === currentVal) {
-      hasSelectedValue = true;
-    }
+  (data || []).forEach(item => {
+    const val = `${item.tipe}:${item.nomor}`;
+    if (seen.has(val)) return;
+    seen.add(val);
+    const label = `Anomali ${item.tipe === 'keluarga' ? 'KK' : 'Usaha'} ${item.nomor}`;
+    const isChecked = checkedSet.has(val);
+    
+    html += `
+      <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; padding:0.25rem 0.5rem; cursor:pointer; color:var(--text); margin:0; hover:background-color:var(--border)">
+        <input type="checkbox" class="nomor-filter-cb" value="${val}" ${isChecked ? 'checked' : ''} onchange="onNomorFilterChange()" style="width:13px; height:13px; accent-color:var(--primary); cursor:pointer">
+        <span>${label}</span>
+      </label>
+    `;
   });
 
-  if (hasSelectedValue) {
-    select.value = currentVal;
+  if (!html) {
+    html = `<div style="font-size:0.75rem; color:var(--text-muted); text-align:center; padding:0.5rem">Tidak ada opsi</div>`;
+  }
+
+  dropdown.innerHTML = html;
+  updateNomorLabel();
+}
+
+function getSelectedNomorFilters() {
+  const cbs = document.querySelectorAll('.nomor-filter-cb');
+  const vals = [];
+  cbs.forEach(cb => {
+    if (cb.checked) vals.push(cb.value);
+  });
+  return vals;
+}
+
+function onNomorFilterChange() {
+  updateNomorLabel();
+  applyFilters();
+}
+
+function updateNomorLabel() {
+  const selected = getSelectedNomorFilters();
+  const label = document.getElementById('nomorChecklistLabel');
+  if (!label) return;
+  
+  if (selected.length === 0) {
+    label.textContent = 'Nomor: Semua';
+  } else if (selected.length === 1) {
+    const [tipe, nomor] = selected[0].split(':');
+    label.textContent = `${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`;
   } else {
-    select.value = '';
+    label.textContent = `${selected.length} Terpilih`;
   }
 }
+
+function toggleNomorChecklist() {
+  const dd = document.getElementById('nomorChecklistDropdown');
+  if (dd) {
+    const isHidden = dd.style.display === 'none';
+    dd.style.display = isHidden ? 'block' : 'none';
+  }
+}
+
+// Close checklist dropdown if clicking outside
+document.addEventListener('click', (e) => {
+  const container = document.querySelector('.dropdown-checklist-container');
+  const dd = document.getElementById('nomorChecklistDropdown');
+  if (container && dd && !container.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 async function loadData() {
   showTableLoading();
@@ -373,12 +415,8 @@ async function loadData() {
 
     // Baca filter aktif dari UI
     const status = document.getElementById('filterStatus')?.value;
-    const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
-    const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
-    const jenis = (isKeluargaChecked && isUsahaChecked) ? 'keduanya' :
-                  isKeluargaChecked ? 'keluarga' :
-                  isUsahaChecked ? 'usaha' : '';
-    const nomor  = document.getElementById('filterNomor')?.value;
+    const jenis  = document.getElementById('filterJenis')?.value;
+    const selectedNomorList = getSelectedNomorFilters();
     const ket    = document.getElementById('filterKeterangan')?.value;
     const search = document.getElementById('filterSearch')?.value.trim();
 
@@ -543,11 +581,13 @@ async function loadData() {
       // 1. Status Filter
       if (status && !group.rows.some(r => r.status === status)) return false;
       
-      // 2. Nomor Filter
-      if (nomor) {
-        const [nTipe, nNomor] = nomor.split(':');
-        const hasNomor = group.rows.some(r => r.tipe === nTipe && r.nomor_anomali === parseInt(nNomor));
-        if (!hasNomor) return false;
+      // 2. Nomor Filter (Match if group contains any of the selected anomaly numbers)
+      if (selectedNomorList && selectedNomorList.length > 0) {
+        const hasMatchingNomor = group.rows.some(r => {
+          const val = `${r.tipe}:${r.nomor_anomali}`;
+          return selectedNomorList.includes(val);
+        });
+        if (!hasMatchingNomor) return false;
       }
       
       // 3. Keterangan (ket) Filter
@@ -663,16 +703,16 @@ function applyFiltersDebounced() {
 }
 
 function resetFilters() {
-  ['filterStatus', 'filterNomor', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS', 'filterReject']
+  ['filterStatus', 'filterJenis', 'filterKeterangan', 'filterSearch', 'filterKecamatan', 'filterDesa', 'filterSLS', 'filterSubSLS', 'filterReject']
     .forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
 
-  const cbKeluarga = document.getElementById('filterJenisKeluarga');
-  if (cbKeluarga) cbKeluarga.checked = false;
-  const cbUsaha = document.getElementById('filterJenisUsaha');
-  if (cbUsaha) cbUsaha.checked = false;
+  // Clear all Nomor checklist checkboxes
+  const cbs = document.querySelectorAll('.nomor-filter-cb');
+  cbs.forEach(cb => { cb.checked = false; });
+  updateNomorLabel();
 
   selectedPetugas = null;
   const input = document.getElementById('filterPetugasInput');
@@ -963,9 +1003,8 @@ function toggleReopenHighlight() {
 function updateFilterChips() {
   const bar    = document.getElementById('filterActiveBar');
   const status = document.getElementById('filterStatus').value;
-  const isKeluargaChecked = document.getElementById('filterJenisKeluarga')?.checked ?? false;
-  const isUsahaChecked = document.getElementById('filterJenisUsaha')?.checked ?? false;
-  const nomor  = document.getElementById('filterNomor').value;
+  const jenis  = document.getElementById('filterJenis').value;
+  const selectedNomorList = getSelectedNomorFilters();
   const ket    = document.getElementById('filterKeterangan').value;
   const search = document.getElementById('filterSearch').value.trim();
   const reject = document.getElementById('filterReject')?.value;
@@ -978,9 +1017,21 @@ function updateFilterChips() {
 
   const chips = [
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
-    isKeluargaChecked && { label: `Jenis: Keluarga`,               clear: () => { document.getElementById('filterJenisKeluarga').checked = false; applyFilters(); } },
-    isUsahaChecked && { label: `Jenis: Usaha`,                     clear: () => { document.getElementById('filterJenisUsaha').checked = false; applyFilters(); } },
-    nomor  && { label: `Nomor: ${nomor.split(':')[1]} (${nomor.split(':')[0] === 'keluarga' ? 'KK' : 'Usaha'})`, clear: () => { document.getElementById('filterNomor').value = ''; applyFilters(); } },
+    jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
+    ...selectedNomorList.map(val => {
+      const [tipe, nomor] = val.split(':');
+      return {
+        label: `Nomor: ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`,
+        clear: () => {
+          const cbs = document.querySelectorAll('.nomor-filter-cb');
+          cbs.forEach(cb => {
+            if (cb.value === val) cb.checked = false;
+          });
+          updateNomorLabel();
+          applyFilters();
+        }
+      };
+    }),
     selectedPetugas && { label: `Petugas: ${selectedPetugas.nama}`, clear: () => { clearSelectedPetugas(); } },
     selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
     (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
