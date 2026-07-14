@@ -923,11 +923,12 @@ function updateTableCount() {
 
   // Cek apakah ada filter aktif yang membatasi dataset
   const hasActiveFilters = document.getElementById('filterStatus')?.value ||
-                           document.getElementById('filterJenisKeluarga')?.checked ||
-                           document.getElementById('filterJenisUsaha')?.checked ||
-                           document.getElementById('filterNomor')?.value ||
+                           document.getElementById('filterJenis')?.value ||
+                           getSelectedNomorFilters().length > 0 ||
                            document.getElementById('filterKeterangan')?.value ||
                            selectedKec || selectedDes || selectedSLS || selectedSub ||
+                           selectedPetugas ||
+                           document.getElementById('filterReject')?.value ||
                            document.getElementById('filterSearch')?.value.trim();
 
   let text = total === 0 

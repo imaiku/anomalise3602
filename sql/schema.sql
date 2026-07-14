@@ -245,6 +245,24 @@ RETURNS TABLE(kode_sls VARCHAR) AS $$
   WHERE mp.pml_id = auth.uid() AND us.status = 'aktif';
 $$ LANGUAGE SQL SECURITY DEFINER STABLE;
 
+CREATE OR REPLACE FUNCTION public.get_petugas_sls(p_user_id uuid, p_role text)
+RETURNS TABLE(kode_sls VARCHAR) AS $$
+BEGIN
+  IF lower(p_role) = 'ppl' THEN
+    RETURN QUERY 
+      SELECT us.kode_sls::VARCHAR
+      FROM public.user_sls us
+      WHERE us.user_id = p_user_id AND us.status = 'aktif';
+  ELSIF lower(p_role) = 'pml' THEN
+    RETURN QUERY 
+      SELECT DISTINCT us.kode_sls::VARCHAR
+      FROM public.user_sls us
+      JOIN public.pml_ppl mp ON us.user_id = mp.ppl_id
+      WHERE mp.pml_id = p_user_id AND us.status = 'aktif';
+  END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
+
 -- PROFILES: own row + superadmin/admin sees all
 CREATE POLICY "profiles_select" ON public.profiles FOR SELECT TO authenticated
   USING (id = auth.uid() OR get_my_role() IN ('superadmin', 'admin'));
@@ -876,6 +894,7 @@ $$;
 
 -- Berikan akses execute ke semua role
 GRANT EXECUTE ON FUNCTION public.get_dashboard_stats(uuid, text) TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.get_petugas_sls(uuid, text) TO anon, authenticated;
 
 -- ============================================================
 -- HELPER FUNCTION: GET ANOMALY COUNTS BY SLS
