@@ -1192,3 +1192,83 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.get_both_type_anomalies(text, int, text, text, text, text, text, text, uuid, uuid, int) TO anon, authenticated;
+
+-- ============================================================
+-- MARK ASSIGNMENT SYNCED (BYPASS RLS FOR ANONYMOUS BOT)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.mark_assignment_synced(p_assignment_id VARCHAR)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.assignment_anomali
+  SET is_api_synced = true
+  WHERE assignment_id = p_assignment_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.mark_assignment_synced(VARCHAR) TO anon, authenticated;
+
+-- ============================================================
+-- CLAIM AND FETCH REJECTIONS (CONCURRENCY LOCK USING SKIP LOCKED)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.claim_and_fetch_rejections(p_limit INT DEFAULT 10)
+RETURNS TABLE (assignment_id VARCHAR)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ids UUID[];
+BEGIN
+  -- Ambil ID baris yang akan diklaim dan kunci dengan SKIP LOCKED
+  SELECT array_agg(id) INTO v_ids
+  FROM (
+    SELECT id
+    FROM public.assignment_anomali
+    WHERE is_rejected = true 
+      AND is_api_synced = false
+    FOR UPDATE SKIP LOCKED
+    LIMIT p_limit
+  ) sub;
+
+  IF v_ids IS NULL THEN
+    RETURN;
+  END IF;
+
+  -- Tandai is_api_synced = true langsung di transaksi yang sama
+  UPDATE public.assignment_anomali
+  SET is_api_synced = true,
+      updated_at = NOW()
+  WHERE id = ANY(v_ids);
+
+  -- Kembalikan assignment_id yang berhasil diklaim
+  RETURN QUERY
+  SELECT DISTINCT a.assignment_id::VARCHAR
+  FROM public.assignment_anomali a
+  WHERE a.id = ANY(v_ids);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.claim_and_fetch_rejections(INT) TO anon, authenticated;
+
+-- ============================================================
+-- RELEASE ASSIGNMENT SYNC (IF BOT FAILS OR LOGGED OUT)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.release_assignment_sync(p_assignment_id VARCHAR)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.assignment_anomali
+  SET is_api_synced = false,
+      updated_at = NOW()
+  WHERE assignment_id = p_assignment_id;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.release_assignment_sync(VARCHAR) TO anon, authenticated;

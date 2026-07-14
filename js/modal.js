@@ -449,7 +449,7 @@ function openAllBulkTabs() {
   }
   
   bulkSelectedData.forEach(g => {
-    const url = buildFasihLink(g.assignment_id);
+    const url = `https://fasih-sm.bps.go.id/app/assignment-detail/${g.assignment_id}`;
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
@@ -460,6 +460,29 @@ function openAllBulkTabs() {
   });
   
   showToast(`Membuka ${count} tautan Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
+}
+
+function toggleAllBulkShow(checked) {
+  const showCbs = document.querySelectorAll('.bulk-show-cb');
+  showCbs.forEach((cb, idx) => {
+    cb.checked = checked;
+    onBulkShowAnomalyToggle(idx, checked);
+  });
+  // Update master reject checkbox state to match
+  const masterReject = document.getElementById('bulkMasterReject');
+  if (masterReject && !checked) {
+    masterReject.checked = false;
+    toggleAllBulkReject(false);
+  }
+}
+
+function toggleAllBulkReject(checked) {
+  const rejectCbs = document.querySelectorAll('.bulk-reject-cb');
+  rejectCbs.forEach(cb => {
+    if (!cb.disabled) {
+      cb.checked = checked;
+    }
+  });
 }
 function closeBulkModal(triggerHistoryBack = true) {
   const modal = document.getElementById('bulkModal');
@@ -483,9 +506,19 @@ function renderBulkSheetBody() {
       <thead>
         <tr style="border-bottom:2px solid var(--border)">
           <th style="padding:0.75rem; text-align:left">Nama KK / Usaha</th>
-          <th style="padding:0.75rem; text-align:center; width:130px">Tampilkan Anomali</th>
-          <th style="padding:0.75rem; text-align:center; width:90px">Reject</th>
-          <th style="padding:0.75rem; text-align:center; width:180px">Aksi</th>
+          <th style="padding:0.75rem; text-align:center; width:160px">
+            <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
+              <input type="checkbox" id="bulkMasterShow" onchange="toggleAllBulkShow(this.checked)" style="width:14px; height:14px; cursor:pointer">
+              Tampilkan Anomali
+            </label>
+          </th>
+          <th style="padding:0.75rem; text-align:center; width:110px">
+            <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
+              <input type="checkbox" id="bulkMasterReject" onchange="toggleAllBulkReject(this.checked)" style="width:14px; height:14px; cursor:pointer">
+              Reject
+            </label>
+          </th>
+          <th style="padding:0.75rem; text-align:center; width:150px">Aksi</th>
         </tr>
       </thead>
       <tbody>`;
@@ -500,7 +533,8 @@ function renderBulkSheetBody() {
       nameParts.push(g.nama_usaha_list.join(', '));
     }
     const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
-    const fasihUrl = buildFasihLink(g.assignment_id);
+    const openUrl = `https://fasih-sm.bps.go.id/app/assignment-detail/${g.assignment_id}`;
+    const editUrl = `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${g.assignment_id}/edit`;
     
     html += `
         <tr style="border-bottom:1px solid var(--border)">
@@ -515,14 +549,14 @@ function renderBulkSheetBody() {
             <input type="checkbox" class="bulk-reject-cb" id="bulkReject-${idx}" data-idx="${idx}" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer">
           </td>
           <td style="padding:0.75rem; text-align:center; white-space:nowrap">
-            <a href="${fasihUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem">
+            <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem">
               <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
               Buka
             </a>
-            <button id="btnRejectApi-${idx}" onclick="rejectIndividualAssignment(${idx}, '${g.assignment_id}')" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem; background:var(--error); color:#fff; border:none; margin-left:0.25rem">
-              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-              Reject API
-            </button>
+            <a href="${editUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem; margin-left:0.25rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              Edit
+            </a>
           </td>
         </tr>`;
   });
