@@ -365,7 +365,7 @@ async function loadAnomalinomorOptions() {
 async function loadData() {
   showTableLoading();
   try {
-    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected';
+    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected, is_api_synced';
 
     // Baca filter aktif dari UI
     const status = document.getElementById('filterStatus')?.value;
@@ -585,6 +585,7 @@ function groupByAssignment(rows) {
         is_ever_reopened:  false,
         show_anomaly:      row.show_anomaly !== undefined ? row.show_anomaly : false,
         is_rejected:       row.is_rejected !== undefined ? row.is_rejected : false,
+        is_api_synced:     row.is_api_synced !== undefined ? row.is_api_synced : false,
         first_seen:        row.first_seen,
         last_seen:         row.last_seen,
         rows:              []
@@ -753,7 +754,7 @@ function renderTable(pageData) {
           Fasih-SM
         </a>` : ''}
         ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
-        ${group.is_rejected ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : ''}
+        ${group.is_rejected ? (group.is_api_synced ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : '<span class="reject-badge" style="background:var(--warning); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Pending</span>') : ''}
       </td>
       <td>${escHtml(combinedName)}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
@@ -786,7 +787,7 @@ function renderMobileCards(pageData) {
           <div class="mobile-card-id">
             ${group.assignment_id.slice(0, 8)}... 
             ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
-            ${group.is_rejected ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : ''}
+            ${group.is_rejected ? (group.is_api_synced ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : '<span class="reject-badge" style="background:var(--warning); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Pending</span>') : ''}
           </div>
           <div class="mobile-card-name">${escHtml(group.nama_kk || group.nama_usaha_list[0] || '—')}</div>
         </div>
