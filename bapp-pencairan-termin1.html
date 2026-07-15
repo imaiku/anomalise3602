@@ -425,8 +425,9 @@
           suggestionsDiv.innerHTML = filtered.slice(0, 10).map(p => {
             const kecName = p.kode_kec ? (kecMap[p.kode_kec] || 'Kec. Lain') : 'Kec. Belum Ditentukan';
             const labelKec = p.kode_kec ? `${p.kode_kec} - ${escHtml(kecName)}` : (p.email_ref || 'Belum Ditugaskan ke SLS');
+            const safeNama = p.nama.replace(/'/g, "\\'");
             return `
-              <div onclick="selectPetugas('${p.id}', '${escHtml(p.nama)}', '${p.role}', '${p.kode_kec || ''}')">
+              <div onclick="selectPetugas('${p.id}', '${safeNama}', '${p.role}', '${p.kode_kec || ''}')">
                 <strong>${escHtml(p.nama)}</strong> (${p.role.toUpperCase()})
                 <div class="suggestion-item-kec">${labelKec}</div>
               </div>

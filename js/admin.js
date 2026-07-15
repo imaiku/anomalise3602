@@ -733,27 +733,30 @@ function renderUsers() {
   }
 
   const isAdminRole = adminProfile && adminProfile.role === 'admin';
-  tbody.innerHTML = pageData.map(u => `
-    <tr>
-      <td><strong>${escHtml(u.nama)}</strong></td>
-      <td class="mono">${escHtml(u.sobatid || '—')}</td>
-      <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
-      <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
-      <td style="color:var(--text-muted)">${escHtml(u.kecamatan || '—')}</td>
-      <td><span class="chip">${u.slsCount} SLS</span></td>
-      <td style="text-align:center"><strong>${u.anomalyCount || 0}</strong></td>
-      <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
-      ${!isAdminRole ? `
-      <td style="white-space:nowrap;display:flex;gap:0.35rem">
-        <button class="btn btn-secondary btn-sm" onclick="manageUserSLS('${u.id}','${escHtml(u.nama)}')" title="Kelola SLS" ${u.role === 'pml' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
-          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
-          SLS
-        </button>
-        <button class="btn btn-secondary btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
-          ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
-        </button>
-      </td>` : ''}
-    </tr>`).join('');
+  tbody.innerHTML = pageData.map(u => {
+    const safeNama = u.nama.replace(/'/g, "\\'");
+    return `
+      <tr>
+        <td><strong>${escHtml(u.nama)}</strong></td>
+        <td class="mono">${escHtml(u.sobatid || '—')}</td>
+        <td><span class="type-badge type-${u.role === 'ppl' ? 'keluarga' : u.role === 'pml' ? 'usaha' : 'keduanya'}">${u.role.toUpperCase()}</span></td>
+        <td style="color:var(--text-muted)">${escHtml(u.email_ref || '—')}</td>
+        <td style="color:var(--text-muted)">${escHtml(u.kecamatan || '—')}</td>
+        <td><span class="chip">${u.slsCount} SLS</span></td>
+        <td style="text-align:center"><strong>${u.anomalyCount || 0}</strong></td>
+        <td><span class="status-badge ${u.is_active ? 'status-kondisi' : 'status-clear'}">${u.is_active ? 'Aktif' : 'Nonaktif'}</span></td>
+        ${!isAdminRole ? `
+        <td style="white-space:nowrap;display:flex;gap:0.35rem">
+          <button class="btn btn-secondary btn-sm" onclick="manageUserSLS('${u.id}','${safeNama}')" title="Kelola SLS" ${u.role === 'pml' ? 'disabled style="opacity:0.4;cursor:not-allowed"' : ''}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/></svg>
+            SLS
+          </button>
+          <button class="btn btn-secondary btn-sm ${u.is_active ? 'text-error' : 'text-success'}" onclick="toggleUserStatus('${u.id}',${u.is_active})">
+            ${u.is_active ? 'Nonaktifkan' : 'Aktifkan'}
+          </button>
+        </td>` : ''}
+      </tr>`;
+  }).join('');
 
   renderUserPagination();
 }

@@ -145,16 +145,20 @@ async function onPetugasSearchInput(val) {
         return;
       }
 
-      suggestionsDiv.innerHTML = data.map(p => `
-        <div class="suggestion-item" 
-             style="padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;border-bottom:1px solid var(--border);color:var(--text);transition:background 0.15s" 
-             onclick="selectPetugas('${p.id}', '${p.role}', '${escHtml(p.nama)}', '${escHtml(p.email_ref || '')}')"
-             onmouseover="this.style.background='var(--border)'" 
-             onmouseout="this.style.background='none'">
-          <strong>${escHtml(p.nama)}</strong> (${p.role.toUpperCase()}) <br/>
-          <span style="font-size:0.7rem;color:var(--text-subtle)">${escHtml(p.email_ref || '—')}</span>
-        </div>
-      `).join('');
+      suggestionsDiv.innerHTML = data.map(p => {
+        const safeNama = p.nama.replace(/'/g, "\\'");
+        const safeEmail = (p.email_ref || '').replace(/'/g, "\\'");
+        return `
+          <div class="suggestion-item" 
+               style="padding:0.5rem 0.75rem;cursor:pointer;font-size:0.8rem;border-bottom:1px solid var(--border);color:var(--text);transition:background 0.15s" 
+               onclick="selectPetugas('${p.id}', '${p.role}', '${safeNama}', '${safeEmail}')"
+               onmouseover="this.style.background='var(--border)'" 
+               onmouseout="this.style.background='none'">
+            <strong>${escHtml(p.nama)}</strong> (${p.role.toUpperCase()}) <br/>
+            <span style="font-size:0.7rem;color:var(--text-subtle)">${escHtml(p.email_ref || '—')}</span>
+          </div>
+        `;
+      }).join('');
       suggestionsDiv.style.display = 'block';
     } catch (err) {
       console.error('Error searching petugas:', err);
