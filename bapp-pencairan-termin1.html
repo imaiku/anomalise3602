@@ -492,8 +492,8 @@
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
-          // Batasi lebar maksimal ke 900px untuk menghemat penyimpanan (tetap sangat tajam untuk cetak A4)
-          const MAX_WIDTH = 900;
+          // Batasi lebar maksimal ke 650px untuk menghemat penyimpanan super ketat (sangat cukup untuk cetak cetakan lampiran BAPP)
+          const MAX_WIDTH = 650;
           let targetWidth = img.width;
           let targetHeight = img.height;
           
@@ -508,8 +508,8 @@
           // Gambar ulang ke canvas
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
           
-          // Export ke JPEG dengan kualitas 70% (sangat menghemat space database)
-          base64String = canvas.toDataURL('image/jpeg', 0.7);
+          // Export ke JPEG dengan kualitas 50% (kompresi maksimal namun teks tetap terbaca dengan baik)
+          base64String = canvas.toDataURL('image/jpeg', 0.5);
           
           // Tampilkan Preview hasil kompresi
           document.getElementById('previewImage').src = base64String;
