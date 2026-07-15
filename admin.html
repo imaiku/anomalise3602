@@ -1120,7 +1120,9 @@
               <tr>
                 <th style="width:40px;text-align:center"><input type="checkbox" id="selectAllBapp"
                     onchange="toggleSelectAllBapp(this.checked)"></th>
-                <th>Nama Petugas</th>
+                <th onclick="sortBapp('nama')" style="cursor:pointer;white-space:nowrap">Nama Petugas
+                  <span class="bapp-sort-icon" id="sort-bapp-nama" style="opacity:0.4;font-size:0.7rem">▲</span>
+                </th>
                 <th>Sobat ID</th>
                 <th>Role</th>
                 <th>Kecamatan</th>
@@ -1134,6 +1136,22 @@
               </tr>
             </tbody>
           </table>
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="bappPageSizeSelect" class="filter-select" onchange="changeBappPageSize()"
+                style="width:80px;padding:0.25rem">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="bappPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
+
         </div>
       </div>
 
@@ -1315,8 +1333,29 @@
       </div>
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeImportWilayahModal()">Batal</button>
-        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master
-          Wilayah</button>
+        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master Wilayah</button>
+      </div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="screenshotModal" onclick="if(event.target===this)closeScreenshotModal()">
+    <div class="bottom-sheet" style="max-width:600px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title" id="screenshotModalTitle">Screenshot BAPP</div>
+      </div>
+      <div class="bottom-sheet-body" style="text-align:center;padding:1rem;">
+        <img id="screenshotPreviewImage" src="" alt="Screenshot BAPP" style="max-width:100%;max-height:70vh;border-radius:var(--radius-md);border:1px solid var(--border);box-shadow:var(--shadow-sm);object-fit:contain">
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeScreenshotModal()">Tutup</button>
+        <a id="screenshotDownloadBtn" href="" download="screenshot-bapp.png" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:0.25rem;text-decoration:none">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/>
+            <line x1="12" x2="12" y1="15" y2="3"/>
+          </svg>
+          Download Gambar
+        </a>
       </div>
     </div>
   </div>

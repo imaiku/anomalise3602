@@ -1409,6 +1409,11 @@ function exportUsersToExcel() {
 // ============================================================
 let allBappUploads = [];
 let filteredBappUploads = [];
+let currentBappPage = 1;
+let bappPageSize = 25;
+let totalBappDbCount = 0;
+let bappSortField = 'nama';
+let bappSortDir = 'asc';
 
 // Load Kecamatan to BAPP filter
 async function loadBAPPKecamatanFilter() {
@@ -1440,14 +1445,16 @@ async function loadBAPPData() {
   }
 
   try {
-    const { data, error } = await db
+    const { data, error, count } = await db
       .from('bapp_uploads')
-      .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)')
+      .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)', { count: 'exact' })
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     allBappUploads = data || [];
+    totalBappDbCount = count || allBappUploads.length;
+    currentBappPage = 1;
     filterBAPP();
   } catch (err) {
     console.error('Error loading BAPP data:', err);
@@ -1488,6 +1495,41 @@ function filterBAPP() {
     return true;
   });
 
+  sortBappData();
+  currentBappPage = 1;
+  renderBAPPTable();
+}
+
+// Sort BAPP data array in memory
+function sortBappData() {
+  filteredBappUploads.sort((a, b) => {
+    let va, vb;
+    if (bappSortField === 'nama') {
+      va = (a.profiles?.nama || '').toLowerCase();
+      vb = (b.profiles?.nama || '').toLowerCase();
+    } else {
+      va = (a.profiles?.nama || '').toLowerCase();
+      vb = (b.profiles?.nama || '').toLowerCase();
+    }
+
+    if (va < vb) return bappSortDir === 'asc' ? -1 : 1;
+    if (va > vb) return bappSortDir === 'asc' ? 1 : -1;
+    return 0;
+  });
+}
+
+// Trigger sorting from table headers
+function sortBapp(field) {
+  bappSortDir = bappSortField === field ? (bappSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+  bappSortField = field;
+
+  // Reset sort icons in BAPP table header
+  document.querySelectorAll('th span.bapp-sort-icon').forEach(span => span.textContent = '⇅');
+  const activeIcon = document.getElementById(`sort-bapp-${field}`);
+  if (activeIcon) activeIcon.textContent = bappSortDir === 'asc' ? '▲' : '▼';
+
+  sortBappData();
+  currentBappPage = 1;
   renderBAPPTable();
 }
 
@@ -1501,17 +1543,27 @@ function renderBAPPTable() {
   const selectAllCheckbox = document.getElementById('selectAllBapp');
   if (selectAllCheckbox) selectAllCheckbox.checked = false;
 
-  if (countEl) {
-    countEl.textContent = `Total: ${filteredBappUploads.length} petugas`;
+  const total = filteredBappUploads.length;
+  let pageData = filteredBappUploads;
+
+  if (bappPageSize !== 'all') {
+    const start = (currentBappPage - 1) * parseInt(bappPageSize);
+    pageData = filteredBappUploads.slice(start, start + parseInt(bappPageSize));
   }
 
-  if (filteredBappUploads.length === 0) {
+  if (countEl) {
+    countEl.textContent = `Total: ${totalBappDbCount} petugas | Menampilkan ${pageData.length} data`;
+  }
+
+  if (pageData.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada BAPP yang cocok</td></tr>';
     updateSelectedBappCount();
+    const pag = document.getElementById('bappPagination');
+    if (pag) pag.innerHTML = '';
     return;
   }
 
-  tbody.innerHTML = filteredBappUploads.map(b => {
+  tbody.innerHTML = pageData.map(b => {
     const timeText = formatDate(b.created_at, true);
     const nama = b.profiles?.nama || '—';
     const sobatid = b.profiles?.sobatid || '—';
@@ -1528,7 +1580,14 @@ function renderBAPPTable() {
         <td><span class="role-badge role-${role.toLowerCase()}">${role}</span></td>
         <td>${escHtml(kecamatan)}</td>
         <td style="color:var(--text-muted)">${timeText}</td>
-        <td style="text-align:center">
+        <td style="text-align:center;white-space:nowrap;display:flex;gap:0.35rem;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="showScreenshot('${b.id}')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+              <circle cx="12" cy="12" r="3"/>
+            </svg>
+            Lihat Bukti
+          </button>
           <button class="btn btn-secondary btn-sm" onclick="printSingleBAPP('${b.id}')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
             Cetak PDF
@@ -1539,6 +1598,7 @@ function renderBAPPTable() {
   }).join('');
 
   updateSelectedBappCount();
+  renderBappPagination();
 }
 
 // Select All Handler
@@ -1547,6 +1607,89 @@ function toggleSelectAllBapp(checked) {
     cb.checked = checked;
   });
   updateSelectedBappCount();
+}
+
+function changeBappPageSize() {
+  bappPageSize = document.getElementById('bappPageSizeSelect').value;
+  currentBappPage = 1;
+  renderBAPPTable();
+}
+
+function goBappPage(p) {
+  const totalPages = Math.ceil(filteredBappUploads.length / parseInt(bappPageSize));
+  if (p < 1 || p > totalPages) return;
+  currentBappPage = p;
+  renderBAPPTable();
+}
+
+function renderBappPagination() {
+  const pag = document.getElementById('bappPagination');
+  if (!pag) return;
+
+  if (bappPageSize === 'all') {
+    pag.innerHTML = '';
+    return;
+  }
+
+  const total = filteredBappUploads.length;
+  const totalPages = Math.ceil(total / parseInt(bappPageSize));
+  if (totalPages <= 1) {
+    pag.innerHTML = '';
+    return;
+  }
+
+  const firstBtn = `<button class="page-btn" onclick="goBappPage(1)" ${currentBappPage === 1 ? 'disabled' : ''} title="Halaman pertama"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>`;
+  const prevBtn = `<button class="page-btn" onclick="goBappPage(${currentBappPage - 1})" ${currentBappPage === 1 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>`;
+  const nextBtn = `<button class="page-btn" onclick="goBappPage(${currentBappPage + 1})" ${currentBappPage === totalPages ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>`;
+  const lastBtn = `<button class="page-btn" onclick="goBappPage(${totalPages})" ${currentBappPage === totalPages ? 'disabled' : ''} title="Halaman terakhir"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></button>`;
+
+  const range = [];
+  for (let i = Math.max(1, currentBappPage - 3); i <= Math.min(totalPages, currentBappPage + 3); i++) range.push(i);
+
+  let pageButtons = '';
+  if (range[0] > 1) {
+    pageButtons += `<button class="page-btn" onclick="goBappPage(1)">1</button>`;
+    if (range[0] > 2) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+  }
+  range.forEach(p => {
+    pageButtons += `<button class="page-btn ${p === currentBappPage ? 'active' : ''}" onclick="goBappPage(${p})">${p}</button>`;
+  });
+  if (range[range.length - 1] < totalPages) {
+    if (range[range.length - 1] < totalPages - 1) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    pageButtons += `<button class="page-btn" onclick="goBappPage(${totalPages})">${totalPages}</button>`;
+  }
+
+  pag.innerHTML = firstBtn + prevBtn + pageButtons + nextBtn + lastBtn;
+}
+
+// Screenshot preview and download features
+function showScreenshot(id) {
+  const item = allBappUploads.find(b => b.id === id);
+  if (!item || !item.screenshot) {
+    showToast('Screenshot tidak ditemukan', 'error');
+    return;
+  }
+
+  const img = document.getElementById('screenshotPreviewImage');
+  const title = document.getElementById('screenshotModalTitle');
+  const downloadBtn = document.getElementById('screenshotDownloadBtn');
+
+  if (img && title && downloadBtn) {
+    const nama = item.profiles?.nama || 'Petugas';
+    title.textContent = `Screenshot BAPP — ${nama}`;
+    img.src = item.screenshot;
+    downloadBtn.href = item.screenshot;
+    downloadBtn.download = `screenshot-bapp-${nama.replace(/\s+/g, '-').toLowerCase()}.png`;
+
+    const modal = document.getElementById('screenshotModal');
+    if (modal) modal.classList.add('open');
+  }
+}
+
+// Close screenshot preview modal
+function closeScreenshotModal() {
+  const modal = document.getElementById('screenshotModal');
+  if (modal) modal.classList.remove('open');
 }
 
 // Update selected count and show/hide batch print button
