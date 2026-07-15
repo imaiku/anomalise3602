@@ -488,9 +488,30 @@
             return;
           }
           
-          base64String = e.target.result;
+          // Kompresi & Resizing menggunakan HTML5 Canvas
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
           
-          // Show Preview
+          // Batasi lebar maksimal ke 900px untuk menghemat penyimpanan (tetap sangat tajam untuk cetak A4)
+          const MAX_WIDTH = 900;
+          let targetWidth = img.width;
+          let targetHeight = img.height;
+          
+          if (img.width > MAX_WIDTH) {
+            targetWidth = MAX_WIDTH;
+            targetHeight = Math.round((img.height * MAX_WIDTH) / img.width);
+          }
+          
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          
+          // Gambar ulang ke canvas
+          ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+          
+          // Export ke JPEG dengan kualitas 70% (sangat menghemat space database)
+          base64String = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // Tampilkan Preview hasil kompresi
           document.getElementById('previewImage').src = base64String;
           document.getElementById('previewContainer').style.display = 'block';
           document.getElementById('dropzone').style.display = 'none';
