@@ -1503,7 +1503,7 @@ function renderBAPPTable() {
   }
 
   if (filteredBappUploads.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data upload screenshot Fasih yang cocok</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada BAPP yang cocok</td></tr>';
     updateSelectedBappCount();
     return;
   }
