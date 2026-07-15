@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Upload Screenshot BAPP — Anomali SE2026</title>
-  <meta name="description" content="Halaman upload bukti pencapaian pekerjaan (BAPP) termin 1 Petugas SE2026">
+  <title>Upload Screenshot Capaian Fasih — Anomali SE2026</title>
+  <meta name="description" content="Halaman upload bukti pencapaian pekerjaan termin 1 Petugas SE2026">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
@@ -17,6 +18,7 @@
       min-height: 100vh;
       padding: 1.5rem;
     }
+
     .upload-container {
       background: var(--bg-card);
       border: 1px solid var(--border);
@@ -28,6 +30,7 @@
       position: relative;
       overflow: hidden;
     }
+
     .upload-container::before {
       content: '';
       position: absolute;
@@ -37,23 +40,28 @@
       height: 4px;
       background: linear-gradient(to right, var(--primary), var(--primary-dark));
     }
+
     .header {
       text-align: center;
       margin-bottom: 2rem;
     }
+
     .header h1 {
       font-size: 1.5rem;
       font-weight: 700;
       color: var(--text);
       margin-bottom: 0.5rem;
     }
+
     .header p {
       font-size: 0.875rem;
       color: var(--text-muted);
     }
+
     .form-group {
       margin-bottom: 1.25rem;
     }
+
     .form-label {
       display: block;
       font-weight: 600;
@@ -61,6 +69,7 @@
       margin-bottom: 0.5rem;
       color: var(--text);
     }
+
     .form-select {
       width: 100%;
       padding: 0.75rem 1rem;
@@ -72,10 +81,12 @@
       outline: none;
       transition: border-color 0.15s, box-shadow 0.15s;
     }
+
     .form-select:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
     }
+
     .file-dropzone {
       border: 2px dashed var(--border-strong);
       border-radius: var(--radius-lg);
@@ -86,24 +97,29 @@
       transition: all 0.2s;
       position: relative;
     }
+
     .file-dropzone.dragover {
       border-color: var(--primary);
       background: rgba(249, 115, 22, 0.04);
     }
+
     .file-dropzone-icon {
       color: var(--text-subtle);
       margin-bottom: 0.75rem;
     }
+
     .file-dropzone-title {
       font-weight: 600;
       font-size: 0.875rem;
       margin-bottom: 0.25rem;
       color: var(--text);
     }
+
     .file-dropzone-sub {
       font-size: 0.75rem;
       color: var(--text-subtle);
     }
+
     .preview-container {
       margin-top: 1rem;
       position: relative;
@@ -112,11 +128,13 @@
       border: 1px solid var(--border);
       display: none;
     }
+
     .preview-image {
       width: 100%;
       height: auto;
       display: block;
     }
+
     .remove-btn {
       position: absolute;
       top: 0.5rem;
@@ -133,9 +151,11 @@
       cursor: pointer;
       font-size: 0.75rem;
     }
+
     .remove-btn:hover {
       background: rgba(239, 68, 68, 0.9);
     }
+
     .submit-btn {
       width: 100%;
       padding: 0.875rem;
@@ -143,6 +163,7 @@
       font-size: 0.875rem;
       margin-top: 1.5rem;
     }
+
     .toast {
       position: fixed;
       top: 1.5rem;
@@ -163,18 +184,26 @@
       font-size: 0.875rem;
       font-weight: 500;
     }
+
     .toast.show {
       transform: translateY(0);
       opacity: 1;
     }
-    .toast.success { border-left-color: var(--success); }
-    .toast.error { border-left-color: var(--error); }
-    
+
+    .toast.success {
+      border-left-color: var(--success);
+    }
+
+    .toast.error {
+      border-left-color: var(--error);
+    }
+
     .success-state {
       text-align: center;
       display: none;
       padding: 1rem 0;
     }
+
     .success-icon {
       width: 60px;
       height: 60px;
@@ -186,29 +215,35 @@
       justify-content: center;
       margin: 0 auto 1.5rem auto;
     }
+
     .success-state h2 {
       font-size: 1.35rem;
       font-weight: 700;
       margin-bottom: 0.5rem;
       color: var(--text);
     }
+
     .success-state p {
       font-size: 0.875rem;
       color: var(--text-muted);
     }
+
     .autocomplete-suggestions div {
       padding: 0.75rem 1rem;
       cursor: pointer;
       font-size: 0.875rem;
       border-bottom: 1px solid var(--border);
     }
+
     .autocomplete-suggestions div:last-child {
       border-bottom: none;
     }
+
     .autocomplete-suggestions div:hover {
       background-color: var(--bg-card-2);
       color: var(--primary);
     }
+
     .autocomplete-suggestions .suggestion-item-kec {
       font-size: 0.75rem;
       color: var(--text-subtle);
@@ -216,13 +251,14 @@
     }
   </style>
 </head>
+
 <body>
 
   <div class="upload-container">
     <!-- Form State -->
     <div id="formState">
       <div class="header">
-        <h1>Upload Screenshot BAPP</h1>
+        <h1>Upload Screenshot Capaian Fasih</h1>
         <p>Unggah bukti pencapaian pekerjaan termin I Anda</p>
       </div>
 
@@ -238,9 +274,10 @@
         <!-- Nama Petugas (Searchable Autocomplete) -->
         <div class="form-group" style="position:relative">
           <label class="form-label" for="petugasSearchInput">Nama Petugas</label>
-          <input type="text" id="petugasSearchInput" class="form-select" placeholder="Cari Nama Petugas..." oninput="handlePetugasSearch(this.value)" autocomplete="off" required>
+          <input type="text" id="petugasSearchInput" class="form-select" placeholder="Cari Nama Petugas..."
+            oninput="handlePetugasSearch(this.value)" autocomplete="off" required>
           <input type="hidden" id="petugas" required>
-          
+
           <button type="button" id="btnClearPetugas" onclick="clearSelectedPetugas()"
             style="position:absolute;right:10px;top:38px;background:none;border:none;color:var(--text-subtle);cursor:pointer;display:none;align-items:center;padding:0">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -249,7 +286,7 @@
               <line x1="6" x2="18" y1="6" y2="18" />
             </svg>
           </button>
-          
+
           <div id="petugasSuggestions" class="autocomplete-suggestions"
             style="position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:200px;overflow-y:auto;z-index:100;box-shadow:var(--shadow-md);display:none;margin-top:2px">
           </div>
@@ -259,14 +296,20 @@
         <div class="form-group">
           <label class="form-label">Screenshot Aplikasi Fasih</label>
           <div class="file-dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
-            <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" style="display:none" onchange="handleFileSelect(event)">
+            <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" style="display:none"
+              onchange="handleFileSelect(event)">
             <div class="file-dropzone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="17 8 12 3 7 8" />
+                <line x1="12" x2="12" y1="3" y2="15" />
+              </svg>
             </div>
             <div class="file-dropzone-title" id="dropzoneTitle">Klik atau seret gambar ke sini</div>
             <div class="file-dropzone-sub">Format PNG, JPG, JPEG · Maksimal 500KB</div>
           </div>
-          
+
           <div class="preview-container" id="previewContainer">
             <img class="preview-image" id="previewImage" src="" alt="Screenshot BAPP">
             <button type="button" class="remove-btn" onclick="removeFile(event)">✕</button>
@@ -282,7 +325,10 @@
     <!-- Success State -->
     <div id="successState" class="success-state">
       <div class="success-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
       </div>
       <h2>Upload Berhasil!</h2>
       <p>Bukti screenshot pencapaian pekerjaan termin I Anda berhasil dikirim ke database admin.</p>
@@ -361,11 +407,11 @@
       searchTimeout = setTimeout(async () => {
         try {
           // Panggil RPC search_petugas_by_kec database (mencari petugas dan membatasi kecamatan tugas)
-          const { data, error } = await db.rpc('search_petugas_by_kec', { 
+          const { data, error } = await db.rpc('search_petugas_by_kec', {
             p_query: val.trim(),
-            p_kode_kec: selectedKec 
+            p_kode_kec: selectedKec
           });
-          
+
           if (error) throw error;
 
           let filtered = data || [];
@@ -478,39 +524,39 @@
       }
 
       const reader = new FileReader();
-      reader.onload = function(e) {
+      reader.onload = function (e) {
         const img = new Image();
-        img.onload = function() {
+        img.onload = function () {
           // Cek orientasi portrait (tinggi harus lebih besar dari lebar)
           if (img.height <= img.width) {
             showToast('Gagal: Screenshot harus berorientasi Portrait (tinggi > lebar)!', 'error');
             document.getElementById('fileInput').value = '';
             return;
           }
-          
+
           // Kompresi & Resizing menggunakan HTML5 Canvas
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          
+
           // Batasi lebar maksimal ke 650px untuk menghemat penyimpanan super ketat (sangat cukup untuk cetak cetakan lampiran BAPP)
           const MAX_WIDTH = 650;
           let targetWidth = img.width;
           let targetHeight = img.height;
-          
+
           if (img.width > MAX_WIDTH) {
             targetWidth = MAX_WIDTH;
             targetHeight = Math.round((img.height * MAX_WIDTH) / img.width);
           }
-          
+
           canvas.width = targetWidth;
           canvas.height = targetHeight;
-          
+
           // Gambar ulang ke canvas
           ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
-          
+
           // Export ke JPEG dengan kualitas 50% (kompresi maksimal namun teks tetap terbaca dengan baik)
           base64String = canvas.toDataURL('image/jpeg', 0.5);
-          
+
           // Tampilkan Preview hasil kompresi
           document.getElementById('previewImage').src = base64String;
           document.getElementById('previewContainer').style.display = 'block';
@@ -579,7 +625,7 @@
       removeFile();
       document.getElementById('bappForm').reset();
       clearSelectedPetugas();
-      
+
       document.getElementById('formState').style.display = 'block';
       document.getElementById('successState').style.display = 'none';
     }
@@ -592,7 +638,7 @@
       const toastIcon = document.getElementById('toastIcon');
 
       clearTimeout(toastTimeout);
-      
+
       toast.className = 'toast show ' + type;
       toastMsg.textContent = message;
 
@@ -610,4 +656,5 @@
     }
   </script>
 </body>
+
 </html>
