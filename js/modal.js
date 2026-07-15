@@ -82,8 +82,8 @@ async function renderSheetBody() {
     if (wilData) {
       const slsName = wilData.nmsls || '—';
       const subName = wilData.nmsubsls || '—';
-      const slsPart = (slsName.trim().toLowerCase() === subName.trim().toLowerCase()) 
-        ? slsName 
+      const slsPart = (slsName.trim().toLowerCase() === subName.trim().toLowerCase())
+        ? slsName
         : `${slsName} (${subName})`;
       alamat = `Kec. ${wilData.nmkec}, Desa ${wilData.nmdesa}, ${slsPart}`;
     }
@@ -92,7 +92,7 @@ async function renderSheetBody() {
   }
 
   let html = '';
-  
+
   const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
   if (isAdmin) {
     const showAnomalyVal = rows[0]?.show_anomaly === true;
@@ -105,11 +105,11 @@ async function renderSheetBody() {
       </div>
       <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.8125rem">
         <label style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:var(--text)">
-          <input type="checkbox" id="modalShowAnomaly" ${showAnomalyVal ? 'checked' : ''} onchange="onShowAnomalyToggle(this.checked)" style="width:16px; height:16px; accent-color:var(--primary)">
+          <input type="checkbox" id="modalShowAnomaly" ${showAnomalyVal ? 'checked' : ''} onchange="onShowAnomalyToggle(this.checked)" style="width:16px; height:16px; accent-color:var(--primary) disabled ">
           <span>Tampilkan Anomali <span style="color:var(--text-subtle); font-size:0.75rem">(tampilkan list anomali di akun petugas PPL/PML)</span></span>
         </label>
         <label id="modalRejectLabel" style="display:flex; align-items:center; gap:0.5rem; cursor:pointer; color:${showAnomalyVal ? 'var(--text)' : 'var(--text-muted)'}">
-          <input type="checkbox" id="modalReject" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary)">
+          <input type="checkbox" id="modalReject" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary) disabled">
           <span>Reject <span style="color:var(--text-subtle); font-size:0.75rem">(telah direject di Fasih-SM)</span></span>
         </label>
       </div>
@@ -130,7 +130,7 @@ async function renderSheetBody() {
     html += `<div class="alert alert-info mb-4"><svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Anda hanya dapat melihat data ini. Akses edit tidak tersedia untuk SLS ini.</span></div>`;
   }
 
-  const kkRows    = rows.filter(r => r.tipe === 'keluarga');
+  const kkRows = rows.filter(r => r.tipe === 'keluarga');
   const usahaRows = rows.filter(r => r.tipe === 'usaha');
 
   if (kkRows.length > 0) {
@@ -164,14 +164,14 @@ function renderAnomaliItem(row, refMap, historyList) {
 
   const historyHtml = historyList.length > 0
     ? historyList.slice(0, 5).map(h => {
-        const roleText = h.profiles?.role ? h.profiles.role.toUpperCase() : 'SISTEM';
-        return `<div class="history-item">
+      const roleText = h.profiles?.role ? h.profiles.role.toUpperCase() : 'SISTEM';
+      return `<div class="history-item">
           <span class="${h.sumber === 'merge_otomatis' ? 'history-source-auto' : 'history-source-manual'}">[${h.sumber === 'merge_otomatis' ? 'Sistem' : 'Manual'}]</span>
           ${formatDate(h.created_at, true)} \u00b7 ${escHtml(h.diubah_oleh_nama || 'Sistem')} - <strong style="font-size:0.7rem;color:var(--primary)">${escHtml(roleText)}</strong>
           <br>${escHtml(STATUS_CONFIG[h.status_lama]?.label || h.status_lama || '\u2014')} \u2192 ${escHtml(STATUS_CONFIG[h.status_baru]?.label || h.status_baru)}
           ${h.catatan ? `<br><em style="font-size:0.75rem">${escHtml(h.catatan)}</em>` : ''}
         </div>`;
-      }).join('')
+    }).join('')
     : '<div class="history-item">Belum ada riwayat perubahan</div>';
 
   return `<div class="anomali-item">
@@ -186,7 +186,7 @@ function renderAnomaliItem(row, refMap, historyList) {
     <!-- Relevant Raw Data Display (Show Raw Data with Converted Codes and Units) -->
     ${(() => {
       if (!row.raw_data || Object.keys(row.raw_data).length === 0) return '';
-      
+
       const entries = Object.entries(row.raw_data).filter(([k, v]) => {
         return v !== null && v !== '' && v !== '-' && v !== undefined;
       });
@@ -197,66 +197,66 @@ function renderAnomaliItem(row, refMap, historyList) {
         <div style="font-weight:600; color:var(--text-muted); font-size:0.7rem; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:0.4rem">Data Pendukung:</div>
         <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap:0.4rem 0.75rem">
           ${entries.map(([k, v]) => {
-            const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
-            let vDisplay = String(v);
-            
-            // 1. Format nominal uang / Rupiah
-            if (kClean.includes('biaya') || kClean.includes('pendapatan') || kClean.includes('pengeluaran') || kClean.includes('gaji') || kClean.includes('rupiah') || kClean.includes('selisih') || kClean.includes('omset') || kClean.includes('omzet') || (kClean.includes('listrik') && !kClean.includes('daya'))) {
-              const num = parseFloat(v);
-              if (!isNaN(num)) {
-                vDisplay = num < 0 ? `-Rp${Math.abs(num).toLocaleString('id')}` : `Rp${num.toLocaleString('id')}`;
-              }
-            } 
-            // 2. Format satuan luas m²
-            else if (kClean.includes('luas') || kClean.includes('lantai')) {
-              const num = parseFloat(v);
-              vDisplay = !isNaN(num) ? `${v} m²` : vDisplay;
-            } 
-            // 3. Decode daya terpasang
-            else if (kClean.includes('daya') || kClean.includes('power')) {
-              const dMap = { '1': '450 watt', '2': '900 watt', '3': '1.300 watt', '4': '2.200 watt', '5': '> 2.200 watt' };
-              vDisplay = dMap[String(v).trim()] || `${v} Watt/VA`;
-            } 
-            // 4. Decode memproduksi sendiri / produk sendiri
-            else if (kClean.includes('produksendiri') || kClean.includes('produksisendiri') || kClean.includes('produkssendiri')) {
-              const valStr = String(v).trim();
-              if (valStr === '1') vDisplay = 'Ya';
-              else if (valStr === '2') vDisplay = 'Tidak';
-            } 
-            // 5. Decode status badan usaha
-            else if (kClean.includes('badanusaha')) {
-              const valStr = String(v).trim().toLowerCase().replace(/\s+/g, '').replace('.', '');
-              const buMap = {
-                '1a': 'Perseroan (PT/NV/Tbk/Daerah)',
-                '1b': 'Perseroan Perorangan',
-                '2': 'Yayasan',
-                '3': 'Koperasi',
-                '4': 'Dana Pensiun',
-                '5': 'Perum/Perumda',
-                '6': 'BUM Desa',
-                '7': 'CV',
-                '8': 'Firma (Fa)',
-                '9': 'Persekutuan Perdata',
-                '10': 'Kantor Perwakilan Luar Negeri',
-                '11': 'Badan Usaha Luar Negeri',
-                '12': 'Badan Usaha Lainnya (BLU, PTN-BH)',
-                '13': 'Bukan Badan Usaha'
-              };
-              vDisplay = buMap[valStr] || vDisplay;
-            }
-            // 6. Format persentase / rasio
-            else if (kClean.includes('rasio') || kClean.includes('persen')) {
-              const num = parseFloat(v);
-              if (!isNaN(num)) {
-                vDisplay = `${num.toFixed(2)}%`;
-              }
-            } 
-            
-            return `<div>
+        const kClean = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let vDisplay = String(v);
+
+        // 1. Format nominal uang / Rupiah
+        if (kClean.includes('biaya') || kClean.includes('pendapatan') || kClean.includes('pengeluaran') || kClean.includes('gaji') || kClean.includes('rupiah') || kClean.includes('selisih') || kClean.includes('omset') || kClean.includes('omzet') || (kClean.includes('listrik') && !kClean.includes('daya'))) {
+          const num = parseFloat(v);
+          if (!isNaN(num)) {
+            vDisplay = num < 0 ? `-Rp${Math.abs(num).toLocaleString('id')}` : `Rp${num.toLocaleString('id')}`;
+          }
+        }
+        // 2. Format satuan luas m²
+        else if (kClean.includes('luas') || kClean.includes('lantai')) {
+          const num = parseFloat(v);
+          vDisplay = !isNaN(num) ? `${v} m²` : vDisplay;
+        }
+        // 3. Decode daya terpasang
+        else if (kClean.includes('daya') || kClean.includes('power')) {
+          const dMap = { '1': '450 watt', '2': '900 watt', '3': '1.300 watt', '4': '2.200 watt', '5': '> 2.200 watt' };
+          vDisplay = dMap[String(v).trim()] || `${v} Watt/VA`;
+        }
+        // 4. Decode memproduksi sendiri / produk sendiri
+        else if (kClean.includes('produksendiri') || kClean.includes('produksisendiri') || kClean.includes('produkssendiri')) {
+          const valStr = String(v).trim();
+          if (valStr === '1') vDisplay = 'Ya';
+          else if (valStr === '2') vDisplay = 'Tidak';
+        }
+        // 5. Decode status badan usaha
+        else if (kClean.includes('badanusaha')) {
+          const valStr = String(v).trim().toLowerCase().replace(/\s+/g, '').replace('.', '');
+          const buMap = {
+            '1a': 'Perseroan (PT/NV/Tbk/Daerah)',
+            '1b': 'Perseroan Perorangan',
+            '2': 'Yayasan',
+            '3': 'Koperasi',
+            '4': 'Dana Pensiun',
+            '5': 'Perum/Perumda',
+            '6': 'BUM Desa',
+            '7': 'CV',
+            '8': 'Firma (Fa)',
+            '9': 'Persekutuan Perdata',
+            '10': 'Kantor Perwakilan Luar Negeri',
+            '11': 'Badan Usaha Luar Negeri',
+            '12': 'Badan Usaha Lainnya (BLU, PTN-BH)',
+            '13': 'Bukan Badan Usaha'
+          };
+          vDisplay = buMap[valStr] || vDisplay;
+        }
+        // 6. Format persentase / rasio
+        else if (kClean.includes('rasio') || kClean.includes('persen')) {
+          const num = parseFloat(v);
+          if (!isNaN(num)) {
+            vDisplay = `${num.toFixed(2)}%`;
+          }
+        }
+
+        return `<div>
               <span style="color:var(--text-muted); font-size:0.75rem">${escHtml(k.replace(/_/g, ' '))}:</span><br>
               <strong style="color:var(--primary); font-size:0.85rem">${escHtml(vDisplay)}</strong>
             </div>`;
-          }).join('')}
+      }).join('')}
         </div>
       </div>`;
     })()}
@@ -280,10 +280,10 @@ function renderAnomaliItem(row, refMap, historyList) {
   </div>`;
 }
 
-function onStatusChange(rowId, v)  { if (!pendingChanges[rowId]) pendingChanges[rowId] = {}; pendingChanges[rowId].status  = v; }
+function onStatusChange(rowId, v) { if (!pendingChanges[rowId]) pendingChanges[rowId] = {}; pendingChanges[rowId].status = v; }
 function onCatatanChange(rowId, v) { if (!pendingChanges[rowId]) pendingChanges[rowId] = {}; pendingChanges[rowId].catatan = v; }
-function toggleHistory(id)  { const el = document.getElementById(id); if (el) el.classList.toggle('hidden'); }
-function toggleRawData()    { const el = document.getElementById('rawDataSection'); if (el) el.classList.toggle('hidden'); }
+function toggleHistory(id) { const el = document.getElementById(id); if (el) el.classList.toggle('hidden'); }
+function toggleRawData() { const el = document.getElementById('rawDataSection'); if (el) el.classList.toggle('hidden'); }
 
 function onShowAnomalyToggle(checked) {
   const rejectCb = document.getElementById('modalReject');
@@ -311,21 +311,21 @@ async function saveChanges() {
     return;
   }
   if (!canEdit) return;
-  
+
   const changes = Object.entries(pendingChanges);
   const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
-  
+
   let hasCheckboxChanges = false;
   let showAnomalyChecked = true;
   let isRejectedChecked = false;
-  
+
   if (isAdmin) {
     showAnomalyChecked = document.getElementById('modalShowAnomaly')?.checked ?? true;
     isRejectedChecked = document.getElementById('modalReject')?.checked ?? false;
-    
+
     const initialShowAnomaly = currentGroup.show_anomaly !== false;
     const initialIsRejected = currentGroup.is_rejected === true;
-    
+
     if (showAnomalyChecked !== initialShowAnomaly || isRejectedChecked !== initialIsRejected) {
       hasCheckboxChanges = true;
     }
@@ -355,9 +355,9 @@ async function saveChanges() {
           updated_by_id: currentProfile.id
         })
         .eq('assignment_id', currentAssignmentId);
-        
+
       if (updErr) throw updErr;
-      
+
       currentGroup.show_anomaly = showAnomalyChecked;
       currentGroup.is_rejected = isRejectedChecked;
     }
@@ -430,7 +430,7 @@ function openBulkModal() {
   }
   bulkSelectedData = allData.filter(g => selectedIds.has(g.assignment_id));
   renderBulkSheetBody();
-  
+
   const modal = document.getElementById('bulkModal');
   if (modal) {
     modal.classList.add('open');
@@ -447,7 +447,7 @@ function openAllBulkTabs() {
       return;
     }
   }
-  
+
   bulkSelectedData.forEach(g => {
     const url = `https://fasih-sm.bps.go.id/app/assignment-detail/${g.assignment_id}`;
     const a = document.createElement('a');
@@ -458,7 +458,7 @@ function openAllBulkTabs() {
     a.click();
     document.body.removeChild(a);
   });
-  
+
   showToast(`Membuka ${count} tautan Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
 }
 
@@ -470,7 +470,7 @@ function editAllBulkTabs() {
       return;
     }
   }
-  
+
   bulkSelectedData.forEach(g => {
     const url = `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${g.assignment_id}/edit`;
     const a = document.createElement('a');
@@ -481,7 +481,7 @@ function editAllBulkTabs() {
     a.click();
     document.body.removeChild(a);
   });
-  
+
   showToast(`Membuka ${count} tautan Edit Fasih-SM. Sila izinkan pop-up jika terblokir.`, 'success');
 }
 
@@ -523,7 +523,7 @@ function handleBulkOverlayClick(e) {
 function renderBulkSheetBody() {
   const body = document.getElementById('bulkSheetBody');
   if (!body) return;
-  
+
   let html = `<div style="overflow-x:auto">
     <table class="table" style="width:100%; font-size:0.8rem; border-collapse:collapse">
       <thead>
@@ -545,11 +545,11 @@ function renderBulkSheetBody() {
         </tr>
       </thead>
       <tbody>`;
-      
+
   bulkSelectedData.forEach((g, idx) => {
     const showAnomalyVal = g.show_anomaly === true;
     const isRejectedVal = g.is_rejected === true;
-    
+
     const nameParts = [];
     if (g.nama_kk) nameParts.push(g.nama_kk);
     if (g.nama_usaha_list.length > 0) {
@@ -558,7 +558,7 @@ function renderBulkSheetBody() {
     const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
     const openUrl = `https://fasih-sm.bps.go.id/app/assignment-detail/${g.assignment_id}`;
     const editUrl = `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${g.assignment_id}/edit`;
-    
+
     html += `
         <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:0.75rem">
@@ -583,7 +583,7 @@ function renderBulkSheetBody() {
           </td>
         </tr>`;
   });
-  
+
   html += `</tbody></table></div>`;
   body.innerHTML = html;
 }
@@ -604,18 +604,18 @@ async function saveBulkChanges() {
   const saveBtn = document.getElementById('bulkSaveBtn');
   saveBtn.disabled = true;
   saveBtn.textContent = 'Menyimpan...';
-  
+
   try {
     const sessionName = getSessionName(currentProfile);
     const now = new Date().toISOString();
     const showCbs = document.querySelectorAll('.bulk-show-cb');
     const rejectCbs = document.querySelectorAll('.bulk-reject-cb');
-    
+
     for (let i = 0; i < bulkSelectedData.length; i++) {
       const g = bulkSelectedData[i];
       const showAnomalyVal = showCbs[i]?.checked ?? false;
       const isRejectedVal = rejectCbs[i]?.checked ?? false;
-      
+
       const { error: updErr } = await db
         .from('assignment_anomali')
         .update({
@@ -626,13 +626,13 @@ async function saveBulkChanges() {
           updated_by_id: currentProfile.id
         })
         .eq('assignment_id', g.assignment_id);
-        
+
       if (updErr) throw updErr;
-      
+
       g.show_anomaly = showAnomalyVal;
       g.is_rejected = isRejectedVal;
     }
-    
+
     showToast('Perubahan massal berhasil disimpan', 'success');
     clearSelection();
     closeBulkModal(true);
@@ -666,16 +666,16 @@ window.addEventListener('popstate', (e) => {
 // INLINE LOGIN MODAL CONTROLLER
 // ============================================================
 function detectModalLoginType(value) {
-  const hint     = document.getElementById('modalLoginTypeHint');
-  const dot      = document.getElementById('modalLoginTypeDot');
+  const hint = document.getElementById('modalLoginTypeHint');
+  const dot = document.getElementById('modalLoginTypeDot');
   const typeText = document.getElementById('modalLoginTypeText');
-  const passLbl  = document.getElementById('modalLoginPassLabel');
-  const isPPL    = /^\d+$/.test(value.trim()) && value.trim().length > 0;
+  const passLbl = document.getElementById('modalLoginPassLabel');
+  const isPPL = /^\d+$/.test(value.trim()) && value.trim().length > 0;
   if (hint) {
-    hint.style.borderColor  = isPPL ? 'var(--primary)' : 'var(--border)';
-    hint.style.color        = isPPL ? 'var(--text)' : 'var(--text-muted)';
+    hint.style.borderColor = isPPL ? 'var(--primary)' : 'var(--border)';
+    hint.style.color = isPPL ? 'var(--text)' : 'var(--text-muted)';
   }
-  if (dot)  dot.style.background = isPPL ? 'var(--primary)' : 'var(--border-strong)';
+  if (dot) dot.style.background = isPPL ? 'var(--primary)' : 'var(--border-strong)';
   if (typeText) {
     typeText.textContent = isPPL
       ? 'Terdeteksi sebagai PPL/PML — gunakan NIK sebagai password'
@@ -687,9 +687,9 @@ function detectModalLoginType(value) {
 }
 
 function toggleModalPassword() {
-  const input  = document.getElementById('loginPassword');
-  const eyeO   = document.getElementById('modalEyeOpen');
-  const eyeC   = document.getElementById('modalEyeClosed');
+  const input = document.getElementById('loginPassword');
+  const eyeO = document.getElementById('modalEyeOpen');
+  const eyeC = document.getElementById('modalEyeClosed');
   if (!input) return;
   if (input.type === 'password') {
     input.type = 'text';
@@ -706,9 +706,9 @@ function openLoginModal() {
   const errDiv = document.getElementById('loginModalError');
   if (errDiv) errDiv.classList.add('hidden');
   const emailEl = document.getElementById('loginEmail');
-  const passEl  = document.getElementById('loginPassword');
+  const passEl = document.getElementById('loginPassword');
   if (emailEl) { emailEl.value = ''; }
-  if (passEl)  { passEl.value = ''; passEl.type = 'password'; }
+  if (passEl) { passEl.value = ''; passEl.type = 'password'; }
   // Reset type hint
   detectModalLoginType('');
   document.getElementById('modalEyeOpen')?.classList.remove('hidden');
@@ -729,12 +729,12 @@ function handleLoginOverlayClick(e) {
 
 async function handleModalLoginSubmit() {
   const emailInput = document.getElementById('loginEmail').value.trim();
-  const password   = document.getElementById('loginPassword').value;
-  const errDiv     = document.getElementById('loginModalError');
-  const errText    = document.getElementById('loginModalErrorText');
-  const btn        = document.getElementById('loginModalSubmitBtn');
-  const btnText    = document.getElementById('loginModalBtnText');
-  const spinner    = document.getElementById('loginModalSpinner');
+  const password = document.getElementById('loginPassword').value;
+  const errDiv = document.getElementById('loginModalError');
+  const errText = document.getElementById('loginModalErrorText');
+  const btn = document.getElementById('loginModalSubmitBtn');
+  const btnText = document.getElementById('loginModalBtnText');
+  const spinner = document.getElementById('loginModalSpinner');
 
   if (!emailInput || !password) {
     if (errText) errText.textContent = 'Sobat ID/email dan password wajib diisi';
@@ -777,23 +777,22 @@ async function handleModalLoginSubmit() {
       .single();
 
     if (profErr || !profile) throw new Error('Akun tidak ditemukan. Hubungi administrator.');
-    if (!profile.is_active)  throw new Error('Akun Anda telah dinonaktifkan.');
+    if (!profile.is_active) throw new Error('Akun Anda telah dinonaktifkan.');
 
     currentProfile = profile;
 
     // Sync header navigation UI
     const userDisplayName = document.getElementById('userDisplayName');
-    const userRoleBadge   = document.getElementById('userRoleBadge');
-    const loginNavBtn     = document.getElementById('loginNavBtn');
-    const logoutNavBtn    = document.getElementById('logoutNavBtn');
-    const adminNavBtn     = document.getElementById('adminNavBtn');
+    const userRoleBadge = document.getElementById('userRoleBadge');
+    const loginNavBtn = document.getElementById('loginNavBtn');
+    const logoutNavBtn = document.getElementById('logoutNavBtn');
+    const adminNavBtn = document.getElementById('adminNavBtn');
 
     if (userDisplayName) userDisplayName.textContent = getSessionName(profile);
     if (userRoleBadge) {
       userRoleBadge.textContent = profile.role.toUpperCase();
-      userRoleBadge.className = `type-badge type-${
-        profile.role === 'ppl' ? 'keluarga' :
-        profile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+      userRoleBadge.className = `type-badge type-${profile.role === 'ppl' ? 'keluarga' :
+          profile.role === 'pml' ? 'usaha' : 'keduanya'}`;
       userRoleBadge.style.display = 'inline-block';
     }
     loginNavBtn?.classList.add('hidden');
@@ -843,7 +842,7 @@ async function callRejectAPI(assignmentId) {
         comment: JSON.stringify({ dataKey: "", notes: [] })
       })
     });
-    
+
     if (response.ok) {
       showToast(`Assignment ${assignmentId.slice(0, 8)}... berhasil direject di Fasih-SM!`, 'success');
       return true;
@@ -864,13 +863,13 @@ async function rejectIndividualAssignment(idx, assignmentId) {
     btn.disabled = true;
     btn.textContent = 'Processing...';
   }
-  
+
   const success = await callRejectAPI(assignmentId);
-  
+
   if (success) {
     const showCb = document.querySelectorAll('.bulk-show-cb')[idx];
     const rejectCb = document.getElementById(`bulkReject-${idx}`);
-    
+
     if (showCb) {
       showCb.checked = true;
       onBulkShowAnomalyToggle(idx, true);
@@ -879,7 +878,7 @@ async function rejectIndividualAssignment(idx, assignmentId) {
       rejectCb.checked = true;
     }
   }
-  
+
   if (btn) {
     btn.disabled = false;
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg> Reject API`;
@@ -892,7 +891,7 @@ async function rejectAllBulkAssignments() {
     btn.disabled = true;
     btn.textContent = 'Rejecting...';
   }
-  
+
   let successCount = 0;
   for (let i = 0; i < bulkSelectedData.length; i++) {
     const g = bulkSelectedData[i];
@@ -910,9 +909,9 @@ async function rejectAllBulkAssignments() {
       }
     }
   }
-  
+
   showToast(`Selesai memproses reject: ${successCount} dari ${bulkSelectedData.length} berhasil.`, 'info');
-  
+
   if (btn) {
     btn.disabled = false;
     btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg> Reject Semua (API)`;

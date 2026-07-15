@@ -451,6 +451,15 @@ async function loadData() {
         q = q.or(orConditions);
       }
 
+      // Filter Keterangan Server-side
+      if (ket) {
+        if (ket === 'selesai') {
+          q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
+        } else if (ket === 'belum') {
+          q = q.eq('status', 'belum_ditindaklanjuti');
+        }
+      }
+
       if (!noLimit) q = q.limit(1000);
       return q;
     };
@@ -522,7 +531,7 @@ async function loadData() {
 
     let rows = [];
 
-    if (jenis === 'keduanya' && selectedNomorList.length === 0) {
+    if (jenis === 'keduanya' && selectedNomorList.length === 0 && !ket) {
 
       const rpcParams = {
         p_status: null, // Move filtering to frontend to preserve grouping integrity
