@@ -1471,6 +1471,7 @@ function filterBAPP() {
   const roleVal = document.getElementById('bappRoleFilter')?.value || '';
   const timeStartVal = document.getElementById('bappTimeStart')?.value || '';
   const timeEndVal = document.getElementById('bappTimeEnd')?.value || '';
+  const searchVal = document.getElementById('bappSearchName')?.value?.toLowerCase() || '';
 
   filteredBappUploads = allBappUploads.filter(b => {
     // Filter Kecamatan
@@ -1482,15 +1483,19 @@ function filterBAPP() {
 
     // Filter Range Waktu Upload
     if (timeStartVal) {
-      const startLimit = new Date(timeStartVal).getTime();
+      const startLimit = new Date(timeStartVal + 'T00:00:00').getTime();
       const uploadTime = new Date(b.created_at).getTime();
       if (uploadTime < startLimit) return false;
     }
     if (timeEndVal) {
-      const endLimit = new Date(timeEndVal).getTime();
+      const endLimit = new Date(timeEndVal + 'T23:59:59').getTime();
       const uploadTime = new Date(b.created_at).getTime();
       if (uploadTime > endLimit) return false;
     }
+
+    // Filter Search Name
+    const nama = b.profiles?.nama || '';
+    if (searchVal && !nama.toLowerCase().includes(searchVal)) return false;
 
     return true;
   });

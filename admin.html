@@ -1071,22 +1071,20 @@
         <div class="section-sub">Pantau, filter, dan cetak PDF BAPP termin I petugas.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
-          <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()" style="max-width:180px">
+          <input type="text" class="filter-select" id="bappSearchName" placeholder="Cari nama petugas..." oninput="filterBAPP()" style="max-width:200px">
+          <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()" style="max-width:160px">
             <option value="">Semua Kecamatan</option>
           </select>
-          <select class="filter-select" id="bappRoleFilter" onchange="filterBAPP()" style="max-width:140px">
+          <select class="filter-select" id="bappRoleFilter" onchange="filterBAPP()" style="max-width:130px">
             <option value="">Semua Role</option>
             <option value="pml">PML</option>
             <option value="ppl">PPL</option>
           </select>
 
-          <div style="display:flex;align-items:center;gap:0.5rem">
-            <span style="font-size:0.8125rem;color:var(--text-muted)">Waktu Upload:</span>
-            <input type="datetime-local" class="filter-select" id="bappTimeStart" onchange="filterBAPP()"
-              style="max-width:200px">
-            <span style="font-size:0.8125rem;color:var(--text-muted)">s.d</span>
-            <input type="datetime-local" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()"
-              style="max-width:200px">
+          <div style="display:flex;align-items:center;gap:0.35rem">
+            <input type="date" class="filter-select" id="bappTimeStart" onchange="filterBAPP()" style="max-width:130px" placeholder="Tanggal Mulai">
+            <span style="font-size:0.75rem;color:var(--text-muted)">s.d</span>
+            <input type="date" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()" style="max-width:130px" placeholder="Tanggal Selesai">
           </div>
 
           <button class="btn btn-secondary btn-sm" onclick="loadBAPPData()" style="height:38px;margin-bottom:0">
