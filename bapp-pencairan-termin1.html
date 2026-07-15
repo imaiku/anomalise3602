@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Screenshot BAPP — Anomali SE2026</title>
+  <meta name="description" content="Halaman upload bukti pencapaian pekerjaan (BAPP) termin 1 Petugas SE2026">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #FFF3EB 0%, #FFFFFF 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    .upload-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 480px;
+      padding: 2rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .upload-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(to right, var(--primary), var(--primary-dark));
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    .header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 0.5rem;
+    }
+    .header p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    .form-label {
+      display: block;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .form-select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      background-color: var(--bg);
+      color: var(--text);
+      font-size: 0.875rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .form-select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+    }
+    .file-dropzone {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 2rem 1.5rem;
+      text-align: center;
+      cursor: pointer;
+      background: var(--bg-card-2);
+      transition: all 0.2s;
+      position: relative;
+    }
+    .file-dropzone.dragover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.04);
+    }
+    .file-dropzone-icon {
+      color: var(--text-subtle);
+      margin-bottom: 0.75rem;
+    }
+    .file-dropzone-title {
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 0.25rem;
+      color: var(--text);
+    }
+    .file-dropzone-sub {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+    }
+    .preview-container {
+      margin-top: 1rem;
+      position: relative;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      display: none;
+    }
+    .preview-image {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .remove-btn {
+      position: absolute;
+      top: 0.5rem;
+      right: 0.5rem;
+      background: rgba(15, 23, 42, 0.75);
+      border: none;
+      color: #fff;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.75rem;
+    }
+    .remove-btn:hover {
+      background: rgba(239, 68, 68, 0.9);
+    }
+    .submit-btn {
+      width: 100%;
+      padding: 0.875rem;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-top: 1.5rem;
+    }
+    .toast {
+      position: fixed;
+      top: 1.5rem;
+      right: 1.5rem;
+      z-index: 100;
+      background: #fff;
+      border-radius: var(--radius-md);
+      padding: 1rem 1.25rem;
+      box-shadow: var(--shadow-lg);
+      border-left: 4px solid var(--primary);
+      transform: translateY(-20px);
+      opacity: 0;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      pointer-events: none;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+    .toast.success { border-left-color: var(--success); }
+    .toast.error { border-left-color: var(--error); }
+    
+    .success-state {
+      text-align: center;
+      display: none;
+      padding: 1rem 0;
+    }
+    .success-icon {
+      width: 60px;
+      height: 60px;
+      border-radius: 50%;
+      background: var(--success-bg);
+      color: var(--success);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.5rem auto;
+    }
+    .success-state h2 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+    .success-state p {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    .autocomplete-suggestions div {
+      padding: 0.75rem 1rem;
+      cursor: pointer;
+      font-size: 0.875rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .autocomplete-suggestions div:last-child {
+      border-bottom: none;
+    }
+    .autocomplete-suggestions div:hover {
+      background-color: var(--bg-card-2);
+      color: var(--primary);
+    }
+    .autocomplete-suggestions .suggestion-item-kec {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+      margin-top: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="upload-container">
+    <!-- Form State -->
+    <div id="formState">
+      <div class="header">
+        <h1>Upload Screenshot BAPP</h1>
+        <p>Unggah bukti pencapaian pekerjaan termin I Anda</p>
+      </div>
+
+      <form id="bappForm" onsubmit="handleSubmit(event)">
+        <!-- Kecamatan -->
+        <div class="form-group">
+          <label class="form-label" for="kecamatan">Kecamatan Tugas</label>
+          <select id="kecamatan" class="form-select" required onchange="handleKecamatanChange()">
+            <option value="" selected>Semua Kecamatan / Pilih Kecamatan...</option>
+          </select>
+        </div>
+
+        <!-- Nama Petugas (Searchable Autocomplete) -->
+        <div class="form-group" style="position:relative">
+          <label class="form-label" for="petugasSearchInput">Nama Petugas</label>
+          <input type="text" id="petugasSearchInput" class="form-select" placeholder="Cari Nama Petugas..." oninput="handlePetugasSearch(this.value)" autocomplete="off" required>
+          <input type="hidden" id="petugas" required>
+          
+          <button type="button" id="btnClearPetugas" onclick="clearSelectedPetugas()"
+            style="position:absolute;right:10px;top:38px;background:none;border:none;color:var(--text-subtle);cursor:pointer;display:none;align-items:center;padding:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5">
+              <line x1="18" x2="6" y1="6" y2="18" />
+              <line x1="6" x2="18" y1="6" y2="18" />
+            </svg>
+          </button>
+          
+          <div id="petugasSuggestions" class="autocomplete-suggestions"
+            style="position:absolute;top:100%;left:0;right:0;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);max-height:200px;overflow-y:auto;z-index:100;box-shadow:var(--shadow-md);display:none;margin-top:2px">
+          </div>
+        </div>
+
+        <!-- File Upload -->
+        <div class="form-group">
+          <label class="form-label">Screenshot Aplikasi Fasih</label>
+          <div class="file-dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()">
+            <input type="file" id="fileInput" accept="image/png, image/jpeg, image/jpg" style="display:none" onchange="handleFileSelect(event)">
+            <div class="file-dropzone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+            </div>
+            <div class="file-dropzone-title" id="dropzoneTitle">Klik atau seret gambar ke sini</div>
+            <div class="file-dropzone-sub">Format PNG, JPG, JPEG · Maksimal 500KB</div>
+          </div>
+          
+          <div class="preview-container" id="previewContainer">
+            <img class="preview-image" id="previewImage" src="" alt="Screenshot BAPP">
+            <button type="button" class="remove-btn" onclick="removeFile(event)">✕</button>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary submit-btn" id="submitBtn">
+          Kirim Bukti Screenshot
+        </button>
+      </form>
+    </div>
+
+    <!-- Success State -->
+    <div id="successState" class="success-state">
+      <div class="success-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2>Upload Berhasil!</h2>
+      <p>Bukti screenshot pencapaian pekerjaan termin I Anda berhasil dikirim ke database admin.</p>
+      <button class="btn btn-secondary btn-sm" onclick="resetForm()">Upload Baru / Ubah</button>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <div id="toastIcon"></div>
+    <div id="toastMessage"></div>
+  </div>
+
+  <!-- Supabase CDN and Config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script>
+    let base64String = '';
+    let kecMap = {};
+    let selectedPetugasData = null;
+    let searchTimeout = null;
+
+    function escHtml(str) {
+      return (str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Load Kecamatan on init
+    window.addEventListener('DOMContentLoaded', async () => {
+      showToast('Memuat data wilayah...', 'info');
+      try {
+        // Fetch Kecamatan
+        const { data: kecs, error: kecError } = await db
+          .from('wilayah_kec')
+          .select('kode_kec, nmkec')
+          .order('nmkec');
+
+        if (kecError) throw kecError;
+
+        const kecSelect = document.getElementById('kecamatan');
+        kecs.forEach(k => {
+          kecMap[k.kode_kec] = k.nmkec;
+          const opt = document.createElement('option');
+          opt.value = k.kode_kec;
+          opt.textContent = `${k.kode_kec} - ${k.nmkec}`;
+          kecSelect.appendChild(opt);
+        });
+
+        showToast('Data wilayah berhasil dimuat', 'success');
+      } catch (err) {
+        console.error('Error loading initialization data:', err);
+        showToast('Gagal memuat data awal: ' + err.message, 'error');
+      }
+    });
+
+    // Handle Petugas Autocomplete Search via search_petugas RPC (logic same as anomaly page)
+    function handlePetugasSearch(val) {
+      const suggestionsDiv = document.getElementById('petugasSuggestions');
+      const btnClear = document.getElementById('btnClearPetugas');
+      const selectedKec = document.getElementById('kecamatan').value;
+
+      if (!val.trim()) {
+        suggestionsDiv.innerHTML = '';
+        suggestionsDiv.style.display = 'none';
+        btnClear.style.display = 'none';
+        return;
+      }
+
+      btnClear.style.display = 'block';
+
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        try {
+          // Panggil RPC search_petugas_by_kec database (mencari petugas dan membatasi kecamatan tugas)
+          const { data, error } = await db.rpc('search_petugas_by_kec', { 
+            p_query: val.trim(),
+            p_kode_kec: selectedKec 
+          });
+          
+          if (error) throw error;
+
+          let filtered = data || [];
+
+          if (filtered.length === 0) {
+            suggestionsDiv.innerHTML = '<div style="padding:0.75rem 1rem;color:var(--text-subtle);font-size:0.875rem">Tidak ada hasil cocok</div>';
+            suggestionsDiv.style.display = 'block';
+            return;
+          }
+
+          suggestionsDiv.innerHTML = filtered.slice(0, 10).map(p => {
+            const kecName = p.kode_kec ? (kecMap[p.kode_kec] || 'Kec. Lain') : 'Kec. Belum Ditentukan';
+            const labelKec = p.kode_kec ? `${p.kode_kec} - ${escHtml(kecName)}` : (p.email_ref || 'Belum Ditugaskan ke SLS');
+            return `
+              <div onclick="selectPetugas('${p.id}', '${escHtml(p.nama)}', '${p.role}', '${p.kode_kec || ''}')">
+                <strong>${escHtml(p.nama)}</strong> (${p.role.toUpperCase()})
+                <div class="suggestion-item-kec">${labelKec}</div>
+              </div>
+            `;
+          }).join('');
+          suggestionsDiv.style.display = 'block';
+        } catch (err) {
+          console.error('Error searching petugas:', err);
+          suggestionsDiv.innerHTML = `<div style="padding:0.75rem 1rem;color:var(--error);font-size:0.875rem">Gagal memuat: ${escHtml(err.message)}</div>`;
+          suggestionsDiv.style.display = 'block';
+        }
+      }, 250);
+    }
+
+    // Select Petugas from suggestions
+    function selectPetugas(id, nama, role, kodeKec) {
+      selectedPetugasData = { id, nama, role, kodeKec };
+      document.getElementById('petugas').value = id;
+      document.getElementById('petugasSearchInput').value = `${nama} (${role.toUpperCase()})`;
+      document.getElementById('petugasSearchInput').readOnly = true;
+      document.getElementById('petugasSuggestions').style.display = 'none';
+      document.getElementById('btnClearPetugas').style.display = 'block';
+
+      // Autofill kecamatan jika data kodeKec tersedia
+      if (kodeKec) {
+        const kecSelect = document.getElementById('kecamatan');
+        kecSelect.value = kodeKec;
+      }
+    }
+
+    // Clear selected petugas
+    function clearSelectedPetugas() {
+      selectedPetugasData = null;
+      document.getElementById('petugas').value = '';
+      document.getElementById('petugasSearchInput').value = '';
+      document.getElementById('petugasSearchInput').readOnly = false;
+      document.getElementById('btnClearPetugas').style.display = 'none';
+      document.getElementById('petugasSuggestions').style.display = 'none';
+      document.getElementById('petugasSearchInput').focus();
+    }
+
+    // Handle Kecamatan Dropdown Change
+    function handleKecamatanChange() {
+      // Jika kecamatan diubah dan petugas yang terpilih tidak sesuai dengan kecamatan baru, hapus pilihan petugas
+      const selectedKec = document.getElementById('kecamatan').value;
+      if (selectedPetugasData && selectedKec && selectedPetugasData.kodeKec && selectedPetugasData.kodeKec !== selectedKec) {
+        clearSelectedPetugas();
+      }
+    }
+
+    // Close autocomplete on click outside
+    document.addEventListener('click', (e) => {
+      const suggestions = document.getElementById('petugasSuggestions');
+      const searchInput = document.getElementById('petugasSearchInput');
+      if (suggestions && e.target !== searchInput && !suggestions.contains(e.target)) {
+        suggestions.style.display = 'none';
+      }
+    });
+
+    // Drag and Drop Handlers
+    const dropzone = document.getElementById('dropzone');
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.classList.add('dragover');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('dragover');
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        processFile(files[0]);
+      }
+    });
+
+    function handleFileSelect(e) {
+      const files = e.target.files;
+      if (files.length > 0) {
+        processFile(files[0]);
+      }
+    }
+
+    function processFile(file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        showToast('File harus berupa gambar (PNG/JPG)!', 'error');
+        return;
+      }
+      // Validate file size (500KB = 512,000 bytes)
+      if (file.size > 512000) {
+        showToast('Ukuran gambar maksimal 500KB!', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          // Cek orientasi portrait (tinggi harus lebih besar dari lebar)
+          if (img.height <= img.width) {
+            showToast('Gagal: Screenshot harus berorientasi Portrait (tinggi > lebar)!', 'error');
+            document.getElementById('fileInput').value = '';
+            return;
+          }
+          
+          base64String = e.target.result;
+          
+          // Show Preview
+          document.getElementById('previewImage').src = base64String;
+          document.getElementById('previewContainer').style.display = 'block';
+          document.getElementById('dropzone').style.display = 'none';
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeFile(e) {
+      if (e) e.stopPropagation();
+      base64String = '';
+      document.getElementById('fileInput').value = '';
+      document.getElementById('previewImage').src = '';
+      document.getElementById('previewContainer').style.display = 'none';
+      document.getElementById('dropzone').style.display = 'block';
+    }
+
+    // Submit Form
+    async function handleSubmit(e) {
+      e.preventDefault();
+      const profileId = document.getElementById('petugas').value;
+      const kodeKec = document.getElementById('kecamatan').value;
+      const submitBtn = document.getElementById('submitBtn');
+
+      if (!profileId || !kodeKec) {
+        showToast('Pilih Kecamatan dan Nama Petugas!', 'error');
+        return;
+      }
+
+      if (!base64String) {
+        showToast('Silakan pilih/unggah screenshot terlebih dahulu!', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Mengirim Bukti...';
+
+      try {
+        const { error } = await db.from('bapp_uploads').upsert(
+          {
+            profile_id: profileId,
+            kode_kec: kodeKec,
+            screenshot: base64String,
+            created_at: new Date().toISOString()
+          },
+          { onConflict: 'profile_id' }
+        );
+
+        if (error) throw error;
+
+        showToast('Screenshot BAPP berhasil dikirim!', 'success');
+        document.getElementById('formState').style.display = 'none';
+        document.getElementById('successState').style.display = 'block';
+      } catch (err) {
+        console.error('Submit error:', err);
+        showToast('Gagal mengunggah: ' + err.message, 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Kirim Bukti Screenshot';
+      }
+    }
+
+    function resetForm() {
+      removeFile();
+      document.getElementById('bappForm').reset();
+      clearSelectedPetugas();
+      
+      document.getElementById('formState').style.display = 'block';
+      document.getElementById('successState').style.display = 'none';
+    }
+
+    // Toast Utility
+    let toastTimeout;
+    function showToast(message, type = 'info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMessage');
+      const toastIcon = document.getElementById('toastIcon');
+
+      clearTimeout(toastTimeout);
+      
+      toast.className = 'toast show ' + type;
+      toastMsg.textContent = message;
+
+      if (type === 'success') {
+        toastIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+      } else if (type === 'error') {
+        toastIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--error)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
+      } else {
+        toastIcon.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--info)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+      }
+
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3500);
+    }
+  </script>
+</body>
+</html>

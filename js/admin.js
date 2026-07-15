@@ -66,6 +66,7 @@ async function initAdmin() {
   await loadUsers();
   await loadUnassigned();
   await loadWilayah();
+  await loadBAPPKecamatanFilter();
 }
 
 function showSection(sectionId, updateHash = true) {
@@ -84,6 +85,10 @@ function showSection(sectionId, updateHash = true) {
 
   if (sectionId === 'users') {
     loadUsers();
+  }
+
+  if (sectionId === 'bapp') {
+    loadBAPPData();
   }
 
   if (updateHash) {
@@ -1395,3 +1400,340 @@ function exportUsersToExcel() {
     showToast('Gagal export Excel: ' + err.message, 'error');
   }
 }
+
+// ============================================================
+// BAPP (CETAK PDF) MANAGEMENT LOGIC
+// ============================================================
+let allBappUploads = [];
+let filteredBappUploads = [];
+
+// Load Kecamatan to BAPP filter
+async function loadBAPPKecamatanFilter() {
+  try {
+    const { data, error } = await db.from('wilayah_kec').select('kode_kec, nmkec').order('nmkec');
+    if (error) throw error;
+    
+    const filterSelect = document.getElementById('bappKecamatanFilter');
+    if (!filterSelect) return;
+    
+    // Clear and keep default option
+    filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
+    data.forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.kode_kec;
+      opt.textContent = `${k.kode_kec} - ${k.nmkec}`;
+      filterSelect.appendChild(opt);
+    });
+  } catch (err) {
+    console.error('Error loading BAPP kecamatan filter:', err);
+  }
+}
+
+// Load BAPP data from database
+async function loadBAPPData() {
+  const tbody = document.getElementById('bappTableBody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  }
+  
+  try {
+    const { data, error } = await db
+      .from('bapp_uploads')
+      .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)')
+      .order('created_at', { ascending: false });
+      
+    if (error) throw error;
+    
+    allBappUploads = data || [];
+    filterBAPP();
+  } catch (err) {
+    console.error('Error loading BAPP data:', err);
+    showToast('Gagal memuat data BAPP: ' + err.message, 'error');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+// Filter BAPP data locally
+function filterBAPP() {
+  const kecVal = document.getElementById('bappKecamatanFilter')?.value || '';
+  const roleVal = document.getElementById('bappRoleFilter')?.value || '';
+  const timeStartVal = document.getElementById('bappTimeStart')?.value || '';
+  const timeEndVal = document.getElementById('bappTimeEnd')?.value || '';
+  
+  filteredBappUploads = allBappUploads.filter(b => {
+    // Filter Kecamatan
+    if (kecVal && b.kode_kec !== kecVal) return false;
+    
+    // Filter Role
+    const role = b.profiles?.role || '';
+    if (roleVal && role !== roleVal) return false;
+    
+    // Filter Range Waktu Upload
+    if (timeStartVal) {
+      const startLimit = new Date(timeStartVal).getTime();
+      const uploadTime = new Date(b.created_at).getTime();
+      if (uploadTime < startLimit) return false;
+    }
+    if (timeEndVal) {
+      const endLimit = new Date(timeEndVal).getTime();
+      const uploadTime = new Date(b.created_at).getTime();
+      if (uploadTime > endLimit) return false;
+    }
+    
+    return true;
+  });
+  
+  renderBAPPTable();
+}
+
+// Render BAPP Table Rows
+function renderBAPPTable() {
+  const tbody = document.getElementById('bappTableBody');
+  const countEl = document.getElementById('bappTableCount');
+  if (!tbody) return;
+  
+  // Reset select-all checkbox
+  const selectAllCheckbox = document.getElementById('selectAllBapp');
+  if (selectAllCheckbox) selectAllCheckbox.checked = false;
+  
+  if (countEl) {
+    countEl.textContent = `Total: ${filteredBappUploads.length} petugas`;
+  }
+  
+  if (filteredBappUploads.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data upload BAPP yang cocok</td></tr>';
+    updateSelectedBappCount();
+    return;
+  }
+  
+  tbody.innerHTML = filteredBappUploads.map(b => {
+    const timeText = formatDate(b.created_at, true);
+    const nama = b.profiles?.nama || '—';
+    const sobatid = b.profiles?.sobatid || '—';
+    const role = b.profiles?.role ? b.profiles.role.toUpperCase() : '—';
+    const kecamatan = b.wilayah_kec?.nmkec || '—';
+    
+    return `
+      <tr>
+        <td style="text-align:center">
+          <input type="checkbox" class="bapp-row-checkbox" value="${b.id}" onchange="updateSelectedBappCount()">
+        </td>
+        <td style="font-weight:600">${escHtml(nama)}</td>
+        <td style="font-family:monospace">${escHtml(sobatid)}</td>
+        <td><span class="role-badge role-${role.toLowerCase()}">${role}</span></td>
+        <td>${escHtml(kecamatan)}</td>
+        <td style="color:var(--text-muted)">${timeText}</td>
+        <td style="text-align:center">
+          <button class="btn btn-secondary btn-sm" onclick="printSingleBAPP('${b.id}')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+            Cetak PDF
+          </button>
+        </td>
+      </tr>
+    `;
+  }).join('');
+  
+  updateSelectedBappCount();
+}
+
+// Select All Handler
+function toggleSelectAllBapp(checked) {
+  document.querySelectorAll('.bapp-row-checkbox').forEach(cb => {
+    cb.checked = checked;
+  });
+  updateSelectedBappCount();
+}
+
+// Update selected count and show/hide batch print button
+function updateSelectedBappCount() {
+  const checkboxes = document.querySelectorAll('.bapp-row-checkbox:checked');
+  const count = checkboxes.length;
+  
+  const countSpan = document.getElementById('selectedBappCount');
+  const printBtn = document.getElementById('btnPrintSelected');
+  
+  if (countSpan) countSpan.textContent = count;
+  if (printBtn) {
+    printBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+  }
+}
+
+// Print single BAPP by ID
+function printSingleBAPP(id) {
+  const b = allBappUploads.find(item => item.id === id);
+  if (b) printBAPP([b]);
+}
+
+// Print all selected BAPPs
+function printSelectedBAPP() {
+  const checkedIds = Array.from(document.querySelectorAll('.bapp-row-checkbox:checked')).map(cb => cb.value);
+  const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id));
+  
+  if (selectedRows.length > 0) {
+    printBAPP(selectedRows);
+  }
+}
+
+// Generate PDF Page and trigger Print dialog
+function printBAPP(rows) {
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    showToast('Gagal membuka jendela cetak. Pastikan pop-up dibolehkan!', 'error');
+    return;
+  }
+  
+  const pagesHtml = rows.map((row, idx) => {
+    const namaPetugas = row.profiles?.nama || '.........................................';
+    const isLast = idx === rows.length - 1;
+    
+    return `
+      <div class="bapp-page ${isLast ? '' : 'page-break'}">
+        <div class="page-number">-4-</div>
+        
+        <div class="section-title">II. BUKTI PENCAPAIAN PEKERJAAN</div>
+        
+        <div class="screenshot-container">
+          <div class="screenshot-img-wrapper">
+            <img class="screenshot-img" src="${row.screenshot}" alt="Screenshot Bukti Kerja">
+          </div>
+        </div>
+        
+        <div class="signature-container">
+          <div class="signature-box" style="text-align: left; padding-left: 10mm;">
+            <div>PIHAK KEDUA,</div>
+            <div style="height: 5rem;"></div>
+            <div class="signature-name">${escHtml(namaPetugas)}</div>
+          </div>
+          
+          <div class="signature-box" style="text-align: right; padding-right: 10mm;">
+            <div>PIHAK PERTAMA,</div>
+            <div style="height: 5rem;"></div>
+            <div class="signature-name">YULIAN SARWO EDI</div>
+          </div>
+          
+          <div class="signature-row-2">
+            <div class="signature-box" style="text-align: center;">
+              <div>Menyetujui,</div>
+              <div>Pejabat Pembuat Komitmen</div>
+              <div style="height: 5rem;"></div>
+              <div class="signature-name">NING SRI LESTARI</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="id">
+    <head>
+      <meta charset="UTF-8">
+      <title>Cetak Lampiran BAPP - Termin I</title>
+      <style>
+        @media print {
+          @page {
+            size: A4 landscape;
+            margin: 0; /* Menghilangkan Header (Title/Timestamp) & Footer (URL) bawaan browser */
+          }
+          .page-break {
+            page-break-after: always;
+            break-after: page;
+          }
+          .no-print {
+            display: none;
+          }
+        }
+        body {
+          font-family: 'Times New Roman', Times, serif;
+          font-size: 11pt;
+          line-height: 1.3;
+          color: #000;
+          margin: 15mm 20mm 15mm 20mm; /* Pindahkan margin kertas ke body */
+          padding: 0;
+          background-color: #fff;
+        }
+        .bapp-page {
+          box-sizing: border-box;
+          display: flex;
+          flex-direction: column;
+          min-height: 180mm; /* Fits inside printable area of A4 Landscape */
+        }
+        .page-number {
+          text-align: center;
+          margin-bottom: 1rem;
+          font-size: 11pt;
+        }
+        .section-title {
+          font-weight: bold;
+          font-size: 12pt;
+          margin-bottom: 1rem;
+        }
+        .screenshot-container {
+          flex-grow: 1;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin: 0.5rem 0;
+        }
+        .screenshot-img-wrapper {
+          border: 1px solid #000;
+          padding: 3px;
+          background: #fff;
+          display: inline-block;
+          box-sizing: border-box;
+        }
+        .screenshot-img {
+          width: 80mm;
+          height: 80mm;
+          object-fit: cover;
+          object-position: top;
+          display: block;
+        }
+        .signature-container {
+          margin-top: auto;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem 2rem;
+          font-size: 11pt;
+          padding-top: 0.5rem;
+        }
+        .signature-row-2 {
+          grid-column: 1 / -1;
+          display: flex;
+          justify-content: center;
+          margin-top: 0.25rem;
+        }
+        .signature-box {
+          display: inline-block;
+        }
+        .signature-name {
+          font-weight: bold;
+          text-decoration: underline;
+        }
+      </style>
+    </head>
+    <body>
+      ${pagesHtml}
+      <script>
+        // Trigger print once everything has loaded
+        window.addEventListener('DOMContentLoaded', () => {
+          // Wait briefly for images to render
+          setTimeout(() => {
+            window.print();
+            // Close tab after print dialog completes
+            window.onafterprint = () => window.close();
+          }, 500);
+        });
+      <\/script>
+    </body>
+    </html>
+  `;
+  
+  printWindow.document.open();
+  printWindow.document.write(htmlContent);
+  printWindow.document.close();
+}
+
