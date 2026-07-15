@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,113 +10,314 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
   <style>
-    .admin-layout { display: flex; min-height: calc(100vh - 56px); }
+    .admin-layout {
+      display: flex;
+      min-height: calc(100vh - 56px);
+    }
+
     .admin-sidebar {
-      width: 220px; flex-shrink: 0;
+      width: 220px;
+      flex-shrink: 0;
       background: var(--bg-card);
       border-right: 1px solid var(--border);
       padding: 1.25rem 0;
-      position: sticky; top: 56px;
+      position: sticky;
+      top: 56px;
       height: calc(100vh - 56px);
       overflow-y: auto;
     }
-    .sidebar-section { padding: 0 0.75rem; margin-bottom: 1.25rem; }
+
+    .sidebar-section {
+      padding: 0 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+
     .sidebar-section-label {
-      font-size: 0.65rem; font-weight: 700; text-transform: uppercase;
-      letter-spacing: 0.08em; color: var(--text-subtle);
-      padding: 0 0.5rem; margin-bottom: 0.4rem;
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-subtle);
+      padding: 0 0.5rem;
+      margin-bottom: 0.4rem;
     }
+
     .sidebar-item {
-      display: flex; align-items: center; gap: 0.625rem;
-      padding: 0.5rem 0.75rem; border-radius: var(--radius-md);
-      font-size: 0.875rem; color: var(--text-muted);
-      cursor: pointer; transition: all 0.15s;
-      border: none; background: none; width: 100%; text-align: left;
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.5rem 0.75rem;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s;
+      border: none;
+      background: none;
+      width: 100%;
+      text-align: left;
     }
-    .sidebar-item:hover { background: var(--bg-card-2); color: var(--text); }
-    .sidebar-item.active { background: rgba(249,115,22,0.12); color: var(--primary); font-weight: 500; }
-    .admin-content { flex: 1; min-width: 0; padding: 1.5rem; }
-    .section-panel { display: none; }
-    .section-panel.active { display: block; }
-    .section-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.25rem; }
-    .section-sub { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+
+    .sidebar-item:hover {
+      background: var(--bg-card-2);
+      color: var(--text);
+    }
+
+    .sidebar-item.active {
+      background: rgba(249, 115, 22, 0.12);
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .admin-content {
+      flex: 1;
+      min-width: 0;
+      padding: 1.5rem;
+    }
+
+    .section-panel {
+      display: none;
+    }
+
+    .section-panel.active {
+      display: block;
+    }
+
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.25rem;
+    }
+
+    .section-sub {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+    }
 
     /* Upload section */
-    .upload-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; margin-bottom: 1.25rem; }
-    .upload-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 1.25rem; }
-    .upload-card-title { font-weight: 600; margin-bottom: 0.25rem; }
-    .upload-card-sub { font-size: 0.8125rem; color: var(--text-muted); margin-bottom: 1rem; }
-    .upload-zone input[type="file"] { display: none; }
+    .upload-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .upload-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+    }
+
+    .upload-card-title {
+      font-weight: 600;
+      margin-bottom: 0.25rem;
+    }
+
+    .upload-card-sub {
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+
+    .upload-zone input[type="file"] {
+      display: none;
+    }
 
     /* Progress */
-    .progress-steps { display: flex; align-items: center; gap: 0; margin-bottom: 1.5rem; }
+    .progress-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 1.5rem;
+    }
+
     .progress-step {
-      display: flex; align-items: center; gap: 0.5rem;
-      padding: 0.5rem 1rem; border-radius: var(--radius-md);
-      font-size: 0.8125rem; color: var(--text-subtle);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      border-radius: var(--radius-md);
+      font-size: 0.8125rem;
+      color: var(--text-subtle);
       background: var(--bg-card-2);
     }
-    .progress-step.done  { color: var(--success); }
-    .progress-step.active { color: var(--primary); font-weight: 500; }
-    .progress-step-num {
-      width: 22px; height: 22px; border-radius: 50%;
-      background: var(--border); color: var(--text-subtle);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 0.75rem; font-weight: 600; flex-shrink: 0;
+
+    .progress-step.done {
+      color: var(--success);
     }
-    .progress-step.done .progress-step-num  { background: var(--success); color: #fff; }
-    .progress-step.active .progress-step-num { background: var(--primary); color: #fff; }
-    .progress-step-arrow { color: var(--border-strong); margin: 0 0.25rem; }
+
+    .progress-step.active {
+      color: var(--primary);
+      font-weight: 500;
+    }
+
+    .progress-step-num {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      background: var(--border);
+      color: var(--text-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .progress-step.done .progress-step-num {
+      background: var(--success);
+      color: #fff;
+    }
+
+    .progress-step.active .progress-step-num {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .progress-step-arrow {
+      color: var(--border-strong);
+      margin: 0 0.25rem;
+    }
 
     /* Validation errors */
     .validation-errors {
-      background: var(--error-bg); border: 1px solid var(--error);
-      border-radius: var(--radius-md); padding: 1rem;
-      font-size: 0.8125rem; color: #991b1b; max-height: 200px; overflow-y: auto;
+      background: var(--error-bg);
+      border: 1px solid var(--error);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      font-size: 0.8125rem;
+      color: #991b1b;
+      max-height: 200px;
+      overflow-y: auto;
     }
-    .dark .validation-errors { color: #fca5a5; }
-    .validation-errors ul { margin: 0.5rem 0 0 1rem; }
-    .validation-errors li { margin-bottom: 0.25rem; }
+
+    .dark .validation-errors {
+      color: #fca5a5;
+    }
+
+    .validation-errors ul {
+      margin: 0.5rem 0 0 1rem;
+    }
+
+    .validation-errors li {
+      margin-bottom: 0.25rem;
+    }
 
     /* Table inside admin */
-    .admin-table { font-size: 0.8125rem; }
-    .admin-table th { font-size: 0.7rem; }
+    .admin-table {
+      font-size: 0.8125rem;
+    }
+
+    .admin-table th {
+      font-size: 0.7rem;
+    }
 
     /* CMS form */
-    .anomali-ref-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
-    .anomali-ref-card {
-      background: var(--bg-card); border: 1px solid var(--border);
-      border-radius: var(--radius-lg); padding: 1rem;
+    .anomali-ref-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
     }
-    .anomali-ref-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .anomali-ref-num { font-size: 1.25rem; font-weight: 700; color: var(--primary); }
+
+    .anomali-ref-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1rem;
+    }
+
+    .anomali-ref-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+    }
+
+    .anomali-ref-num {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
 
     /* User management */
-    .user-import-area { border: 2px dashed var(--border-strong); border-radius: var(--radius-lg); padding: 1.5rem; text-align: center; cursor: pointer; }
-    .user-import-area:hover { border-color: var(--primary); background: rgba(249,115,22,0.03); }
+    .user-import-area {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    .user-import-area:hover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.03);
+    }
 
     @media (max-width: 768px) {
-      .admin-layout { flex-direction: column; }
-      .admin-sidebar { width: 100%; height: auto; position: static; display: flex; overflow-x: auto; padding: 0.75rem; gap: 0.25rem; border-right: none; border-bottom: 1px solid var(--border); }
-      .sidebar-section { display: flex; gap: 0.25rem; padding: 0; margin: 0; }
-      .sidebar-section-label { display: none; }
-      .upload-grid { grid-template-columns: 1fr; }
-      .anomali-ref-grid { grid-template-columns: 1fr; }
+      .admin-layout {
+        flex-direction: column;
+      }
+
+      .admin-sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        display: flex;
+        overflow-x: auto;
+        padding: 0.75rem;
+        gap: 0.25rem;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .sidebar-section {
+        display: flex;
+        gap: 0.25rem;
+        padding: 0;
+        margin: 0;
+      }
+
+      .sidebar-section-label {
+        display: none;
+      }
+
+      .upload-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .anomali-ref-grid {
+        grid-template-columns: 1fr;
+      }
     }
   </style>
 </head>
+
 <body>
   <!-- Navbar -->
   <nav class="navbar">
     <div class="navbar-inner">
       <div class="navbar-brand">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary)"><path d="M12 20h9"/><path d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          style="color:var(--primary)">
+          <path d="M12 20h9" />
+          <path
+            d="M16.376 3.622a1 1 0 0 1 3.002 3.002L7.368 18.635a2 2 0 0 1-.855.506l-2.872.838a.5.5 0 0 1-.62-.62l.838-2.872a2 2 0 0 1 .506-.854z" />
+        </svg>
         Panel <span>Admin</span>
-        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab. Lebak</span>
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab.
+          Lebak</span>
       </div>
       <div class="navbar-actions">
         <a href="/dashboard.html" class="btn btn-secondary btn-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18" />
+            <path d="m19 9-5 5-4-4-3 3" />
+          </svg>
           Dashboard
         </a>
 
@@ -130,17 +332,22 @@
             <span id="adminName">Super Admin</span>
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              class="dropdown-chevron"><path d="m6 9 6 6 6-6"/></svg>
+              class="dropdown-chevron">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </div>
           <div class="dropdown-menu" id="profileDropdownMenu">
             <button class="dropdown-item" onclick="toggleTheme(); event.stopPropagation();">
               <span class="dropdown-item-icon">
-                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="hidden">
-                  <circle cx="12" cy="12" r="4" /><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="hidden">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
                 </svg>
-                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
                 </svg>
               </span>
@@ -170,41 +377,83 @@
       <div class="sidebar-section">
         <div class="sidebar-section-label">Data</div>
         <button class="sidebar-item active" onclick="showSection('upload')" id="nav-upload">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" x2="12" y1="3" y2="15" />
+          </svg>
           Upload Data
         </button>
         <button class="sidebar-item" onclick="showSection('history')" id="nav-history">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
           Riwayat Upload
         </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-section-label">Referensi</div>
         <button class="sidebar-item" onclick="showSection('anomali-ref')" id="nav-anomali-ref">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" x2="8" y1="13" y2="13" />
+            <line x1="16" x2="8" y1="17" y2="17" />
+            <line x1="10" x2="8" y1="9" y2="9" />
+          </svg>
           Daftar Anomali
         </button>
         <button class="sidebar-item" onclick="showSection('wilayah-ref')" id="nav-wilayah-ref">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+            <circle cx="12" cy="10" r="3" />
+          </svg>
           Master Wilayah
         </button>
       </div>
       <div class="sidebar-section">
         <div class="sidebar-section-label">Pengguna</div>
         <button class="sidebar-item" onclick="showSection('users')" id="nav-users">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
           Kelola Pengguna
         </button>
         <button class="sidebar-item" onclick="showSection('unassigned')" id="nav-unassigned">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" x2="12" y1="8" y2="12" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </svg>
           SLS Tanpa PPL
         </button>
         <button class="sidebar-item" onclick="showSection('import-sls')" id="nav-import-sls">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+            <line x1="4" x2="4" y1="22" y2="15" />
+          </svg>
           Import SLS & PML
         </button>
         <button class="sidebar-item" onclick="showSection('bapp')" id="nav-bapp">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" x2="8" y1="13" y2="13" />
+            <line x1="16" x2="8" y1="17" y2="17" />
+            <polyline points="10 9 9 9 8 9" />
+          </svg>
           BAPP (Cetak PDF)
         </button>
       </div>
@@ -216,7 +465,8 @@
       <!-- ============ UPLOAD DATA ============ -->
       <div class="section-panel active" id="panel-upload">
         <div class="section-title">Upload Data Anomali</div>
-        <div class="section-sub">Upload file Excel anomali keluarga dan usaha untuk diproses dan di-merge ke database.</div>
+        <div class="section-sub">Upload file Excel anomali keluarga dan usaha untuk diproses dan di-merge ke database.
+        </div>
 
         <!-- Steps indicator -->
         <div class="progress-steps mb-4">
@@ -243,7 +493,8 @@
           <div class="card card-body mb-4" style="max-width:360px">
             <div class="form-group">
               <label class="form-label" for="tanggalData">Tanggal Data</label>
-              <div class="form-label-sm" style="margin-bottom:0.375rem">Tanggal file anomali ini diterima (bukan tanggal hari ini)</div>
+              <div class="form-label-sm" style="margin-bottom:0.375rem">Tanggal file anomali ini diterima (bukan tanggal
+                hari ini)</div>
               <input type="date" id="tanggalData" class="form-input" required>
             </div>
           </div>
@@ -255,10 +506,15 @@
               <div class="upload-card-title">File Anomali Keluarga</div>
               <div class="upload-card-sub">File Excel dengan kolom Nama Kepala Keluarga, Kode Desa, Kode SLS, dsb.</div>
               <div class="upload-zone" id="zoneKK" onclick="document.getElementById('fileKK').click()"
-                   ondragover="handleDragOver(event,'zoneKK')" ondragleave="handleDragLeave('zoneKK')" ondrop="handleDrop(event,'kk')">
+                ondragover="handleDragOver(event,'zoneKK')" ondragleave="handleDragLeave('zoneKK')"
+                ondrop="handleDrop(event,'kk')">
                 <input type="file" id="fileKK" accept=".xlsx,.xls" onchange="handleFileSelect(event,'kk')">
                 <div class="upload-zone-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
                 </div>
                 <div class="upload-zone-title" id="kkLabel">Pilih atau seret file di sini</div>
                 <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 20MB</div>
@@ -266,7 +522,12 @@
               <div id="kkValidation" class="mt-2"></div>
               <div style="margin-top:0.75rem">
                 <button class="btn btn-ghost btn-sm" onclick="generateTemplate('keluarga')">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" x2="12" y1="15" y2="3" />
+                  </svg>
                   Download Template Keluarga
                 </button>
               </div>
@@ -277,10 +538,15 @@
               <div class="upload-card-title">File Anomali Usaha</div>
               <div class="upload-card-sub">File Excel dengan kolom Nama Usaha, Kode Desa, Kode SLS, dsb.</div>
               <div class="upload-zone" id="zoneUsaha" onclick="document.getElementById('fileUsaha').click()"
-                   ondragover="handleDragOver(event,'zoneUsaha')" ondragleave="handleDragLeave('zoneUsaha')" ondrop="handleDrop(event,'usaha')">
+                ondragover="handleDragOver(event,'zoneUsaha')" ondragleave="handleDragLeave('zoneUsaha')"
+                ondrop="handleDrop(event,'usaha')">
                 <input type="file" id="fileUsaha" accept=".xlsx,.xls" onchange="handleFileSelect(event,'usaha')">
                 <div class="upload-zone-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                    <polyline points="14 2 14 8 20 8" />
+                  </svg>
                 </div>
                 <div class="upload-zone-title" id="usahaLabel">Pilih atau seret file di sini</div>
                 <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 20MB</div>
@@ -288,7 +554,12 @@
               <div id="usahaValidation" class="mt-2"></div>
               <div style="margin-top:0.75rem">
                 <button class="btn btn-ghost btn-sm" onclick="generateTemplate('usaha')">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" x2="12" y1="15" y2="3" />
+                  </svg>
                   Download Template Usaha
                 </button>
               </div>
@@ -299,10 +570,15 @@
 
           <div style="display:flex;gap:0.75rem;align-items:center">
             <button class="btn btn-primary" id="validateBtn" onclick="startValidation()" disabled>
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
               Validasi & Lanjut
             </button>
-            <span id="validateHint" style="font-size:0.8125rem;color:var(--text-muted)">Upload minimal 1 file dan pilih tanggal data</span>
+            <span id="validateHint" style="font-size:0.8125rem;color:var(--text-muted)">Upload minimal 1 file dan pilih
+              tanggal data</span>
           </div>
         </div>
 
@@ -310,13 +586,17 @@
         <div id="uploadStep2" class="hidden">
           <div class="card card-body mb-4">
             <div style="font-weight:600;margin-bottom:1rem">Ringkasan Data</div>
-            <div id="previewSummary" style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;font-size:0.875rem"></div>
+            <div id="previewSummary"
+              style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;font-size:0.875rem"></div>
           </div>
           <div id="previewWarnings" class="mb-4"></div>
           <div style="display:flex;gap:0.75rem">
             <button class="btn btn-secondary" onclick="backToStep1()">Kembali</button>
             <button class="btn btn-primary" onclick="startMerge()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+              </svg>
               Mulai Merge ke Database
             </button>
           </div>
@@ -337,13 +617,20 @@
         <div id="uploadStep4" class="hidden">
           <div class="card card-body">
             <div style="display:flex;gap:0.75rem;align-items:flex-start;margin-bottom:1.25rem">
-              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
               <div>
                 <div style="font-weight:700;font-size:1.1rem">Merge Berhasil</div>
-                <div style="color:var(--text-muted);font-size:0.875rem">Data berhasil diproses dan disimpan ke database.</div>
+                <div style="color:var(--text-muted);font-size:0.875rem">Data berhasil diproses dan disimpan ke database.
+                </div>
               </div>
             </div>
-            <div id="mergeResults" style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;font-size:0.875rem"></div>
+            <div id="mergeResults"
+              style="display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;margin-bottom:1.25rem;font-size:0.875rem">
+            </div>
             <div id="newAnomaliesWarning" class="hidden" style="margin-bottom:1.25rem;"></div>
             <div style="display:flex;gap:0.75rem">
               <button class="btn btn-secondary" onclick="resetUpload()">Upload Data Lain</button>
@@ -361,15 +648,30 @@
           <div class="table-header">
             <div class="table-title">Log Upload</div>
             <button class="btn btn-secondary btn-sm" onclick="loadBatchHistory()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                <path d="M3 3v5h5" />
+              </svg>
               Refresh
             </button>
           </div>
           <table class="admin-table">
-            <thead><tr>
-              <th>Tanggal Data</th><th>Diupload Oleh</th><th>Keluarga</th><th>Usaha</th><th>Waktu Upload</th><th>Status</th>
-            </tr></thead>
-            <tbody id="historyTableBody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <thead>
+              <tr>
+                <th>Tanggal Data</th>
+                <th>Diupload Oleh</th>
+                <th>Keluarga</th>
+                <th>Usaha</th>
+                <th>Waktu Upload</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="historyTableBody">
+              <tr>
+                <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td>
+              </tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -377,7 +679,8 @@
       <!-- ============ DAFTAR ANOMALI REF ============ -->
       <div class="section-panel" id="panel-anomali-ref">
         <div class="section-title">Daftar Referensi Anomali</div>
-        <div class="section-sub">Kelola daftar anomali beserta penjelasannya untuk ditampilkan di panel tindak lanjut.</div>
+        <div class="section-sub">Kelola daftar anomali beserta penjelasannya untuk ditampilkan di panel tindak lanjut.
+        </div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
           <select class="filter-select" id="refTipeFilter" onchange="loadAnomaliRef()" style="max-width:160px">
@@ -386,12 +689,18 @@
             <option value="usaha">Usaha</option>
           </select>
           <button class="btn btn-primary btn-sm" onclick="openAddRefModal()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" x2="12" y1="5" y2="19" />
+              <line x1="5" x2="19" y1="12" y2="12" />
+            </svg>
             Tambah Referensi
           </button>
         </div>
         <div id="anomaliRefGrid" class="anomali-ref-grid">
-          <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></div>
+          <div style="grid-column:1/-1;text-align:center;padding:2rem;color:var(--text-muted)">
+            <div class="spinner" style="margin:0 auto"></div>
+          </div>
         </div>
       </div>
 
@@ -401,9 +710,15 @@
         <div class="section-sub">Kelola daftar wilayah (Kecamatan, Desa, SLS) untuk filter wilayah di dashboard.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
-          <input type="text" class="filter-select" id="wilayahSearch" placeholder="Cari kecamatan / desa / SLS..." oninput="filterWilayah()" style="max-width:260px">
+          <input type="text" class="filter-select" id="wilayahSearch" placeholder="Cari kecamatan / desa / SLS..."
+            oninput="filterWilayah()" style="max-width:260px">
           <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openImportWilayahModal()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             Import Excel Master Wilayah
           </button>
         </div>
@@ -414,20 +729,34 @@
             <div class="table-count" id="wilayahTableCount">Total: 0 wilayah</div>
           </div>
           <table class="admin-table">
-            <thead><tr>
-              <th onclick="sortWilayah('nmkec')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sort-icon" id="sort-wil-nmkec" style="opacity:0.4;font-size:0.7rem">▲</span></th>
-              <th onclick="sortWilayah('nmdesa')" style="cursor:pointer;white-space:nowrap">Desa / Kelurahan <span class="sort-icon" id="sort-wil-nmdesa" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortWilayah('kdsls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span class="sort-icon" id="sort-wil-kdsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortWilayah('kdsubsls')" style="cursor:pointer;white-space:nowrap">Sub SLS <span class="sort-icon" id="sort-wil-kdsubsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortWilayah('kode_sls_gabungan')" style="cursor:pointer;white-space:nowrap">Kode SLS Gabungan <span class="sort-icon" id="sort-wil-kode" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortWilayah('nmsls')" style="cursor:pointer;white-space:nowrap">Nama SLS <span class="sort-icon" id="sort-wil-nmsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-            </tr></thead>
-            <tbody id="wilayahTableBody"><tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <thead>
+              <tr>
+                <th onclick="sortWilayah('nmkec')" style="cursor:pointer;white-space:nowrap">Kecamatan <span
+                    class="sort-icon" id="sort-wil-nmkec" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+                <th onclick="sortWilayah('nmdesa')" style="cursor:pointer;white-space:nowrap">Desa / Kelurahan <span
+                    class="sort-icon" id="sort-wil-nmdesa" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortWilayah('kdsls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span
+                    class="sort-icon" id="sort-wil-kdsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortWilayah('kdsubsls')" style="cursor:pointer;white-space:nowrap">Sub SLS <span
+                    class="sort-icon" id="sort-wil-kdsubsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortWilayah('kode_sls_gabungan')" style="cursor:pointer;white-space:nowrap">Kode SLS
+                  Gabungan <span class="sort-icon" id="sort-wil-kode" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortWilayah('nmsls')" style="cursor:pointer;white-space:nowrap">Nama SLS <span
+                    class="sort-icon" id="sort-wil-nmsls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+              </tr>
+            </thead>
+            <tbody id="wilayahTableBody">
+              <tr>
+                <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td>
+              </tr>
+            </tbody>
           </table>
-          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
               <span>Tampilkan</span>
-              <select id="wilayahPageSizeSelect" class="filter-select" onchange="changeWilayahPageSize()" style="width:80px;padding:0.25rem">
+              <select id="wilayahPageSizeSelect" class="filter-select" onchange="changeWilayahPageSize()"
+                style="width:80px;padding:0.25rem">
                 <option value="10">10</option>
                 <option value="25" selected>25</option>
                 <option value="50">50</option>
@@ -447,18 +776,36 @@
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap">
           <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openAddUserModal()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" x2="19" y1="8" y2="14"/><line x1="22" x2="16" y1="11" y2="11"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+              <circle cx="9" cy="7" r="4" />
+              <line x1="19" x2="19" y1="8" y2="14" />
+              <line x1="22" x2="16" y1="11" y2="11" />
+            </svg>
             Tambah Pengguna
           </button>
           <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="showSection('import-users')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             Import Excel Massal
           </button>
-          <button class="btn btn-secondary" onclick="exportUsersToExcel()" style="gap:0.35rem; display:inline-flex; align-items:center; height:38px; margin-bottom:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          <button class="btn btn-secondary" onclick="exportUsersToExcel()"
+            style="gap:0.35rem; display:inline-flex; align-items:center; height:38px; margin-bottom:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             Export Excel
           </button>
-          <input type="text" class="filter-select" id="userSearch" placeholder="Cari nama / sobatid..." oninput="filterUsers()" style="max-width:220px">
+          <input type="text" class="filter-select" id="userSearch" placeholder="Cari nama / sobatid..."
+            oninput="filterUsers()" style="max-width:220px">
           <select class="filter-select" id="userRoleFilter" onchange="filterUsers()" style="max-width:140px">
             <option value="">Semua Role</option>
             <option value="pml">PML</option>
@@ -472,23 +819,40 @@
             <div class="table-count" id="userTableCount"></div>
           </div>
           <table class="admin-table">
-            <thead><tr>
-              <th onclick="sortUsers('nama')" style="cursor:pointer;white-space:nowrap">Nama <span class="sort-icon" id="sort-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
-              <th onclick="sortUsers('sobatid')" style="cursor:pointer;white-space:nowrap">Sobat ID <span class="sort-icon" id="sort-sobatid" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('role')" style="cursor:pointer;white-space:nowrap">Role <span class="sort-icon" id="sort-role" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('email')" style="cursor:pointer;white-space:nowrap">Email <span class="sort-icon" id="sort-email" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sort-icon" id="sort-kecamatan" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('anomaly_count')" style="cursor:pointer;white-space:nowrap;text-align:center">Jml Anomali <span class="sort-icon" id="sort-anomaly_count" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th class="no-sort col-aksi-user">Aksi</th>
-            </tr></thead>
-            <tbody id="userTableBody"><tr><td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td></tr></tbody>
+            <thead>
+              <tr>
+                <th onclick="sortUsers('nama')" style="cursor:pointer;white-space:nowrap">Nama <span class="sort-icon"
+                    id="sort-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+                <th onclick="sortUsers('sobatid')" style="cursor:pointer;white-space:nowrap">Sobat ID <span
+                    class="sort-icon" id="sort-sobatid" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUsers('role')" style="cursor:pointer;white-space:nowrap">Role <span class="sort-icon"
+                    id="sort-role" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUsers('email')" style="cursor:pointer;white-space:nowrap">Email <span class="sort-icon"
+                    id="sort-email" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUsers('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span
+                    class="sort-icon" id="sort-kecamatan" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUsers('sls')" style="cursor:pointer;white-space:nowrap">SLS (aktif) <span
+                    class="sort-icon" id="sort-sls" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUsers('anomaly_count')" style="cursor:pointer;white-space:nowrap;text-align:center">Jml
+                  Anomali <span class="sort-icon" id="sort-anomaly_count" style="opacity:0.4;font-size:0.7rem">⇅</span>
+                </th>
+                <th onclick="sortUsers('is_active')" style="cursor:pointer;white-space:nowrap">Status <span
+                    class="sort-icon" id="sort-is_active" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th class="no-sort col-aksi-user">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="userTableBody">
+              <tr>
+                <td colspan="9" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat...</td>
+              </tr>
+            </tbody>
           </table>
-          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
               <span>Tampilkan</span>
-              <select id="userPageSizeSelect" class="filter-select" onchange="changeUserPageSize()" style="width:80px;padding:0.25rem">
+              <select id="userPageSizeSelect" class="filter-select" onchange="changeUserPageSize()"
+                style="width:80px;padding:0.25rem">
                 <option value="10">10</option>
                 <option value="25" selected>25</option>
                 <option value="50">50</option>
@@ -508,9 +872,15 @@
 
         <div class="card card-body mb-4" style="max-width:600px">
           <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel</div>
-          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom data pengguna sesuai dan terhindar dari error impor.</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar
+            format kolom data pengguna sesuai dan terhindar dari error impor.</div>
           <button class="btn btn-secondary btn-sm" onclick="generateUserTemplate()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             Download Template Excel Pengguna
           </button>
         </div>
@@ -519,10 +889,15 @@
           <div class="upload-card-title">File Excel Pengguna</div>
           <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
           <div class="upload-zone" id="zoneUsers" onclick="document.getElementById('fileUsers').click()"
-               ondragover="handleDragOver(event,'zoneUsers')" ondragleave="handleDragLeave('zoneUsers')" ondrop="handleUserDrop(event)">
+            ondragover="handleDragOver(event,'zoneUsers')" ondragleave="handleDragLeave('zoneUsers')"
+            ondrop="handleUserDrop(event)">
             <input type="file" id="fileUsers" accept=".xlsx,.xls" onchange="handleUserFileSelect(event)">
             <div class="upload-zone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
             </div>
             <div class="upload-zone-title" id="usersImportLabel">Pilih atau seret file di sini</div>
             <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
@@ -554,7 +929,11 @@
           <div style="display:flex;gap:0.75rem">
             <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
             <button class="btn btn-primary" id="processImportBtn" onclick="processUserImport()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
               Proses Impor Massal
             </button>
           </div>
@@ -564,13 +943,20 @@
       <!-- ============ IMPORT SLS & RELATIONSHIP ============ -->
       <div class="section-panel" id="panel-import-sls">
         <div class="section-title">Import SLS & Hubungan PML-PPL</div>
-        <div class="section-sub">Upload file Excel berisi data Kode SLS, Email PML, dan Email PPL untuk di-mapping secara massal.</div>
+        <div class="section-sub">Upload file Excel berisi data Kode SLS, Email PML, dan Email PPL untuk di-mapping
+          secara massal.</div>
 
         <div class="card card-body mb-4" style="max-width:600px">
           <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Mapping SLS</div>
-          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom SLS, PML, dan PPL sesuai.</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar
+            format kolom SLS, PML, dan PPL sesuai.</div>
           <button class="btn btn-secondary btn-sm" onclick="generateSLSTemplate()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
             Download Template Excel SLS
           </button>
         </div>
@@ -579,10 +965,15 @@
           <div class="upload-card-title">File Excel Mapping SLS</div>
           <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
           <div class="upload-zone" id="zoneSLS" onclick="document.getElementById('fileSLS').click()"
-               ondragover="handleDragOver(event,'zoneSLS')" ondragleave="handleDragLeave('zoneSLS')" ondrop="handleSLSDrop(event)">
+            ondragover="handleDragOver(event,'zoneSLS')" ondragleave="handleDragLeave('zoneSLS')"
+            ondrop="handleSLSDrop(event)">
             <input type="file" id="fileSLS" accept=".xlsx,.xls" onchange="handleSLSFileSelect(event)">
             <div class="upload-zone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
             </div>
             <div class="upload-zone-title" id="slsImportLabel">Pilih atau seret file di sini</div>
             <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
@@ -612,7 +1003,11 @@
           <div style="display:flex;gap:0.75rem">
             <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
             <button class="btn btn-primary" id="processSLSImportBtn" onclick="processSLSImport()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
               Proses Impor SLS & PML
             </button>
           </div>
@@ -629,19 +1024,33 @@
             <button class="btn btn-secondary btn-sm" onclick="loadUnassigned()">Refresh</button>
           </div>
           <table class="admin-table">
-            <thead><tr>
-              <th onclick="sortUnassigned('assignment_id')" style="cursor:pointer;white-space:nowrap">Assignment ID <span class="sort-icon" id="sort-unassigned-id" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUnassigned('kode_sls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span class="sort-icon" id="sort-unassigned-sls" style="opacity:0.4;font-size:0.7rem">▲</span></th>
-              <th onclick="sortUnassigned('tipe')" style="cursor:pointer;white-space:nowrap">Tipe <span class="sort-icon" id="sort-unassigned-tipe" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th onclick="sortUnassigned('nama_entitas')" style="cursor:pointer;white-space:nowrap">Nama Entitas <span class="sort-icon" id="sort-unassigned-name" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
-              <th class="no-sort">Assign ke PPL</th>
-            </tr></thead>
-            <tbody id="unassignedBody"><tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr></tbody>
+            <thead>
+              <tr>
+                <th onclick="sortUnassigned('assignment_id')" style="cursor:pointer;white-space:nowrap">Assignment ID
+                  <span class="sort-icon" id="sort-unassigned-id" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUnassigned('kode_sls')" style="cursor:pointer;white-space:nowrap">Kode SLS <span
+                    class="sort-icon" id="sort-unassigned-sls" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+                <th onclick="sortUnassigned('tipe')" style="cursor:pointer;white-space:nowrap">Tipe <span
+                    class="sort-icon" id="sort-unassigned-tipe" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortUnassigned('nama_entitas')" style="cursor:pointer;white-space:nowrap">Nama Entitas
+                  <span class="sort-icon" id="sort-unassigned-name" style="opacity:0.4;font-size:0.7rem">⇅</span></th>
+                <th class="no-sort">Assign ke PPL</th>
+              </tr>
+            </thead>
+            <tbody id="unassignedBody">
+              <tr>
+                <td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)">
+                  <div class="spinner" style="margin:0 auto"></div>
+                </td>
+              </tr>
+            </tbody>
           </table>
-          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
               <span>Tampilkan</span>
-              <select id="unassignedPageSizeSelect" class="filter-select" onchange="changeUnassignedPageSize()" style="width:80px;padding:0.25rem">
+              <select id="unassignedPageSizeSelect" class="filter-select" onchange="changeUnassignedPageSize()"
+                style="width:80px;padding:0.25rem">
                 <option value="10">10</option>
                 <option value="25" selected>25</option>
                 <option value="50">50</option>
@@ -656,8 +1065,8 @@
 
       <!-- ============ BAPP (CETAK PDF) PANEL ============ -->
       <div class="section-panel" id="panel-bapp">
-        <div class="section-title">Bukti Pertanggungjawaban Mutlak (BAPP)</div>
-        <div class="section-sub">Pantau, filter, dan cetak PDF bukti pencapaian pekerjaan termin I petugas.</div>
+        <div class="section-title">Bukti Capaian Fasih</div>
+        <div class="section-sub">Pantau, filter, dan cetak PDF bukti screenshot capaian Fasih termin I petugas.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
           <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()" style="max-width:180px">
@@ -668,34 +1077,47 @@
             <option value="pml">PML</option>
             <option value="ppl">PPL</option>
           </select>
-          
+
           <div style="display:flex;align-items:center;gap:0.5rem">
             <span style="font-size:0.8125rem;color:var(--text-muted)">Waktu Upload:</span>
-            <input type="datetime-local" class="filter-select" id="bappTimeStart" onchange="filterBAPP()" style="max-width:200px">
+            <input type="datetime-local" class="filter-select" id="bappTimeStart" onchange="filterBAPP()"
+              style="max-width:200px">
             <span style="font-size:0.8125rem;color:var(--text-muted)">s.d</span>
-            <input type="datetime-local" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()" style="max-width:200px">
+            <input type="datetime-local" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()"
+              style="max-width:200px">
           </div>
-          
+
           <button class="btn btn-secondary btn-sm" onclick="loadBAPPData()" style="height:38px;margin-bottom:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
             Refresh
           </button>
-          
-          <button class="btn btn-primary btn-sm" id="btnPrintSelected" onclick="printSelectedBAPP()" style="height:38px;margin-bottom:0;display:none;margin-left:auto">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+
+          <button class="btn btn-primary btn-sm" id="btnPrintSelected" onclick="printSelectedBAPP()"
+            style="height:38px;margin-bottom:0;display:none;margin-left:auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
             Cetak Terpilih (<span id="selectedBappCount">0</span>)
           </button>
         </div>
 
         <div class="table-wrapper">
           <div class="table-header">
-            <div class="table-title">Daftar Upload BAPP</div>
+            <div class="table-title">Daftar BAPP</div>
             <div class="table-count" id="bappTableCount">Total: 0 petugas</div>
           </div>
           <table class="admin-table">
             <thead>
               <tr>
-                <th style="width:40px;text-align:center"><input type="checkbox" id="selectAllBapp" onchange="toggleSelectAllBapp(this.checked)"></th>
+                <th style="width:40px;text-align:center"><input type="checkbox" id="selectAllBapp"
+                    onchange="toggleSelectAllBapp(this.checked)"></th>
                 <th>Nama Petugas</th>
                 <th>Sobat ID</th>
                 <th>Role</th>
@@ -705,7 +1127,9 @@
               </tr>
             </thead>
             <tbody id="bappTableBody">
-              <tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td></tr>
+              <tr>
+                <td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -744,7 +1168,8 @@
         </div>
         <div class="form-group">
           <label class="form-label">Penjelasan</label>
-          <textarea id="refPenjelasan" class="form-textarea" style="min-height:100px" placeholder="Jelaskan kondisi yang menyebabkan anomali ini terdeteksi dan apa yang perlu dikonfirmasi..."></textarea>
+          <textarea id="refPenjelasan" class="form-textarea" style="min-height:100px"
+            placeholder="Jelaskan kondisi yang menyebabkan anomali ini terdeteksi dan apa yang perlu dikonfirmasi..."></textarea>
         </div>
       </div>
       <div class="bottom-sheet-footer">
@@ -792,7 +1217,12 @@
           </div>
         </div>
         <div id="userFormError" class="alert alert-error hidden mb-3">
-          <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+          <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"
+            fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" x2="12" y1="8" y2="12" />
+            <line x1="12" x2="12.01" y1="16" y2="16" />
+          </svg>
           <span id="userFormErrorText"></span>
         </div>
       </div>
@@ -812,9 +1242,11 @@
       </div>
       <div class="bottom-sheet-body">
         <div style="font-size:0.875rem;color:var(--text-muted);margin-bottom:1rem">
-          Sistem mendeteksi adanya perbedaan data antara file Excel yang diunggah dengan profil pengguna yang sudah ada di database. Silakan tinjau perubahan berikut sebelum melanjutkan:
+          Sistem mendeteksi adanya perbedaan data antara file Excel yang diunggah dengan profil pengguna yang sudah ada
+          di database. Silakan tinjau perubahan berikut sebelum melanjutkan:
         </div>
-        <div class="table-wrapper" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md)">
+        <div class="table-wrapper"
+          style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md)">
           <table class="admin-table">
             <thead>
               <tr>
@@ -827,7 +1259,8 @@
           </table>
         </div>
         <div style="font-size:0.8125rem;color:var(--text-subtle);margin-top:0.75rem">
-          * Catatan: Jika disetujui, data pengguna di atas akan diperbarui mengikuti isi file Excel terbaru. Akun lainnya yang tidak konflik akan langsung diimpor.
+          * Catatan: Jika disetujui, data pengguna di atas akan diperbarui mengikuti isi file Excel terbaru. Akun
+          lainnya yang tidak konflik akan langsung diimpor.
         </div>
       </div>
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
@@ -846,28 +1279,42 @@
       </div>
       <div class="bottom-sheet-body">
         <div class="upload-card">
-          <div class="upload-card-sub" style="margin-bottom:0.75rem">Upload file Excel master wilayah yang berisi kode dan nama wilayah.</div>
+          <div class="upload-card-sub" style="margin-bottom:0.75rem">Upload file Excel master wilayah yang berisi kode
+            dan nama wilayah.</div>
           <div style="margin-bottom:1rem">
-            <button class="btn btn-secondary btn-sm" onclick="generateWilayahTemplate()" style="display:flex;align-items:center;gap:0.25rem">
-              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+            <button class="btn btn-secondary btn-sm" onclick="generateWilayahTemplate()"
+              style="display:flex;align-items:center;gap:0.25rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" x2="12" y1="15" y2="3" />
+              </svg>
               Download Template Excel Wilayah
             </button>
           </div>
           <div class="upload-zone" id="zoneWilayah" onclick="document.getElementById('fileWilayah').click()"
-               ondragover="handleDragOver(event,'zoneWilayah')" ondragleave="handleDragLeave('zoneWilayah')" ondrop="handleWilayahDrop(event)">
+            ondragover="handleDragOver(event,'zoneWilayah')" ondragleave="handleDragLeave('zoneWilayah')"
+            ondrop="handleWilayahDrop(event)">
             <input type="file" id="fileWilayah" accept=".xlsx,.xls" onchange="handleWilayahFileSelect(event)">
             <div class="upload-zone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
             </div>
             <div class="upload-zone-title" id="wilayahImportLabel">Pilih atau seret file di sini</div>
-            <div class="upload-zone-sub">Format header: kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls, idsubsls_25_2, nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls</div>
+            <div class="upload-zone-sub">Format header: kdprov, kdkab, kdkec, kddesa, kdsls, kdsubsls, idsubsls_25_2,
+              nmprov, nmkab, nmkec, nmdesa, nmsls, nmsubsls</div>
           </div>
           <div id="wilayahValidation" class="mt-2"></div>
         </div>
       </div>
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeImportWilayahModal()">Batal</button>
-        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master Wilayah</button>
+        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master
+          Wilayah</button>
       </div>
     </div>
   </div>
@@ -881,4 +1328,5 @@
   <script src="js/import.js"></script>
   <script src="js/admin.js"></script>
 </body>
+
 </html>

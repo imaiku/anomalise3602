@@ -4,15 +4,15 @@
 // ============================================================
 
 let adminProfile = null;
-let parsedKK     = null;   // { rows, records }
-let parsedUsaha  = null;   // { rows, records }
-let batchId      = null;
-let allUsers     = [];
+let parsedKK = null;   // { rows, records }
+let parsedUsaha = null;   // { rows, records }
+let batchId = null;
+let allUsers = [];
 let filteredUsers = [];
 let currentUserPage = 1;
-let userPageSize    = 25;
-let userSortField   = 'nama';
-let userSortDir     = 'asc';
+let userPageSize = 25;
+let userSortField = 'nama';
+let userSortDir = 'asc';
 let editingRefId = null;
 
 // Wilayah state variables
@@ -119,16 +119,16 @@ function handleFileSelect(e, tipe) {
 }
 
 async function processFile(file, tipe) {
-  const isKK    = tipe === 'keluarga';
-  const labelId = isKK ? 'kkLabel'       : 'usahaLabel';
-  const zoneId  = isKK ? 'zoneKK'        : 'zoneUsaha';
-  const validId = isKK ? 'kkValidation'  : 'usahaValidation';
+  const isKK = tipe === 'keluarga';
+  const labelId = isKK ? 'kkLabel' : 'usahaLabel';
+  const zoneId = isKK ? 'zoneKK' : 'zoneUsaha';
+  const validId = isKK ? 'kkValidation' : 'usahaValidation';
 
   document.getElementById(labelId).textContent = file.name;
   document.getElementById(validId).innerHTML = '<div class="chip">Memvalidasi...</div>';
 
   try {
-    const rows   = await parseExcelFile(file);
+    const rows = await parseExcelFile(file);
     const result = validateExcel(rows, tipe);
 
     if (!result.valid) {
@@ -144,8 +144,8 @@ async function processFile(file, tipe) {
         </div>`;
       const tanggal = document.getElementById('tanggalData').value || new Date().toISOString().slice(0, 10);
       const records = rowsToRecordsFull(rows, tipe, tanggal);
-      if (isKK) parsedKK    = { rows, records };
-      else      parsedUsaha = { rows, records };
+      if (isKK) parsedKK = { rows, records };
+      else parsedUsaha = { rows, records };
     }
   } catch (e) {
     document.getElementById(validId).innerHTML = `
@@ -160,14 +160,14 @@ async function processFile(file, tipe) {
 }
 
 function checkValidateBtn() {
-  const btn     = document.getElementById('validateBtn');
-  const hint    = document.getElementById('validateHint');
+  const btn = document.getElementById('validateBtn');
+  const hint = document.getElementById('validateHint');
   const tanggal = document.getElementById('tanggalData')?.value;
   const hasFile = parsedKK || parsedUsaha;
-  btn.disabled  = !(hasFile && tanggal);
-  hint.textContent = !tanggal   ? 'Pilih tanggal data terlebih dahulu' :
-                     !hasFile   ? 'Upload minimal 1 file Excel yang valid' :
-                                  'Siap untuk dilanjutkan';
+  btn.disabled = !(hasFile && tanggal);
+  hint.textContent = !tanggal ? 'Pilih tanggal data terlebih dahulu' :
+    !hasFile ? 'Upload minimal 1 file Excel yang valid' :
+      'Siap untuk dilanjutkan';
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -191,8 +191,8 @@ async function startValidation() {
       : '';
   }
 
-  const tanggal    = document.getElementById('tanggalData').value;
-  const kkCount    = parsedKK?.records.length    || 0;
+  const tanggal = document.getElementById('tanggalData').value;
+  const kkCount = parsedKK?.records.length || 0;
   const usahaCount = parsedUsaha?.records.length || 0;
 
   document.getElementById('uploadStep1').classList.add('hidden');
@@ -224,12 +224,12 @@ async function startMerge() {
   const { data: batch, error: batchErr } = await db
     .from('upload_batches')
     .insert({
-      tanggal_data:     tanggal,
+      tanggal_data: tanggal,
       uploaded_by_nama: getSessionName(adminProfile),
-      uploaded_by_id:   adminProfile.id,
-      status:           'processing',
-      jumlah_keluarga:  parsedKK?.records.length    || 0,
-      jumlah_usaha:     parsedUsaha?.records.length || 0
+      uploaded_by_id: adminProfile.id,
+      status: 'processing',
+      jumlah_keluarga: parsedKK?.records.length || 0,
+      jumlah_usaha: parsedUsaha?.records.length || 0
     })
     .select('id').single();
 
@@ -245,8 +245,8 @@ async function startMerge() {
     const results = await mergeRecords(allRecords, batchId, tanggal, pct => {
       document.getElementById('mergeProgress').style.width = pct + '%';
       document.getElementById('mergeStatus').textContent =
-        pct < 80  ? `Memproses data... ${pct}%` :
-        pct < 100 ? 'Menyelesaikan auto-resolve...' : 'Selesai!';
+        pct < 80 ? `Memproses data... ${pct}%` :
+          pct < 100 ? 'Menyelesaikan auto-resolve...' : 'Selesai!';
     });
 
     await db.from('upload_batches').update({ status: 'completed' }).eq('id', batchId);
@@ -309,7 +309,7 @@ async function checkMissingReferences(allRecords) {
 
   // Filter emptyRefs to show only the ones that were present in the uploaded file (allRecords)
   const uploadedKeys = new Set(allRecords.map(r => `${r.tipe}|${r.nomor_anomali}`));
-  
+
   const missing = (emptyRefs || []).filter(r => uploadedKeys.has(`${r.tipe}|${r.nomor}`));
 
   const warnDiv = document.getElementById('newAnomaliesWarning');
@@ -404,7 +404,7 @@ async function loadBatchHistory() {
       <td>${escHtml(b.uploaded_by_nama || '—')}</td>
       <td>${b.jumlah_keluarga?.toLocaleString('id') || 0}</td>
       <td>${b.jumlah_usaha?.toLocaleString('id') || 0}</td>
-      <td style="color:var(--text-muted);font-size:0.8rem">${new Date(b.created_at).toLocaleString('id-ID', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})}</td>
+      <td style="color:var(--text-muted);font-size:0.8rem">${new Date(b.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
       <td><span class="status-badge ${b.status === 'completed' ? 'status-kondisi' : b.status === 'failed' ? 'status-reopen' : 'status-pending'}">${b.status}</span></td>
     </tr>`).join('');
 }
@@ -413,8 +413,8 @@ async function loadBatchHistory() {
 // ANOMALI REF (CMS)
 // ============================================================
 async function loadAnomaliRef() {
-  const tipe  = document.getElementById('refTipeFilter')?.value || '';
-  let query   = db.from('anomali_ref').select('*').order('tipe').order('nomor');
+  const tipe = document.getElementById('refTipeFilter')?.value || '';
+  let query = db.from('anomali_ref').select('*').order('tipe').order('nomor');
   if (tipe) query = query.eq('tipe', tipe);
 
   const { data, error } = await query;
@@ -458,9 +458,9 @@ function openAddRefModal() {
 function openEditRefModal(ref) {
   editingRefId = ref.id;
   document.getElementById('refModalTitle').textContent = 'Edit Referensi Anomali';
-  document.getElementById('refNomor').value      = ref.nomor;
-  document.getElementById('refTipe').value       = ref.tipe;
-  document.getElementById('refNama').value       = ref.nama;
+  document.getElementById('refNomor').value = ref.nomor;
+  document.getElementById('refTipe').value = ref.tipe;
+  document.getElementById('refNama').value = ref.nama;
   document.getElementById('refPenjelasan').value = ref.penjelasan || '';
   document.getElementById('refModal').classList.add('open');
 }
@@ -468,9 +468,9 @@ function openEditRefModal(ref) {
 function closeRefModal() { document.getElementById('refModal').classList.remove('open'); }
 
 async function saveAnomaliRef() {
-  const nomor   = parseInt(document.getElementById('refNomor').value);
-  const tipe    = document.getElementById('refTipe').value;
-  const nama    = document.getElementById('refNama').value.trim();
+  const nomor = parseInt(document.getElementById('refNomor').value);
+  const tipe = document.getElementById('refTipe').value;
+  const nama = document.getElementById('refNama').value.trim();
   const penjelas = document.getElementById('refPenjelasan').value.trim();
 
   if (!nomor || !tipe || !nama) { showToast('Nomor, tipe, dan nama wajib diisi', 'error'); return; }
@@ -665,11 +665,11 @@ async function loadUsers() {
 
 function filterUsers() {
   const search = document.getElementById('userSearch').value.toLowerCase();
-  const role   = document.getElementById('userRoleFilter').value;
+  const role = document.getElementById('userRoleFilter').value;
   filteredUsers = allUsers.filter(u =>
-    (!role   || u.role === role) &&
-    (!search || 
-      u.nama.toLowerCase().includes(search) || 
+    (!role || u.role === role) &&
+    (!search ||
+      u.nama.toLowerCase().includes(search) ||
       (u.sobatid || '').toLowerCase().includes(search) ||
       (u.email_ref || '').toLowerCase().includes(search))
   );
@@ -681,7 +681,7 @@ function filterUsers() {
 function sortUsers(field) {
   userSortDir = userSortField === field ? (userSortDir === 'asc' ? 'desc' : 'asc') : 'asc';
   userSortField = field;
-  
+
   document.querySelectorAll('th span.sort-icon').forEach(span => span.textContent = '⇅');
   const activeIcon = document.getElementById(`sort-${field}`);
   if (activeIcon) activeIcon.textContent = userSortDir === 'asc' ? '▲' : '▼';
@@ -695,15 +695,15 @@ function sortUsersData() {
   filteredUsers.sort((a, b) => {
     let va, vb;
     switch (userSortField) {
-      case 'nama':          va = a.nama.toLowerCase(); vb = b.nama.toLowerCase(); break;
-      case 'sobatid':       va = a.sobatid || '';      vb = b.sobatid || ''; break;
-      case 'role':          va = a.role;               vb = b.role; break;
-      case 'email':         va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
-      case 'kecamatan':     va = (a.kecamatan || '').toLowerCase(); vb = (b.kecamatan || '').toLowerCase(); break;
-      case 'sls':           va = a.slsCount;           vb = b.slsCount; break;
-      case 'anomaly_count': va = a.anomalyCount || 0;  vb = b.anomalyCount || 0; break;
-      case 'is_active':     va = a.is_active ? 1 : 0;  vb = b.is_active ? 1 : 0; break;
-      default:              va = a.nama.toLowerCase(); vb = b.nama.toLowerCase();
+      case 'nama': va = a.nama.toLowerCase(); vb = b.nama.toLowerCase(); break;
+      case 'sobatid': va = a.sobatid || ''; vb = b.sobatid || ''; break;
+      case 'role': va = a.role; vb = b.role; break;
+      case 'email': va = (a.email_ref || '').toLowerCase(); vb = (b.email_ref || '').toLowerCase(); break;
+      case 'kecamatan': va = (a.kecamatan || '').toLowerCase(); vb = (b.kecamatan || '').toLowerCase(); break;
+      case 'sls': va = a.slsCount; vb = b.slsCount; break;
+      case 'anomaly_count': va = a.anomalyCount || 0; vb = b.anomalyCount || 0; break;
+      case 'is_active': va = a.is_active ? 1 : 0; vb = b.is_active ? 1 : 0; break;
+      default: va = a.nama.toLowerCase(); vb = b.nama.toLowerCase();
     }
     if (va < vb) return userSortDir === 'asc' ? -1 : 1;
     if (va > vb) return userSortDir === 'asc' ? 1 : -1;
@@ -714,7 +714,7 @@ function sortUsersData() {
 function renderUsers() {
   const total = filteredUsers.length;
   let pageData = filteredUsers;
-  
+
   if (userPageSize !== 'all') {
     const start = (currentUserPage - 1) * parseInt(userPageSize);
     pageData = filteredUsers.slice(start, start + parseInt(userPageSize));
@@ -832,13 +832,13 @@ function showUserError(msg) {
 
 async function createUser() {
   const sobatid = document.getElementById('userSobatid').value.trim();
-  const nik     = document.getElementById('userNIK').value.trim();
-  const nama    = document.getElementById('userName').value.trim();
-  const role    = document.getElementById('userRole').value;
-  const email   = document.getElementById('userEmail').value.trim();
+  const nik = document.getElementById('userNIK').value.trim();
+  const nama = document.getElementById('userName').value.trim();
+  const role = document.getElementById('userRole').value;
+  const email = document.getElementById('userEmail').value.trim();
 
   if (!sobatid || !nik || !nama) { showUserError('Sobat ID, NIK, dan Nama wajib diisi'); return; }
-  if (!/^\d+$/.test(sobatid))    { showUserError('Sobat ID harus berupa angka'); return; }
+  if (!/^\d+$/.test(sobatid)) { showUserError('Sobat ID harus berupa angka'); return; }
 
   const btn = document.getElementById('createUserBtn');
   btn.disabled = true; btn.textContent = 'Membuat akun...';
@@ -906,7 +906,7 @@ let unassignedSortDir = 'asc';
 async function loadUnassigned() {
   const tbody = document.getElementById('unassignedBody');
   if (!tbody) return;
-  
+
   tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
   const { data: rows, error } = await db.rpc('get_unassigned_sls_summary');
@@ -1068,7 +1068,7 @@ async function assignSLStoPPL(kodeSLS) {
 async function loadWilayah() {
   const tbody = document.getElementById('wilayahTableBody');
   if (!tbody) return;
-  
+
   tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>`;
 
   let all = [];
@@ -1412,10 +1412,10 @@ async function loadBAPPKecamatanFilter() {
   try {
     const { data, error } = await db.from('wilayah_kec').select('kode_kec, nmkec').order('nmkec');
     if (error) throw error;
-    
+
     const filterSelect = document.getElementById('bappKecamatanFilter');
     if (!filterSelect) return;
-    
+
     // Clear and keep default option
     filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
     data.forEach(k => {
@@ -1435,15 +1435,15 @@ async function loadBAPPData() {
   if (tbody) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
   }
-  
+
   try {
     const { data, error } = await db
       .from('bapp_uploads')
       .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)')
       .order('created_at', { ascending: false });
-      
+
     if (error) throw error;
-    
+
     allBappUploads = data || [];
     filterBAPP();
   } catch (err) {
@@ -1461,15 +1461,15 @@ function filterBAPP() {
   const roleVal = document.getElementById('bappRoleFilter')?.value || '';
   const timeStartVal = document.getElementById('bappTimeStart')?.value || '';
   const timeEndVal = document.getElementById('bappTimeEnd')?.value || '';
-  
+
   filteredBappUploads = allBappUploads.filter(b => {
     // Filter Kecamatan
     if (kecVal && b.kode_kec !== kecVal) return false;
-    
+
     // Filter Role
     const role = b.profiles?.role || '';
     if (roleVal && role !== roleVal) return false;
-    
+
     // Filter Range Waktu Upload
     if (timeStartVal) {
       const startLimit = new Date(timeStartVal).getTime();
@@ -1481,10 +1481,10 @@ function filterBAPP() {
       const uploadTime = new Date(b.created_at).getTime();
       if (uploadTime > endLimit) return false;
     }
-    
+
     return true;
   });
-  
+
   renderBAPPTable();
 }
 
@@ -1493,28 +1493,28 @@ function renderBAPPTable() {
   const tbody = document.getElementById('bappTableBody');
   const countEl = document.getElementById('bappTableCount');
   if (!tbody) return;
-  
+
   // Reset select-all checkbox
   const selectAllCheckbox = document.getElementById('selectAllBapp');
   if (selectAllCheckbox) selectAllCheckbox.checked = false;
-  
+
   if (countEl) {
     countEl.textContent = `Total: ${filteredBappUploads.length} petugas`;
   }
-  
+
   if (filteredBappUploads.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data upload BAPP yang cocok</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data upload screenshot Fasih yang cocok</td></tr>';
     updateSelectedBappCount();
     return;
   }
-  
+
   tbody.innerHTML = filteredBappUploads.map(b => {
     const timeText = formatDate(b.created_at, true);
     const nama = b.profiles?.nama || '—';
     const sobatid = b.profiles?.sobatid || '—';
     const role = b.profiles?.role ? b.profiles.role.toUpperCase() : '—';
     const kecamatan = b.wilayah_kec?.nmkec || '—';
-    
+
     return `
       <tr>
         <td style="text-align:center">
@@ -1534,7 +1534,7 @@ function renderBAPPTable() {
       </tr>
     `;
   }).join('');
-  
+
   updateSelectedBappCount();
 }
 
@@ -1550,10 +1550,10 @@ function toggleSelectAllBapp(checked) {
 function updateSelectedBappCount() {
   const checkboxes = document.querySelectorAll('.bapp-row-checkbox:checked');
   const count = checkboxes.length;
-  
+
   const countSpan = document.getElementById('selectedBappCount');
   const printBtn = document.getElementById('btnPrintSelected');
-  
+
   if (countSpan) countSpan.textContent = count;
   if (printBtn) {
     printBtn.style.display = count > 0 ? 'inline-flex' : 'none';
@@ -1570,7 +1570,7 @@ function printSingleBAPP(id) {
 function printSelectedBAPP() {
   const checkedIds = Array.from(document.querySelectorAll('.bapp-row-checkbox:checked')).map(cb => cb.value);
   const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id));
-  
+
   if (selectedRows.length > 0) {
     printBAPP(selectedRows);
   }
@@ -1583,11 +1583,11 @@ function printBAPP(rows) {
     showToast('Gagal membuka jendela cetak. Pastikan pop-up dibolehkan!', 'error');
     return;
   }
-  
+
   const pagesHtml = rows.map((row, idx) => {
     const namaPetugas = row.profiles?.nama || '.........................................';
     const isLast = idx === rows.length - 1;
-    
+
     return `
       <div class="bapp-page ${isLast ? '' : 'page-break'}">
         <div class="page-number">-4-</div>
@@ -1625,7 +1625,7 @@ function printBAPP(rows) {
       </div>
     `;
   }).join('');
-  
+
   const htmlContent = `
     <!DOCTYPE html>
     <html lang="id">
@@ -1731,7 +1731,7 @@ function printBAPP(rows) {
     </body>
     </html>
   `;
-  
+
   printWindow.document.open();
   printWindow.document.write(htmlContent);
   printWindow.document.close();
