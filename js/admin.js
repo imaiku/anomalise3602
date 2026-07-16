@@ -2249,19 +2249,223 @@ function editBappCrop(id) {
   };
 }
 
-// Generate PDF Page and trigger Print dialog via PHP FPDF backend
-function printBAPP(rows) {
-  const ids = rows.map(r => r.id).join(',');
-  const namas = rows.map(r => r.profiles?.nama || '.........................................').join(',');
-  const kecamatans = rows.map(r => r.wilayah_kec?.nmkec || '.........................................').join(',');
+// Fungsi helper untuk memuat jsPDF secara dinamis dari CDN jika belum termuat
+function loadJsPDF(callback) {
+  if (window.jspdf) {
+    callback();
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+  script.onload = callback;
+  script.onerror = () => {
+    showToast('Gagal memuat library jsPDF', 'error');
+  };
+  document.head.appendChild(script);
+}
 
-  if (!ids) {
+// Generate PDF Page and trigger Print dialog via client-side jsPDF (100% Vercel & Static Host Compatible)
+function printBAPP(rows) {
+  if (!rows || rows.length === 0) {
     showToast('Tidak ada BAPP yang dipilih', 'error');
     return;
   }
-
-  // Buka halaman cetakbapp.php, parameter krop akan di-load secara otomatis dari db di backend
-  window.open(`cetakbapp.php?id=${ids}&nama=${encodeURIComponent(namas)}&kecamatan=${encodeURIComponent(kecamatans)}`, '_blank');
+  
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    
+    // Tampilkan indikator status melayang
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1e293b;
+        border: 1px solid #38bdf8;
+        color: #f8fafc;
+        padding: 14px 20px;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        z-index: 99999;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: system-ui, sans-serif;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      `;
+      document.body.appendChild(indicator);
+    }
+    
+    // Inisialisasi jsPDF (Landscape A4, unit: mm)
+    const pdf = new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    // Helper untuk load gambar digital signature local sebagai base64
+    const loadImgAsBase64 = (url) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = 'Anonymous';
+        img.src = url;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => {
+          resolve(null);
+        };
+      });
+    };
+    
+    // Muat tanda tangan digital local
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
+    
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      indicator.innerHTML = `
+        <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
+        Membuat Halaman PDF BAPP (${i + 1}/${rows.length})...
+      `;
+      
+      if (i > 0) {
+        pdf.addPage();
+      }
+      
+      const nama = r.profiles?.nama || '.........................................';
+      const kecamatan = r.wilayah_kec?.nmkec || '.........................................';
+      
+      // 1. Nomor Halaman
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(11);
+      pdf.text('-4-', 148.5, 12, { align: 'center' });
+      
+      // 2. Judul Bagian
+      pdf.setFont('times', 'bold');
+      pdf.setFontSize(12);
+      pdf.text('II. BUKTI PENCAPAIAN PEKERJAAN KECAMATAN ' + kecamatan.toUpperCase(), 20, 20);
+      
+      // 3. Render Bukti Screenshot (Potong sisi klien menggunakan Canvas)
+      if (r.screenshot) {
+        await new Promise((resolve) => {
+          const img = new Image();
+          img.src = r.screenshot;
+          img.onload = () => {
+            const topOffset = (r.crop_top !== undefined && r.crop_top !== null) ? parseFloat(r.crop_top) : 12.5;
+            const bottomOffset = (r.crop_bottom !== undefined && r.crop_bottom !== null) ? parseFloat(r.crop_bottom) : 46.5;
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            const origW = img.naturalWidth;
+            const origH = img.naturalHeight;
+            
+            const cropHeightPercent = bottomOffset - topOffset;
+            const cropHeight = origH * (cropHeightPercent / 100);
+            const startY = origH * (topOffset / 100);
+            
+            canvas.width = origW;
+            canvas.height = cropHeight;
+            
+            ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
+            const croppedBase64 = canvas.toDataURL('image/png');
+            
+            // Hitung lebar gambar agar rasio aspek tetap terjaga dengan tinggi fixed 60mm
+            const cropRatio = (origH / origW) * (cropHeightPercent / 100);
+            const imgHeight = 60.0;
+            const imgWidth = imgHeight / cropRatio;
+            const imgX = (297 - imgWidth) / 2;
+            const imgY = 28.0;
+            
+            pdf.addImage(croppedBase64, 'PNG', imgX, imgY, imgWidth, imgHeight);
+            resolve();
+          };
+          img.onerror = () => {
+            resolve();
+          };
+        });
+      } else {
+        // Fallback jika tidak ada gambar
+        const imgHeight = 60.0;
+        const imgWidth = 80.0;
+        const imgX = (297 - imgWidth) / 2;
+        const imgY = 28.0;
+        pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
+        pdf.setFont('times', 'italic');
+        pdf.setFontSize(10);
+        pdf.text('[Bukti Screenshot Tidak Tersedia]', 148.5, imgY + 30, { align: 'center' });
+      }
+      
+      // 4. Area Tanda Tangan
+      const sigY = 120.0;
+      pdf.setFont('times', 'normal');
+      pdf.setFontSize(11);
+      
+      // Kolom Kiri: PIHAK KEDUA
+      pdf.text('PIHAK KEDUA,', 70, sigY, { align: 'center' });
+      // Kolom Kanan: PIHAK PERTAMA
+      pdf.text('PIHAK PERTAMA,', 227, sigY, { align: 'center' });
+      
+      // Tanda Tangan Yulian (Pihak Pertama)
+      if (ttdYulianBase64) {
+        const ttdX = 177 + (100 - 32) / 2;
+        pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 4.5, 32, 16);
+      }
+      
+      // Tanda Tangan PPK Ning Sri Lestari (Lebar 50mm, Tinggi 25mm sesuai instruksi terakhir)
+      if (ttdNingBase64) {
+        const ttdX = 85 + (100 - 32) / 2; // ttd_x = 119
+        pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 42, 50, 25);
+      }
+      
+      // Nama Terang Bold & Underlined
+      pdf.setFont('times', 'bold');
+      
+      // Kiri: Nama Petugas
+      pdf.text(nama, 70, sigY + 25, { align: 'center' });
+      const leftWidth = pdf.getTextWidth(nama);
+      pdf.setLineWidth(0.3);
+      pdf.line(70 - leftWidth/2, sigY + 26, 70 + leftWidth/2, sigY + 26);
+      
+      // Kanan: YULIAN SARWO EDI
+      pdf.text('YULIAN SARWO EDI', 227, sigY + 25, { align: 'center' });
+      const rightWidth = pdf.getTextWidth('YULIAN SARWO EDI');
+      pdf.line(227 - rightWidth/2, sigY + 26, 227 + rightWidth/2, sigY + 26);
+      
+      // Menyetujui: PPK NING SRI LESTARI (Tengah Bawah)
+      pdf.setFont('times', 'normal');
+      pdf.text('Menyetujui,', 148.5, sigY + 33, { align: 'center' });
+      pdf.text('Pejabat Pembuat Komitmen', 148.5, sigY + 38, { align: 'center' });
+      
+      pdf.setFont('times', 'bold');
+      pdf.text('NING SRI LESTARI', 148.5, sigY + 63, { align: 'center' });
+      const ppkWidth = pdf.getTextWidth('NING SRI LESTARI');
+      pdf.line(148.5 - ppkWidth/2, sigY + 64, 148.5 + ppkWidth/2, sigY + 64);
+    }
+    
+    indicator.style.borderColor = '#10b981';
+    indicator.style.color = '#10b981';
+    indicator.innerHTML = '✓ Berhasil membuat PDF!';
+    
+    // Buka output PDF di tab baru
+    const pdfBlobUrl = pdf.output('bloburl');
+    window.open(pdfBlobUrl, '_blank');
+    
+    setTimeout(() => {
+      indicator.remove();
+    }, 2000);
+  });
 }
 
 
