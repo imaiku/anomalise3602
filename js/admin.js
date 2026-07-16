@@ -2260,8 +2260,8 @@ function printBAPP(rows) {
     return;
   }
 
-  // Buka halaman print_bapp.php, parameter krop akan di-load secara otomatis dari db di backend
-  window.open(`print_bapp.php?id=${ids}&nama=${encodeURIComponent(namas)}&kecamatan=${encodeURIComponent(kecamatans)}`, '_blank');
+  // Buka halaman cetakbapp.php, parameter krop akan di-load secara otomatis dari db di backend
+  window.open(`cetakbapp.php?id=${ids}&nama=${encodeURIComponent(namas)}&kecamatan=${encodeURIComponent(kecamatans)}`, '_blank');
 }
 
 
