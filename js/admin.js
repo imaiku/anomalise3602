@@ -1445,15 +1445,39 @@ async function loadBAPPData() {
   }
 
   try {
-    const { data, error, count } = await db
-      .from('bapp_uploads')
-      .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)', { count: 'exact' })
-      .order('created_at', { ascending: false });
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    let totalCount = 0;
 
-    if (error) throw error;
+    while (hasMore) {
+      const { data, error, count } = await db
+        .from('bapp_uploads')
+        .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)', { count: page === 0 ? 'exact' : 'none' })
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
 
-    allBappUploads = data || [];
-    totalBappDbCount = count || allBappUploads.length;
+      if (error) throw error;
+
+      if (page === 0) {
+        totalCount = count || 0;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    allBappUploads = allData;
+    totalBappDbCount = totalCount || allBappUploads.length;
     currentBappPage = 1;
     filterBAPP();
   } catch (err) {
@@ -1509,9 +1533,9 @@ function filterBAPP() {
 function sortBappData() {
   filteredBappUploads.sort((a, b) => {
     let va, vb;
-    if (bappSortField === 'nama') {
-      va = (a.profiles?.nama || '').toLowerCase();
-      vb = (b.profiles?.nama || '').toLowerCase();
+    if (bappSortField === 'created_at') {
+      va = new Date(a.created_at || 0).getTime();
+      vb = new Date(b.created_at || 0).getTime();
     } else {
       va = (a.profiles?.nama || '').toLowerCase();
       vb = (b.profiles?.nama || '').toLowerCase();
@@ -1592,6 +1616,12 @@ function renderBAPPTable() {
               <circle cx="12" cy="12" r="3"/>
             </svg>
             Lihat Bukti
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="editBappCrop('${b.id}')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+            </svg>
+            Edit Crop
           </button>
           <button class="btn btn-secondary btn-sm" onclick="printSingleBAPP('${b.id}')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
             <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
@@ -1727,164 +1757,259 @@ function printSelectedBAPP() {
   }
 }
 
-// Generate PDF Page and trigger Print dialog
-function printBAPP(rows) {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    showToast('Gagal membuka jendela cetak. Pastikan pop-up dibolehkan!', 'error');
+// Edit BAPP Crop Settings visually with live preview overlays
+function editBappCrop(id) {
+  const b = allBappUploads.find(item => item.id === id);
+  if (!b || !b.screenshot) {
+    showToast('Screenshot tidak ditemukan', 'error');
     return;
   }
-
-  const pagesHtml = rows.map((row, idx) => {
-    const namaPetugas = row.profiles?.nama || '.........................................';
-    const isLast = idx === rows.length - 1;
-
-    return `
-      <div class="bapp-page ${isLast ? '' : 'page-break'}">
-        <div class="page-number">-4-</div>
+  
+  // Ambil data crop langsung dari properti database, default ke top: 12.5% dan bottom: 46.5%
+  const cropSettings = {
+    top: (b.crop_top !== undefined && b.crop_top !== null) ? parseFloat(b.crop_top) : 12.5,
+    bottom: (b.crop_bottom !== undefined && b.crop_bottom !== null) ? parseFloat(b.crop_bottom) : 46.5
+  };
+  
+  const modalId = 'bapp-crop-editor-modal';
+  let modal = document.getElementById(modalId);
+  if (modal) modal.remove();
+  
+  modal = document.createElement('div');
+  modal.id = modalId;
+  modal.style = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(8px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    font-family: system-ui, -apple-system, sans-serif;
+  `;
+  
+  modal.innerHTML = `
+    <div style="
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 16px;
+      padding: 24px;
+      width: 480px;
+      color: #f8fafc;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-height: 90vh;
+    ">
+      <h3 style="margin-top: 0; margin-bottom: 4px; font-size: 1.25rem; font-weight: 600; color: #ffffff; width: 100%;">Sesuaikan Potong Bukti</h3>
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px; width: 100%; line-height: 1.4;">
+        Bagian terang adalah area yang akan dicetak di PDF. Geser slider untuk menyesuaikan crop.
+      </p>
+      
+      <!-- Container Visual Preview -->
+      <div id="preview-container" style="
+        position: relative;
+        width: 240px;
+        height: 380px;
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        border-radius: 8px;
+        overflow: hidden;
+        background: #0f172a;
+        margin-bottom: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+      ">
+        <img src="${b.screenshot}" style="width: 100%; height: 100%; object-fit: contain; pointer-events: none;" />
         
-        <div class="section-title">II. BUKTI PENCAPAIAN PEKERJAAN</div>
+        <!-- Shaded top overlay -->
+        <div id="crop-overlay-top" style="
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          height: ${cropSettings.top}%;
+          background: rgba(15, 23, 42, 0.75);
+          border-bottom: 2px dashed #ef4444;
+          box-sizing: border-box;
+          transition: height 0.05s ease-out;
+        "></div>
         
-        <div class="screenshot-container">
-          <div class="screenshot-img-wrapper">
-            <img class="screenshot-img" src="${row.screenshot}" alt="Screenshot Bukti Kerja">
+        <!-- Shaded bottom overlay -->
+        <div id="crop-overlay-bottom" style="
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: ${100 - cropSettings.bottom}%;
+          background: rgba(15, 23, 42, 0.75);
+          border-top: 2px dashed #ef4444;
+          box-sizing: border-box;
+          transition: height 0.05s ease-out;
+        "></div>
+      </div>
+      
+      <!-- Sliders -->
+      <div style="width: 100%; margin-bottom: 20px;">
+        <!-- Batas Atas -->
+        <div style="margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+            <span style="color: #cbd5e1;">Batas Atas (Mulai Crop)</span>
+            <span id="label-top" style="color: #38bdf8; font-weight: 700;">${cropSettings.top}%</span>
           </div>
+          <input type="range" id="range-top" min="0" max="100" step="0.5" value="${cropSettings.top}" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
         </div>
         
-        <div class="signature-container">
-          <div class="signature-box" style="text-align: left; padding-left: 10mm;">
-            <div>PIHAK KEDUA,</div>
-            <div style="height: 5rem;"></div>
-            <div class="signature-name">${escHtml(namaPetugas)}</div>
+        <!-- Batas Bawah -->
+        <div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 4px;">
+            <span style="color: #cbd5e1;">Batas Bawah (Akhir Crop)</span>
+            <span id="label-bottom" style="color: #38bdf8; font-weight: 700;">${cropSettings.bottom}%</span>
           </div>
-          
-          <div class="signature-box" style="text-align: right; padding-right: 10mm;">
-            <div>PIHAK PERTAMA,</div>
-            <div style="height: 5rem;"></div>
-            <div class="signature-name">YULIAN SARWO EDI</div>
-          </div>
-          
-          <div class="signature-row-2">
-            <div class="signature-box" style="text-align: center;">
-              <div>Menyetujui,</div>
-              <div>Pejabat Pembuat Komitmen</div>
-              <div style="height: 5rem;"></div>
-              <div class="signature-name">NING SRI LESTARI</div>
-            </div>
-          </div>
+          <input type="range" id="range-bottom" min="0" max="100" step="0.5" value="${cropSettings.bottom}" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
         </div>
       </div>
-    `;
-  }).join('');
-
-  const htmlContent = `
-    <!DOCTYPE html>
-    <html lang="id">
-    <head>
-      <meta charset="UTF-8">
-      <title>Cetak Lampiran BAPP - Termin I</title>
-      <style>
-        @media print {
-          @page {
-            size: A4 landscape;
-            margin: 0; /* Menghilangkan Header (Title/Timestamp) & Footer (URL) bawaan browser */
-          }
-          .page-break {
-            page-break-after: always;
-            break-after: page;
-          }
-          .no-print {
-            display: none;
-          }
-        }
-        body {
-          font-family: 'Times New Roman', Times, serif;
-          font-size: 11pt;
-          line-height: 1.3;
-          color: #000;
-          margin: 15mm 20mm 15mm 20mm; /* Pindahkan margin kertas ke body */
-          padding: 0;
-          background-color: #fff;
-        }
-        .bapp-page {
-          box-sizing: border-box;
-          display: flex;
-          flex-direction: column;
-          min-height: 180mm; /* Fits inside printable area of A4 Landscape */
-        }
-        .page-number {
-          text-align: center;
-          margin-bottom: 1rem;
-          font-size: 11pt;
-        }
-        .section-title {
-          font-weight: bold;
-          font-size: 12pt;
-          margin-bottom: 1rem;
-        }
-        .screenshot-container {
-          flex-grow: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          margin: 0.5rem 0;
-        }
-        .screenshot-img-wrapper {
-          border: 1px solid #000;
-          padding: 3px;
-          background: #fff;
-          display: inline-block;
-          box-sizing: border-box;
-        }
-        .screenshot-img {
-          width: 80mm;
-          height: 80mm;
-          object-fit: cover;
-          object-position: top;
-          display: block;
-        }
-        .signature-container {
-          margin-top: auto;
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 1rem 2rem;
-          font-size: 11pt;
-          padding-top: 0.5rem;
-        }
-        .signature-row-2 {
-          grid-column: 1 / -1;
-          display: flex;
-          justify-content: center;
-          margin-top: 0.25rem;
-        }
-        .signature-box {
-          display: inline-block;
-        }
-        .signature-name {
-          font-weight: bold;
-          text-decoration: underline;
-        }
-      </style>
-    </head>
-    <body>
-      ${pagesHtml}
-      <script>
-        // Trigger print once everything has loaded
-        window.addEventListener('DOMContentLoaded', () => {
-          // Wait briefly for images to render
-          setTimeout(() => {
-            window.print();
-            // Close tab after print dialog completes
-            window.onafterprint = () => window.close();
-          }, 500);
-        });
-      <\/script>
-    </body>
-    </html>
+      
+      <!-- Action Buttons -->
+      <div style="display: flex; justify-content: flex-end; gap: 12px; width: 100%;">
+        <button id="btn-editor-cancel" style="
+          background: transparent;
+          border: 1px solid rgba(255,255,255,0.1);
+          color: #94a3b8;
+          padding: 8px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.875rem;
+        ">Batal</button>
+        <button id="btn-editor-reset" style="
+          background: #334155;
+          border: none;
+          color: #f8fafc;
+          padding: 8px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-size: 0.875rem;
+        ">Reset Otomatis</button>
+        <button id="btn-editor-save" style="
+          background: #0ea5e9;
+          border: none;
+          color: #ffffff;
+          padding: 8px 16px;
+          border-radius: 8px;
+          cursor: pointer;
+          font-weight: 600;
+          font-size: 0.875rem;
+        ">Simpan</button>
+      </div>
+    </div>
   `;
-
-  printWindow.document.open();
-  printWindow.document.write(htmlContent);
-  printWindow.document.close();
+  
+  document.body.appendChild(modal);
+  
+  const rangeTop = modal.querySelector('#range-top');
+  const rangeBottom = modal.querySelector('#range-bottom');
+  const labelTop = modal.querySelector('#label-top');
+  const labelBottom = modal.querySelector('#label-bottom');
+  const overlayTop = modal.querySelector('#crop-overlay-top');
+  const overlayBottom = modal.querySelector('#crop-overlay-bottom');
+  
+  // Real-time slider update
+  rangeTop.addEventListener('input', (e) => {
+    let val = parseFloat(e.target.value);
+    if (val >= parseFloat(rangeBottom.value)) {
+      val = parseFloat(rangeBottom.value) - 0.5;
+      rangeTop.value = val;
+    }
+    labelTop.textContent = val + '%';
+    overlayTop.style.height = val + '%';
+  });
+  
+  rangeBottom.addEventListener('input', (e) => {
+    let val = parseFloat(e.target.value);
+    if (val <= parseFloat(rangeTop.value)) {
+      val = parseFloat(rangeTop.value) + 0.5;
+      rangeBottom.value = val;
+    }
+    labelBottom.textContent = val + '%';
+    overlayBottom.style.height = (100 - val) + '%';
+  });
+  
+  modal.querySelector('#btn-editor-cancel').onclick = () => modal.remove();
+  
+  modal.querySelector('#btn-editor-reset').onclick = async () => {
+    try {
+      const { error } = await db
+        .from('bapp_uploads')
+        .update({ crop_top: 12.5, crop_bottom: 46.5 })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      b.crop_top = 12.5;
+      b.crop_bottom = 46.5;
+      showToast('Pemotongan direset ke otomatis', 'success');
+      modal.remove();
+      filterBAPP();
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal mereset krop: ' + err.message, 'error');
+    }
+  };
+  
+  modal.querySelector('#btn-editor-save').onclick = async () => {
+    const t = parseFloat(rangeTop.value);
+    const bValue = parseFloat(rangeBottom.value);
+    
+    const saveBtn = modal.querySelector('#btn-editor-save');
+    const originalText = saveBtn.textContent;
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = 'Menyimpan...';
+    
+    try {
+      // Simpan parameter krop numerik langsung ke Supabase
+      const { error } = await db
+        .from('bapp_uploads')
+        .update({ crop_top: t, crop_bottom: bValue })
+        .eq('id', id);
+        
+      if (error) throw error;
+      
+      // Update RAM local array
+      b.crop_top = t;
+      b.crop_bottom = bValue;
+      
+      showToast('Batas pemotongan berhasil disimpan!', 'success');
+      modal.remove();
+      filterBAPP();
+    } catch (err) {
+      console.error('Error saving crop offsets:', err);
+      showToast('Gagal menyimpan: ' + err.message, 'error');
+      saveBtn.disabled = false;
+      saveBtn.textContent = originalText;
+    }
+  };
 }
+
+// Generate PDF Page and trigger Print dialog via PHP FPDF backend
+function printBAPP(rows) {
+  const ids = rows.map(r => r.id).join(',');
+  const namas = rows.map(r => r.profiles?.nama || '.........................................').join(',');
+  const kecamatans = rows.map(r => r.wilayah_kec?.nmkec || '.........................................').join(',');
+  
+  if (!ids) {
+    showToast('Tidak ada BAPP yang dipilih', 'error');
+    return;
+  }
+  
+  // Buka halaman print_bapp.php, parameter krop akan di-load secara otomatis dari db di backend
+  window.open(`print_bapp.php?id=${ids}&nama=${encodeURIComponent(namas)}&kecamatan=${encodeURIComponent(kecamatans)}`, '_blank');
+}
+
+
+
 
