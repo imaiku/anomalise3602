@@ -1486,7 +1486,47 @@ async function loadBAPPData() {
     if (tbody) {
       tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
     }
+  } finally {
+    const spinner = tbody ? tbody.querySelector('.spinner') : null;
+    if (spinner) spinner.remove();
   }
+}
+
+// Fungsi pembantu OCR latar belakang tanpa mengganggu interaksi pengguna
+function runSilentOcrAutoDetect(imageSrc) {
+  return new Promise((resolve, reject) => {
+    if (!window.Tesseract) {
+      return reject('Library Tesseract tidak tersedia');
+    }
+    Tesseract.recognize(
+      imageSrc,
+      'eng'
+    ).then(({ data: { lines } }) => {
+      const img = new Image();
+      img.src = imageSrc;
+      img.onload = () => {
+        const h = img.naturalHeight;
+        let topY = null;
+        let bottomY = null;
+        
+        for (const line of lines) {
+          const text = line.text.toLowerCase();
+          if (topY === null && (text.includes('silakan') || text.includes('sensus') || text.includes('ekonomi') || text.includes('pilih'))) {
+            topY = line.bbox.y0;
+          }
+          if (text.includes('selesai') || text.includes('hari lagi') || text.includes('hari')) {
+            bottomY = line.bbox.y1;
+          }
+        }
+        
+        const finalTop = topY !== null ? Math.max(0, topY - 15) / h * 100 : 12.5;
+        const finalBottom = bottomY !== null ? Math.min(h, bottomY + 25) / h * 100 : 46.5;
+        
+        resolve({ top: parseFloat(finalTop.toFixed(1)), bottom: parseFloat(finalBottom.toFixed(1)) });
+      };
+      img.onerror = () => reject('Gagal memproses gambar');
+    }).catch(err => reject(err));
+  });
 }
 
 // Filter BAPP data locally
@@ -1734,11 +1774,107 @@ function updateSelectedBappCount() {
 
   const countSpan = document.getElementById('selectedBappCount');
   const printBtn = document.getElementById('btnPrintSelected');
+  const ocrBtn = document.getElementById('btnOcrSelected');
+  const ocrCountSpan = document.getElementById('selectedOcrCount');
 
   if (countSpan) countSpan.textContent = count;
+  if (ocrCountSpan) ocrCountSpan.textContent = count;
+  
   if (printBtn) {
     printBtn.style.display = count > 0 ? 'inline-flex' : 'none';
   }
+  if (ocrBtn) {
+    // Tombol Scan Ulang OCR massal hanya tampil untuk role superadmin
+    ocrBtn.style.display = (count > 0 && adminProfile && adminProfile.role === 'superadmin') ? 'inline-flex' : 'none';
+  }
+}
+
+// Menjalankan OCR paksa massal untuk baris BAPP yang dicentang (Khusus Superadmin)
+async function ocrSelectedBAPP() {
+  const checkedIds = Array.from(document.querySelectorAll('.bapp-row-checkbox:checked')).map(cb => cb.value);
+  const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id) && b.screenshot);
+  
+  if (selectedRows.length === 0) {
+    showToast('Pilih BAPP yang memiliki screenshot', 'error');
+    return;
+  }
+  
+  const ocrBtn = document.getElementById('btnOcrSelected');
+  const originalText = ocrBtn.innerHTML;
+  ocrBtn.disabled = true;
+  ocrBtn.innerHTML = 'Memproses OCR...';
+  
+  loadTesseract(async () => {
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `
+        position: fixed;
+        bottom: 24px;
+        right: 24px;
+        background: #1e293b;
+        border: 1px solid #38bdf8;
+        color: #f8fafc;
+        padding: 14px 20px;
+        border-radius: 12px;
+        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        z-index: 99999;
+        font-size: 0.85rem;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: system-ui, sans-serif;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      `;
+      document.body.appendChild(indicator);
+    }
+    
+    for (let i = 0; i < selectedRows.length; i++) {
+      const b = selectedRows[i];
+      indicator.innerHTML = `
+        <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
+        Memindai OCR Paksa BAPP (${i + 1}/${selectedRows.length})...
+      `;
+      
+      try {
+        const result = await runSilentOcrAutoDetect(b.screenshot);
+        if (result) {
+          // Update ke database
+          const { error } = await db
+            .from('bapp_uploads')
+            .update({ crop_top: result.top, crop_bottom: result.bottom })
+            .eq('id', b.id);
+            
+          if (error) throw error;
+          
+          // Update data di RAM lokal
+          b.crop_top = result.top;
+          b.crop_bottom = result.bottom;
+        }
+      } catch (err) {
+        console.error('Silent OCR forced auto-detect failed for ID: ' + b.id, err);
+      }
+    }
+    
+    indicator.style.borderColor = '#10b981';
+    indicator.style.color = '#10b981';
+    indicator.innerHTML = '✓ Pindai Ulang OCR Selesai!';
+    
+    setTimeout(() => {
+      indicator.remove();
+      filterBAPP(); // Re-render rekap tabel admin
+      ocrBtn.disabled = false;
+      ocrBtn.innerHTML = originalText;
+      
+      // Reset pilihan checkbox
+      document.querySelectorAll('.bapp-row-checkbox').forEach(cb => cb.checked = false);
+      const checkAll = document.getElementById('checkAllBapp');
+      if (checkAll) checkAll.checked = false;
+      updateSelectedBappCount();
+    }, 2000);
+  });
 }
 
 // Print single BAPP by ID
@@ -1757,6 +1893,100 @@ function printSelectedBAPP() {
   }
 }
 
+// Fungsi helper untuk memuat Tesseract.js secara dinamis lewat CDN jika belum termuat
+function loadTesseract(callback) {
+  if (window.Tesseract) {
+    callback();
+    return;
+  }
+  const script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+  script.onload = callback;
+  script.onerror = () => {
+    showToast('Gagal memuat library OCR Tesseract', 'error');
+  };
+  document.head.appendChild(script);
+}
+
+// Fungsi untuk menganalisis teks screenshot secara otomatis menggunakan Tesseract OCR
+function runOcrAutoDetect(imageSrc, rangeTop, rangeBottom, labelTop, labelBottom, overlayTop, overlayBottom, statusBar) {
+  if (!window.Tesseract) {
+    statusBar.style.background = 'rgba(239, 68, 68, 0.1)';
+    statusBar.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+    statusBar.style.color = '#ef4444';
+    statusBar.textContent = 'Gagal mendeteksi: Library OCR tidak termuat.';
+    return;
+  }
+
+  Tesseract.recognize(
+    imageSrc,
+    'eng', // Menggunakan kamus bahasa Inggris (sangat cepat & handal untuk mengenali tulisan UI digital)
+    {
+      logger: m => {
+        if (m.status === 'recognizing') {
+          statusBar.innerHTML = `<span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;margin-right:6px"></span> Menganalisis teks: ${Math.round(m.progress * 100)}%`;
+        }
+      }
+    }
+  ).then(({ data: { lines } }) => {
+    const img = new Image();
+    img.src = imageSrc;
+    img.onload = () => {
+      const h = img.naturalHeight;
+      let topY = null;
+      let bottomY = null;
+
+      for (const line of lines) {
+        const text = line.text.toLowerCase();
+
+        // Deteksi batas atas: cari baris yang mengandung 'silakan', 'sensus', 'ekonomi', 'pilih'
+        if (topY === null && (text.includes('silakan') || text.includes('sensus') || text.includes('ekonomi') || text.includes('pilih'))) {
+          topY = line.bbox.y0;
+        }
+
+        // Deteksi batas bawah: cari baris yang mengandung 'selesai', 'hari lagi', atau 'hari'
+        if (text.includes('selesai') || text.includes('hari lagi') || text.includes('hari')) {
+          bottomY = line.bbox.y1;
+        }
+      }
+
+      let finalTop = 12.5;
+      let finalBottom = 46.5;
+
+      if (topY !== null) {
+        // Berikan padding 15px ke atas
+        const paddedTop = Math.max(0, topY - 15);
+        finalTop = (paddedTop / h) * 100;
+      }
+
+      if (bottomY !== null) {
+        // Berikan padding 15px ke bawah
+        const paddedBottom = Math.min(h, bottomY + 25);
+        finalBottom = (paddedBottom / h) * 100;
+      }
+
+      // Update UI slider & overlay
+      rangeTop.value = finalTop.toFixed(1);
+      rangeBottom.value = finalBottom.toFixed(1);
+      labelTop.textContent = finalTop.toFixed(1) + '%';
+      labelBottom.textContent = finalBottom.toFixed(1) + '%';
+      overlayTop.style.height = finalTop.toFixed(1) + '%';
+      overlayBottom.style.height = (100 - finalBottom).toFixed(1) + '%';
+
+      statusBar.style.background = 'rgba(16, 185, 129, 0.1)';
+      statusBar.style.borderColor = 'rgba(16, 185, 129, 0.2)';
+      statusBar.style.color = '#10b981';
+      statusBar.innerHTML = '✓ OCR Berhasil! Batas krop otomatis disesuaikan.';
+    };
+  }).catch(err => {
+    console.error(err);
+    statusBar.style.background = 'rgba(239, 68, 68, 0.1)';
+    statusBar.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+    statusBar.style.color = '#ef4444';
+    statusBar.textContent = 'Gagal mendeteksi teks secara otomatis. Silakan atur manual.';
+  });
+}
+
 // Edit BAPP Crop Settings visually with live preview overlays
 function editBappCrop(id) {
   const b = allBappUploads.find(item => item.id === id);
@@ -1764,17 +1994,17 @@ function editBappCrop(id) {
     showToast('Screenshot tidak ditemukan', 'error');
     return;
   }
-  
+
   // Ambil data crop langsung dari properti database, default ke top: 12.5% dan bottom: 46.5%
   const cropSettings = {
     top: (b.crop_top !== undefined && b.crop_top !== null) ? parseFloat(b.crop_top) : 12.5,
     bottom: (b.crop_bottom !== undefined && b.crop_bottom !== null) ? parseFloat(b.crop_bottom) : 46.5
   };
-  
+
   const modalId = 'bapp-crop-editor-modal';
   let modal = document.getElementById(modalId);
   if (modal) modal.remove();
-  
+
   modal = document.createElement('div');
   modal.id = modalId;
   modal.style = `
@@ -1791,7 +2021,7 @@ function editBappCrop(id) {
     z-index: 10000;
     font-family: system-ui, -apple-system, sans-serif;
   `;
-  
+
   modal.innerHTML = `
     <div style="
       background: #1e293b;
@@ -1810,6 +2040,24 @@ function editBappCrop(id) {
       <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px; width: 100%; line-height: 1.4;">
         Bagian terang adalah area yang akan dicetak di PDF. Geser slider untuk menyesuaikan crop.
       </p>
+      
+      <!-- OCR Status Bar -->
+      <div id="ocr-status-bar" style="
+        width: 100%;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: rgba(56, 189, 248, 0.1);
+        border: 1px solid rgba(56, 189, 248, 0.2);
+        color: #38bdf8;
+        font-size: 0.8rem;
+        text-align: center;
+        margin-bottom: 16px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+      ">
+        <span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;margin-right:6px"></span>
+        Memuat kecerdasan OCR untuk mendeteksi teks...
+      </div>
       
       <!-- Container Visual Preview -->
       <div id="preview-container" style="
@@ -1908,16 +2156,22 @@ function editBappCrop(id) {
       </div>
     </div>
   `;
-  
+
   document.body.appendChild(modal);
-  
+
   const rangeTop = modal.querySelector('#range-top');
   const rangeBottom = modal.querySelector('#range-bottom');
   const labelTop = modal.querySelector('#label-top');
   const labelBottom = modal.querySelector('#label-bottom');
   const overlayTop = modal.querySelector('#crop-overlay-top');
   const overlayBottom = modal.querySelector('#crop-overlay-bottom');
-  
+  const ocrStatus = modal.querySelector('#ocr-status-bar');
+
+  // Pemicu OCR Otomatis setelah modal terbuka
+  loadTesseract(() => {
+    runOcrAutoDetect(b.screenshot, rangeTop, rangeBottom, labelTop, labelBottom, overlayTop, overlayBottom, ocrStatus);
+  });
+
   // Real-time slider update
   rangeTop.addEventListener('input', (e) => {
     let val = parseFloat(e.target.value);
@@ -1928,7 +2182,7 @@ function editBappCrop(id) {
     labelTop.textContent = val + '%';
     overlayTop.style.height = val + '%';
   });
-  
+
   rangeBottom.addEventListener('input', (e) => {
     let val = parseFloat(e.target.value);
     if (val <= parseFloat(rangeTop.value)) {
@@ -1938,18 +2192,18 @@ function editBappCrop(id) {
     labelBottom.textContent = val + '%';
     overlayBottom.style.height = (100 - val) + '%';
   });
-  
+
   modal.querySelector('#btn-editor-cancel').onclick = () => modal.remove();
-  
+
   modal.querySelector('#btn-editor-reset').onclick = async () => {
     try {
       const { error } = await db
         .from('bapp_uploads')
         .update({ crop_top: 12.5, crop_bottom: 46.5 })
         .eq('id', id);
-        
+
       if (error) throw error;
-      
+
       b.crop_top = 12.5;
       b.crop_bottom = 46.5;
       showToast('Pemotongan direset ke otomatis', 'success');
@@ -1960,29 +2214,29 @@ function editBappCrop(id) {
       showToast('Gagal mereset krop: ' + err.message, 'error');
     }
   };
-  
+
   modal.querySelector('#btn-editor-save').onclick = async () => {
     const t = parseFloat(rangeTop.value);
     const bValue = parseFloat(rangeBottom.value);
-    
+
     const saveBtn = modal.querySelector('#btn-editor-save');
     const originalText = saveBtn.textContent;
     saveBtn.disabled = true;
     saveBtn.innerHTML = 'Menyimpan...';
-    
+
     try {
       // Simpan parameter krop numerik langsung ke Supabase
       const { error } = await db
         .from('bapp_uploads')
         .update({ crop_top: t, crop_bottom: bValue })
         .eq('id', id);
-        
+
       if (error) throw error;
-      
+
       // Update RAM local array
       b.crop_top = t;
       b.crop_bottom = bValue;
-      
+
       showToast('Batas pemotongan berhasil disimpan!', 'success');
       modal.remove();
       filterBAPP();
@@ -2000,12 +2254,12 @@ function printBAPP(rows) {
   const ids = rows.map(r => r.id).join(',');
   const namas = rows.map(r => r.profiles?.nama || '.........................................').join(',');
   const kecamatans = rows.map(r => r.wilayah_kec?.nmkec || '.........................................').join(',');
-  
+
   if (!ids) {
     showToast('Tidak ada BAPP yang dipilih', 'error');
     return;
   }
-  
+
   // Buka halaman print_bapp.php, parameter krop akan di-load secara otomatis dari db di backend
   window.open(`print_bapp.php?id=${ids}&nama=${encodeURIComponent(namas)}&kecamatan=${encodeURIComponent(kecamatans)}`, '_blank');
 }
