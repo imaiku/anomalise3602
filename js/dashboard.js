@@ -408,21 +408,152 @@ document.addEventListener('click', (e) => {
   }
 });
 
-async function loadData() {
+let activeScopeRows = [];
+let currentLoadId = 0;
+let lastLoadedScope = {
+  kec: null,
+  des: null,
+  sls: null,
+  sub: null,
+  petugasId: null
+};
+
+async function loadRemainingRowsInBackground(loadId, buildScopeQuery, applyRoleFilter) {
+  let page = 1;
+  const pageSize = 500;
+  let hasMore = true;
+  
+  while (hasMore && loadId === currentLoadId) {
+    try {
+      let q = buildScopeQuery();
+      const qObj = await applyRoleFilter(q);
+      q = qObj ? qObj.q : null;
+      if (!q) break;
+      
+      const start = page * pageSize;
+      const end = (page + 1) * pageSize - 1;
+      const { data, error } = await q.range(start, end);
+      
+      if (error) throw error;
+      if (loadId !== currentLoadId) break;
+      
+      if (data && data.length > 0) {
+        activeScopeRows = activeScopeRows.concat(data);
+        applyLocalFiltersAndRender();
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    } catch (err) {
+      console.error('Error loading remaining rows in background:', err);
+      break;
+    }
+  }
+}
+
+function applyLocalFiltersAndRender() {
+  const status = document.getElementById('filterStatus')?.value;
+  const jenis  = document.getElementById('filterJenis')?.value;
+  const selectedNomorList = getSelectedNomorFilters();
+  const ket    = document.getElementById('filterKeterangan')?.value;
+  const search = document.getElementById('filterSearch')?.value.trim().toLowerCase();
+  const reject = document.getElementById('filterReject')?.value;
+
+  let rows = activeScopeRows;
+
+  // Filter show_anomaly for PPL and PML
+  if (currentProfile && ['ppl', 'pml'].includes(currentProfile.role)) {
+    rows = rows.filter(r => r.show_anomaly !== false);
+  }
+
+  // Local Search Filter
+  if (search) {
+    rows = rows.filter(r => 
+      (r.assignment_id && r.assignment_id.toLowerCase().includes(search)) ||
+      (r.nama_entitas && r.nama_entitas.toLowerCase().includes(search)) ||
+      (r.kode_sls_gabungan && r.kode_sls_gabungan.toLowerCase().includes(search))
+    );
+  }
+
+  allData = groupByAssignment(rows);
+  
+  // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
+  filteredData = allData.filter(group => {
+    // 1. Status Filter
+    if (status && !group.rows.some(r => r.status === status)) return false;
+    
+    // 2. Nomor Filter (Match if group contains any of the selected anomaly numbers)
+    if (selectedNomorList && selectedNomorList.length > 0) {
+      const hasMatchingNomor = group.rows.some(r => {
+        const val = `${r.tipe}:${r.nomor_anomali}`;
+        return selectedNomorList.includes(val);
+      });
+      if (!hasMatchingNomor) return false;
+    }
+    
+    // 3. Keterangan (ket) Filter
+    if (ket) {
+      const groupKet = getKeterangan(group);
+      if (groupKet !== ket) return false;
+    }
+
+    // 4. Reject Filter
+    if (reject === 'ya' && (!group.is_rejected || !group.is_api_synced)) return false;
+    if (reject === 'pending' && (!group.is_rejected || group.is_api_synced)) return false;
+    if (reject === 'tidak' && group.is_rejected) return false;
+
+    // 5. Jenis Filter
+    if (jenis === 'keduanya') {
+      const hasKeluarga = group.rows.some(r => r.tipe === 'keluarga');
+      const hasUsaha = group.rows.some(r => r.tipe === 'usaha');
+      if (!hasKeluarga || !hasUsaha) return false;
+    } else if (jenis && jenis !== 'semua') {
+      if (!group.rows.some(r => r.tipe === jenis)) return false;
+    }
+    
+    return true;
+  });
+
+  sortData();
+  renderAll();
+  updateFilterChips();
+}
+
+async function loadData(forceRefresh = false) {
+  const currentScope = {
+    kec: selectedKec || '',
+    des: selectedDes || '',
+    sls: selectedSLS || '',
+    sub: selectedSub || '',
+    petugasId: selectedPetugas?.id || ''
+  };
+
+  const isScopeSame = 
+    currentScope.kec === lastLoadedScope.kec &&
+    currentScope.des === lastLoadedScope.des &&
+    currentScope.sls === lastLoadedScope.sls &&
+    currentScope.sub === lastLoadedScope.sub &&
+    currentScope.petugasId === lastLoadedScope.petugasId;
+
+  if (isScopeSame && !forceRefresh && activeScopeRows.length > 0) {
+    // Only apply filters locally since the data scope hasn't changed
+    applyLocalFiltersAndRender();
+    return;
+  }
+
   showTableLoading();
+  const loadId = ++currentLoadId;
+  lastLoadedScope = currentScope;
+
   try {
     const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected, is_api_synced';
 
-    // Baca filter aktif dari UI
-    const status = document.getElementById('filterStatus')?.value;
-    const jenis  = document.getElementById('filterJenis')?.value;
-    const selectedNomorList = getSelectedNomorFilters();
-    const ket    = document.getElementById('filterKeterangan')?.value;
-    const search = document.getElementById('filterSearch')?.value.trim();
-
-    // Builder: buat query dengan semua filter kecuali tipe
-    const buildQuery = (tipeOverride, selectCols = COLS, noLimit = false) => {
-      let q = db.from('assignment_anomali').select(selectCols).order('first_seen', { ascending: false });
+    const buildScopeQuery = (tipeOverride = null) => {
+      let q = db.from('assignment_anomali').select(COLS).order('first_seen', { ascending: false });
       if (tipeOverride) q = q.eq('tipe', tipeOverride);
       
       const isPetugas = currentProfile && ['ppl', 'pml'].includes(currentProfile.role);
@@ -430,11 +561,6 @@ async function loadData() {
         q = q.eq('show_anomaly', true);
       }
       
-      // Pencarian gabungan (Search SLS, KK, usaha, atau ID)
-      if (search) {
-        q = q.or(`assignment_id.ilike.%${search}%,nama_entitas.ilike.%${search}%,kode_sls_gabungan.ilike.%${search}%`);
-      }
-
       // Filter Wilayah Berjenjang
       if (selectedSub) {
         q = q.eq('kode_sls_gabungan', selectedSub);
@@ -445,44 +571,23 @@ async function loadData() {
       } else if (selectedKec) {
         q = q.like('kode_desa', `${selectedKec}%`);
       }
-
-      // Filter Nomor Anomali Server-side (Handles cases where matching rows are far down)
-      if (selectedNomorList && selectedNomorList.length > 0) {
-        const orConditions = selectedNomorList.map(val => {
-          const [tipe, nomor] = val.split(':');
-          return `and(tipe.eq.${tipe},nomor_anomali.eq.${nomor})`;
-        }).join(',');
-        q = q.or(orConditions);
-      }
-
-      // Filter Keterangan Server-side
-      if (ket) {
-        if (ket === 'selesai') {
-          q = q.in('status', ['sesuai_kondisi', 'sudah_diperbaiki', 'tidak_terdeteksi_lagi']);
-        } else if (ket === 'belum') {
-          q = q.eq('status', 'belum_ditindaklanjuti');
-        }
-      }
-
-      if (!noLimit) q = q.limit(1000);
+      
       return q;
     };
 
-    // Tambahkan filter SLS berdasarkan role
-    const applyRoleFilter = async (q, tipe) => {
+    const applyRoleFilter = async (q) => {
       if (currentProfile?.role === 'ppl') {
         const { data: sl } = await db.rpc('get_my_sls');
         const codes = (sl || []).map(r => r.kode_sls);
-        if (codes.length === 0) return null;
-        return q.in('kode_sls_gabungan', codes);
+        if (codes.length === 0) return { q: null };
+        return { q: q.in('kode_sls_gabungan', codes) };
       } else if (currentProfile?.role === 'pml') {
         const { data: sl } = await db.rpc('get_pml_sls');
         const codes = (sl || []).map(r => r.kode_sls);
-        if (codes.length === 0) return null;
-        return q.in('kode_sls_gabungan', codes);
+        if (codes.length === 0) return { q: null };
+        return { q: q.in('kode_sls_gabungan', codes) };
       }
 
-      // Jika login as guest/admin/superadmin, dan memfilter petugas tertentu
       const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
       if (isFilterAllowed && selectedPetugas) {
         let codes = [];
@@ -494,7 +599,6 @@ async function loadData() {
         if (!rpcRes.error) {
           codes = (rpcRes.data || []).map(r => r.kode_sls);
         } else {
-          // Fallback untuk Admin jika fungsi RPC get_petugas_sls belum dibuat
           const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role.toLowerCase());
           if (isAdmin) {
             if (selectedPetugas.role.toLowerCase() === 'ppl') {
@@ -522,103 +626,34 @@ async function loadData() {
                 codes = (sl || []).map(r => r.kode_sls);
               }
             }
-          } else {
-            console.error('RPC get_petugas_sls error:', rpcRes.error);
           }
         }
 
-        if (codes.length === 0) return null;
-        return q.in('kode_sls_gabungan', codes);
+        if (codes.length === 0) return { q: null };
+        return { q: q.in('kode_sls_gabungan', codes) };
       }
-      return q;
+      return { q };
     };
 
-    let rows = [];
-
-    if (jenis === 'keduanya' && selectedNomorList.length === 0 && !ket) {
-
-      const rpcParams = {
-        p_status: null, // Move filtering to frontend to preserve grouping integrity
-        p_nomor_anomali: null,
-        p_nomor_tipe: null,
-        p_ket: null,
-        p_search: search || null,
-        p_kec_code: selectedKec || null,
-        p_desa_code: selectedDes || null,
-        p_sls_code: selectedSub || selectedSLS || null
-      };
-
-      if (currentProfile?.role === 'ppl') {
-        rpcParams.p_ppl_user_id = currentProfile.id;
-      } else if (currentProfile?.role === 'pml') {
-        rpcParams.p_pml_user_id = currentProfile.id;
-      }
-
-      const isFilterAllowed = !currentProfile || !['ppl', 'pml'].includes(currentProfile.role);
-      if (isFilterAllowed && selectedPetugas) {
-        if (selectedPetugas.role === 'ppl') {
-          rpcParams.p_ppl_user_id = selectedPetugas.id;
-        } else if (selectedPetugas.role === 'pml') {
-          rpcParams.p_pml_user_id = selectedPetugas.id;
-        }
-      }
-
-      const { data: resAnomalies, error: rpcErr } = await db.rpc('get_both_type_anomalies', rpcParams);
-      if (rpcErr) throw rpcErr;
-
-      rows = resAnomalies || [];
-    } else {
-      // Tipe tunggal atau semua tipe
-      let tipeFilter = null;
-      if (jenis && jenis !== 'keduanya')   tipeFilter = jenis;
-
-      let q = buildQuery(tipeFilter);
-      q = await applyRoleFilter(q, tipeFilter);
-      if (!q) { allData = []; filteredData = []; renderAll(); return; }
-      const { data, error } = await q;
-      if (error) throw error;
-      rows = data || [];
+    let q = buildScopeQuery();
+    const qObj = await applyRoleFilter(q);
+    q = qObj ? qObj.q : null;
+    if (!q) {
+      activeScopeRows = [];
+      applyLocalFiltersAndRender();
+      return;
     }
 
-    // Filter show_anomaly for PPL and PML
-    if (currentProfile && ['ppl', 'pml'].includes(currentProfile.role)) {
-      rows = rows.filter(r => r.show_anomaly !== false);
+    const { data, error } = await q.range(0, 499);
+    if (error) throw error;
+    if (loadId !== currentLoadId) return;
+
+    activeScopeRows = data || [];
+    applyLocalFiltersAndRender();
+
+    if (data && data.length === 500) {
+      loadRemainingRowsInBackground(loadId, buildScopeQuery, applyRoleFilter);
     }
-
-    allData = groupByAssignment(rows);
-    
-    // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
-    filteredData = allData.filter(group => {
-      // 1. Status Filter
-      if (status && !group.rows.some(r => r.status === status)) return false;
-      
-      // 2. Nomor Filter (Match if group contains any of the selected anomaly numbers)
-      if (selectedNomorList && selectedNomorList.length > 0) {
-        const hasMatchingNomor = group.rows.some(r => {
-          const val = `${r.tipe}:${r.nomor_anomali}`;
-          return selectedNomorList.includes(val);
-        });
-        if (!hasMatchingNomor) return false;
-      }
-      
-      // 3. Keterangan (ket) Filter
-      if (ket) {
-        const groupKet = getKeterangan(group);
-        if (groupKet !== ket) return false;
-      }
-
-      // 4. Reject Filter
-      const rejectFilterVal = document.getElementById('filterReject')?.value;
-      if (rejectFilterVal === 'ya' && (!group.is_rejected || !group.is_api_synced)) return false;
-      if (rejectFilterVal === 'pending' && (!group.is_rejected || group.is_api_synced)) return false;
-      if (rejectFilterVal === 'tidak' && group.is_rejected) return false;
-      
-      return true;
-    });
-
-    sortData();
-    renderAll();
-    updateFilterChips();
   } catch (e) {
     console.error('loadData error:', e);
     showToast('Gagal memuat data: ' + e.message, 'error');
@@ -927,8 +962,7 @@ function updateTableCount() {
   const total   = filteredData.length;
   const dbTotal = document.getElementById('statTotal')?.textContent || '0';
 
-  const isTruncated = total >= 1000;
-  const displayTotal = isTruncated ? '1.000+' : total.toLocaleString('id');
+  const displayTotal = total.toLocaleString('id');
 
   // Cek apakah ada filter aktif yang membatasi dataset
   const hasActiveFilters = document.getElementById('filterStatus')?.value ||
@@ -942,7 +976,7 @@ function updateTableCount() {
 
   let text = total === 0 
     ? 'Tidak ada data' 
-    : `Menampilkan ${start}–${end} dari ${hasActiveFilters ? displayTotal : (isTruncated ? '1.000+' : dbTotal)}`;
+    : `Menampilkan ${start}–${end} dari ${displayTotal}`;
   const dbTotalNum = parseInt(dbTotal.replace(/\./g, '')) || 0;
   if (hasActiveFilters && (total < allData.length || allData.length < dbTotalNum)) {
     text += ` (difilter dari ${dbTotal})`;

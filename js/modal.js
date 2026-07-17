@@ -397,7 +397,7 @@ async function saveChanges() {
     showToast('Perubahan berhasil disimpan', 'success');
     pendingChanges = {};
     closeDetailModal();
-    await loadData();
+    await loadData(true);
     await loadStats();
   } catch (e) {
     showToast('Gagal menyimpan: ' + e.message, 'error');
@@ -636,7 +636,7 @@ async function saveBulkChanges() {
     showToast('Perubahan massal berhasil disimpan', 'success');
     clearSelection();
     closeBulkModal(true);
-    await loadData();
+    await loadData(true);
     await loadStats();
   } catch (err) {
     showToast('Gagal menyimpan: ' + err.message, 'error');
