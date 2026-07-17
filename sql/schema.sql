@@ -616,6 +616,7 @@ BEGIN
       kode_sub_sls text,
       nama_entitas text,
       tindak_lanjut_status text,
+      catatan text,
       raw_data jsonb
     )
   LOOP
@@ -683,19 +684,19 @@ BEGIN
         v_target_status := COALESCE(NULLIF(v_rec.tindak_lanjut_status, ''), 'belum_ditindaklanjuti');
         INSERT INTO public.assignment_anomali (
           id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls,
-          nomor_anomali, nama_anomali, status, raw_data, first_seen, last_seen, batch_id
+          nomor_anomali, nama_anomali, status, catatan, raw_data, first_seen, last_seen, batch_id
         ) VALUES (
           v_inserted_id, v_rec.assignment_id, p_tipe, NULLIF(v_rec.nama_entitas, ''),
           v_rec.kode_desa, v_rec.kode_sls, v_rec.kode_sub_sls,
-          v_rec.nomor_anomali, v_rec.nama_anomali, v_target_status,
+          v_rec.nomor_anomali, v_rec.nama_anomali, v_target_status, NULLIF(v_rec.catatan, ''),
           v_rec.raw_data, p_tanggal_data, p_tanggal_data, p_batch_id
         );
 
         -- Add to status history
         INSERT INTO public.status_history (
-          assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
+          assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
         ) VALUES (
-          v_inserted_id, null, v_target_status, 'Sistem (Merge)', 'merge_otomatis'
+          v_inserted_id, null, v_target_status, 'Sistem (Merge)', NULLIF(v_rec.catatan, ''), 'merge_otomatis'
         );
 
         v_inserted_count := v_inserted_count + 1;
@@ -704,36 +705,44 @@ BEGIN
         v_target_status := COALESCE(NULLIF(v_rec.tindak_lanjut_status, ''), 'belum_ditindaklanjuti');
 
         IF v_existing_status IN ('sudah_diperbaiki', 'tidak_terdeteksi_lagi') AND v_target_status = 'belum_ditindaklanjuti' THEN
+          -- RE-OPEN
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
             nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
             status = 'belum_ditindaklanjuti',
             is_ever_reopened = true,
+            is_rejected = false,
+            is_api_synced = false,
+            catatan = COALESCE(NULLIF(v_rec.catatan, ''), catatan),
             updated_at = now()
           WHERE id = v_existing_id;
 
           INSERT INTO public.status_history (
-            assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
+            assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
           ) VALUES (
-            v_existing_id, v_existing_status, 'belum_ditindaklanjuti', 'Sistem (Merge)', 'merge_otomatis'
+            v_existing_id, v_existing_status, 'belum_ditindaklanjuti', 'Sistem (Merge)', NULLIF(v_rec.catatan, ''), 'merge_otomatis'
           );
 
           v_reopened_count := v_reopened_count + 1;
         ELSE
+          -- UPDATE BIASA
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
             nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
             status = CASE WHEN v_target_status != 'belum_ditindaklanjuti' THEN v_target_status ELSE status END,
+            is_rejected = CASE WHEN v_target_status = 'belum_ditindaklanjuti' THEN false ELSE is_rejected END,
+            is_api_synced = CASE WHEN v_target_status = 'belum_ditindaklanjuti' THEN false ELSE is_api_synced END,
+            catatan = COALESCE(NULLIF(v_rec.catatan, ''), catatan),
             updated_at = now()
           WHERE id = v_existing_id;
 
           IF v_target_status != 'belum_ditindaklanjuti' AND v_existing_status != v_target_status THEN
             INSERT INTO public.status_history (
-              assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, sumber
+              assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
             ) VALUES (
-              v_existing_id, v_existing_status, v_target_status, 'Sistem (Merge)', 'merge_otomatis'
+              v_existing_id, v_existing_status, v_target_status, 'Sistem (Merge)', NULLIF(v_rec.catatan, ''), 'merge_otomatis'
             );
           END IF;
 
@@ -778,34 +787,25 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- 2. Mark any active anomalies of this type in these specific villages that were NOT in today's upload batch as resolved
-  WITH resolved_rows AS (
-    UPDATE public.assignment_anomali
-    SET status = 'tidak_terdeteksi_lagi', last_seen = p_tanggal_data
+  -- 2. Hapus (DELETE) data lama yang tidak ada di batch upload terbaru
+  WITH deleted_rows AS (
+    DELETE FROM public.assignment_anomali
     WHERE tipe = p_tipe
-      AND status NOT IN ('tidak_terdeteksi_lagi', 'sesuai_kondisi')
-      AND kode_desa = ANY(p_desa_codes)
+      AND (
+        -- Kondisi A: Berada di desa yang diupload (pada tipe ini)
+        kode_desa = ANY(p_desa_codes)
+        OR
+        -- Kondisi B: Assignment ID-nya terdaftar di batch saat ini (tipe apapun)
+        assignment_id IN (
+          SELECT DISTINCT assignment_id 
+          FROM public.assignment_anomali 
+          WHERE batch_id = p_batch_id
+        )
+      )
       AND batch_id != p_batch_id
-    RETURNING id, status
+    RETURNING id
   )
-  INSERT INTO public.status_history (
-    assignment_anomali_id,
-    status_lama,
-    status_baru,
-    diubah_oleh_nama,
-    sumber
-  )
-  SELECT id, 'belum_ditindaklanjuti', 'tidak_terdeteksi_lagi', 'Sistem (Merge)', 'merge_otomatis'
-  FROM resolved_rows;
-
-  -- Count and return number of updated rows
-  SELECT count(*) INTO v_resolved_count
-  FROM public.assignment_anomali
-  WHERE tipe = p_tipe
-    AND last_seen = p_tanggal_data
-    AND status = 'tidak_terdeteksi_lagi'
-    AND kode_desa = ANY(p_desa_codes)
-    AND batch_id != p_batch_id;
+  SELECT count(*) INTO v_resolved_count FROM deleted_rows;
 
   RETURN v_resolved_count;
 END;
@@ -1291,3 +1291,95 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.release_assignment_sync(VARCHAR) TO anon, authenticated;
+
+-- ============================================================
+-- ROLLBACK UPLOAD BATCH FUNCTION (ADMIN ONLY)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.rollback_upload_batch(p_batch_id uuid)
+RETURNS jsonb
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_batch_date date;
+  v_batch_status varchar;
+  v_deleted_count int := 0;
+  v_reverted_count int := 0;
+  v_rec record;
+BEGIN
+  -- 1. Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  -- 2. Dapatkan info batch
+  SELECT tanggal_data, status INTO v_batch_date, v_batch_status
+  FROM public.upload_batches
+  WHERE id = p_batch_id;
+
+  IF v_batch_date IS NULL THEN
+    RAISE EXCEPTION 'Batch tidak ditemukan';
+  END IF;
+
+  IF v_batch_status = 'failed' THEN
+    RAISE EXCEPTION 'Batch ini sudah dibatalkan atau gagal';
+  END IF;
+
+  -- 3. HAPUS record anomali yang baru pertama kali masuk di batch ini
+  -- (first_seen sama dengan tanggal batch dan batch_id sesuai)
+  WITH deleted_rows AS (
+    DELETE FROM public.assignment_anomali
+    WHERE batch_id = p_batch_id
+      AND first_seen = v_batch_date
+    RETURNING id
+  )
+  SELECT count(*) INTO v_deleted_count FROM deleted_rows;
+
+  -- 4. KEMBALIKAN (REVERT) record anomali yang ter-update di batch ini
+  -- Cari log perubahan otomatis di status_history yang terjadi karena batch ini
+  FOR v_rec IN
+    SELECT sh.id AS history_id, sh.assignment_anomali_id, sh.status_lama, sh.status_baru
+    FROM public.status_history sh
+    JOIN public.assignment_anomali aa ON sh.assignment_anomali_id = aa.id
+    WHERE aa.batch_id = p_batch_id
+      AND sh.sumber = 'merge_otomatis'
+      AND aa.first_seen < v_batch_date -- Hanya record lama yang diupdate
+  LOOP
+    -- Revert status ke status lama sebelum update otomatis
+    UPDATE public.assignment_anomali
+    SET status = COALESCE(v_rec.status_lama, 'belum_ditindaklanjuti'),
+        -- Kembalikan last_seen ke tanggal sebelum batch ini
+        last_seen = COALESCE(
+          (SELECT ub.tanggal_data 
+           FROM public.assignment_anomali aa2
+           JOIN public.upload_batches ub ON aa2.batch_id = ub.id
+           WHERE aa2.id = v_rec.assignment_anomali_id AND ub.id != p_batch_id
+           ORDER BY ub.created_at DESC LIMIT 1),
+          first_seen
+        ),
+        updated_at = now()
+    WHERE id = v_rec.assignment_anomali_id;
+
+    -- Hapus entri history merge otomatis tersebut
+    DELETE FROM public.status_history WHERE id = v_rec.history_id;
+    
+    v_reverted_count := v_reverted_count + 1;
+  END LOOP;
+
+  -- 5. Update status batch menjadi failed
+  UPDATE public.upload_batches
+  SET status = 'failed',
+      catatan = COALESCE(catatan, '') || ' (Rolled back by Admin at ' || now()::text || ')'
+  WHERE id = p_batch_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'deleted_count', v_deleted_count,
+    'reverted_count', v_reverted_count
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION public.rollback_upload_batch(uuid) TO anon, authenticated;

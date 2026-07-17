@@ -391,22 +391,30 @@ async function loadBatchHistory() {
 
   const tbody = document.getElementById('historyTableBody');
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--error)">Gagal memuat: ${error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--error)">Gagal memuat: ${error.message}</td></tr>`;
     return;
   }
   if (!data?.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-title">Belum ada riwayat upload</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Belum ada riwayat upload</div></div></td></tr>`;
     return;
   }
-  tbody.innerHTML = data.map(b => `
-    <tr>
-      <td><strong>${b.tanggal_data}</strong></td>
-      <td>${escHtml(b.uploaded_by_nama || '—')}</td>
-      <td>${b.jumlah_keluarga?.toLocaleString('id') || 0}</td>
-      <td>${b.jumlah_usaha?.toLocaleString('id') || 0}</td>
-      <td style="color:var(--text-muted);font-size:0.8rem">${new Date(b.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
-      <td><span class="status-badge ${b.status === 'completed' ? 'status-kondisi' : b.status === 'failed' ? 'status-reopen' : 'status-pending'}">${b.status}</span></td>
-    </tr>`).join('');
+  tbody.innerHTML = data.map(b => {
+    const isCompleted = b.status === 'completed';
+    const rollbackBtn = isCompleted
+      ? `<button class="btn btn-danger btn-sm" onclick="triggerRollback('${b.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; line-height: 1;">Rollback</button>`
+      : `<span style="color:var(--text-muted)">—</span>`;
+
+    return `
+      <tr>
+        <td><strong>${b.tanggal_data}</strong></td>
+        <td>${escHtml(b.uploaded_by_nama || '—')}</td>
+        <td>${b.jumlah_keluarga?.toLocaleString('id') || 0}</td>
+        <td>${b.jumlah_usaha?.toLocaleString('id') || 0}</td>
+        <td style="color:var(--text-muted);font-size:0.8rem">${new Date(b.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+        <td><span class="status-badge ${b.status === 'completed' ? 'status-kondisi' : b.status === 'failed' ? 'status-reopen' : 'status-pending'}">${b.status}</span></td>
+        <td>${rollbackBtn}</td>
+      </tr>`;
+  }).join('');
 }
 
 // ============================================================
@@ -1508,7 +1516,7 @@ function runSilentOcrAutoDetect(imageSrc) {
         const h = img.naturalHeight;
         let topY = null;
         let bottomY = null;
-        
+
         for (const line of lines) {
           const text = line.text.toLowerCase();
           if (topY === null && (text.includes('silakan') || text.includes('sensus') || text.includes('ekonomi') || text.includes('pilih'))) {
@@ -1518,10 +1526,10 @@ function runSilentOcrAutoDetect(imageSrc) {
             bottomY = line.bbox.y1;
           }
         }
-        
+
         const finalTop = topY !== null ? Math.max(0, topY - 15) / h * 100 : 12.5;
         const finalBottom = bottomY !== null ? Math.min(h, bottomY + 25) / h * 100 : 46.5;
-        
+
         resolve({ top: parseFloat(finalTop.toFixed(1)), bottom: parseFloat(finalBottom.toFixed(1)) });
       };
       img.onerror = () => reject('Gagal memproses gambar');
@@ -1741,7 +1749,7 @@ function renderBappPagination() {
 async function showScreenshot(id) {
   const item = allBappUploads.find(b => b.id === id);
   if (!item) return;
-  
+
   if (!item.screenshot) {
     showToast('Memuat screenshot...', 'info');
     try {
@@ -1793,7 +1801,7 @@ function updateSelectedBappCount() {
 
   if (countSpan) countSpan.textContent = count;
   if (ocrCountSpan) ocrCountSpan.textContent = count;
-  
+
   if (printBtn) {
     printBtn.style.display = count > 0 ? 'inline-flex' : 'none';
   }
@@ -1807,17 +1815,17 @@ function updateSelectedBappCount() {
 async function ocrSelectedBAPP() {
   const checkedIds = Array.from(document.querySelectorAll('.bapp-row-checkbox:checked')).map(cb => cb.value);
   const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id));
-  
+
   if (selectedRows.length === 0) {
     showToast('Pilih BAPP terlebih dahulu', 'error');
     return;
   }
-  
+
   const ocrBtn = document.getElementById('btnOcrSelected');
   const originalText = ocrBtn.innerHTML;
   ocrBtn.disabled = true;
   ocrBtn.innerHTML = 'Memproses OCR...';
-  
+
   loadTesseract(async () => {
     let indicator = document.getElementById('auto-crop-bg-indicator');
     if (!indicator) {
@@ -1844,7 +1852,7 @@ async function ocrSelectedBAPP() {
       `;
       document.body.appendChild(indicator);
     }
-    
+
     // Tarik screenshot yang belum di-load untuk ID terpilih sekaligus (batch query)
     const missingIds = selectedRows.filter(r => !r.screenshot).map(r => r.id);
     if (missingIds.length > 0) {
@@ -1868,14 +1876,14 @@ async function ocrSelectedBAPP() {
         return;
       }
     }
-    
+
     for (let i = 0; i < selectedRows.length; i++) {
       const b = selectedRows[i];
       indicator.innerHTML = `
         <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
         Memindai OCR Paksa BAPP (${i + 1}/${selectedRows.length})...
       `;
-      
+
       try {
         const result = await runSilentOcrAutoDetect(b.screenshot);
         if (result) {
@@ -1884,9 +1892,9 @@ async function ocrSelectedBAPP() {
             .from('bapp_uploads')
             .update({ crop_top: result.top, crop_bottom: result.bottom })
             .eq('id', b.id);
-            
+
           if (error) throw error;
-          
+
           // Update data di RAM lokal
           b.crop_top = result.top;
           b.crop_bottom = result.bottom;
@@ -1895,17 +1903,17 @@ async function ocrSelectedBAPP() {
         console.error('Silent OCR forced auto-detect failed for ID: ' + b.id, err);
       }
     }
-    
+
     indicator.style.borderColor = '#10b981';
     indicator.style.color = '#10b981';
     indicator.innerHTML = '✓ Pindai Ulang OCR Selesai!';
-    
+
     setTimeout(() => {
       indicator.remove();
       filterBAPP(); // Re-render rekap tabel admin
       ocrBtn.disabled = false;
       ocrBtn.innerHTML = originalText;
-      
+
       // Reset pilihan checkbox
       document.querySelectorAll('.bapp-row-checkbox').forEach(cb => cb.checked = false);
       const checkAll = document.getElementById('checkAllBapp');
@@ -2029,7 +2037,7 @@ function runOcrAutoDetect(imageSrc, rangeTop, rangeBottom, labelTop, labelBottom
 async function editBappCrop(id) {
   const b = allBappUploads.find(item => item.id === id);
   if (!b) return;
-  
+
   if (!b.screenshot) {
     showToast('Memuat gambar screenshot...', 'info');
     try {
@@ -2228,7 +2236,7 @@ async function editBappCrop(id) {
     ocrStatus.style.borderColor = 'rgba(56, 189, 248, 0.2)';
     ocrStatus.style.color = '#38bdf8';
     ocrStatus.innerHTML = '<span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;margin-right:6px"></span> Menjalankan OCR...';
-    
+
     loadTesseract(() => {
       runOcrAutoDetect(b.screenshot, rangeTop, rangeBottom, labelTop, labelBottom, overlayTop, overlayBottom, ocrStatus);
     });
@@ -2312,10 +2320,10 @@ function printBAPP(rows) {
     showToast('Tidak ada BAPP yang dipilih', 'error');
     return;
   }
-  
+
   loadJsPDF(async () => {
     const { jsPDF } = window.jspdf;
-    
+
     // Tampilkan indikator status melayang
     let indicator = document.getElementById('auto-crop-bg-indicator');
     if (!indicator) {
@@ -2342,7 +2350,7 @@ function printBAPP(rows) {
       `;
       document.body.appendChild(indicator);
     }
-    
+
     // Tarik screenshot yang belum di-load untuk baris terpilih sekaligus (batch query)
     const missingIds = rows.filter(r => !r.screenshot).map(r => r.id);
     if (missingIds.length > 0) {
@@ -2366,14 +2374,14 @@ function printBAPP(rows) {
         return;
       }
     }
-    
+
     // Inisialisasi jsPDF (Landscape A4, unit: mm)
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4'
     });
-    
+
     // Helper untuk load gambar digital signature local sebagai base64
     const loadImgAsBase64 = (url) => {
       return new Promise((resolve) => {
@@ -2393,35 +2401,35 @@ function printBAPP(rows) {
         };
       });
     };
-    
+
     // Muat tanda tangan digital local
     const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
     const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
-    
+
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
       indicator.innerHTML = `
         <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
         Membuat Halaman PDF BAPP (${i + 1}/${rows.length})...
       `;
-      
+
       if (i > 0) {
         pdf.addPage();
       }
-      
+
       const nama = r.profiles?.nama || '.........................................';
       const kecamatan = r.wilayah_kec?.nmkec || '.........................................';
-      
+
       // 1. Nomor Halaman
       pdf.setFont('times', 'normal');
       pdf.setFontSize(11);
       pdf.text('-4-', 148.5, 12, { align: 'center' });
-      
+
       // 2. Judul Bagian
       pdf.setFont('times', 'bold');
       pdf.setFontSize(12);
       pdf.text('II. BUKTI PENCAPAIAN PEKERJAAN KECAMATAN ' + kecamatan.toUpperCase(), 20, 20);
-      
+
       // 3. Render Bukti Screenshot (Potong sisi klien menggunakan Canvas)
       if (r.screenshot) {
         await new Promise((resolve) => {
@@ -2430,31 +2438,32 @@ function printBAPP(rows) {
           img.onload = () => {
             const topOffset = (r.crop_top !== undefined && r.crop_top !== null) ? parseFloat(r.crop_top) : 12.5;
             const bottomOffset = (r.crop_bottom !== undefined && r.crop_bottom !== null) ? parseFloat(r.crop_bottom) : 46.5;
-            
+
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
-            
+
             const origW = img.naturalWidth;
             const origH = img.naturalHeight;
-            
+
             const cropHeightPercent = bottomOffset - topOffset;
             const cropHeight = origH * (cropHeightPercent / 100);
             const startY = origH * (topOffset / 100);
-            
+
             canvas.width = origW;
             canvas.height = cropHeight;
-            
+
             ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
             const croppedBase64 = canvas.toDataURL('image/png');
-            
+
             // Hitung lebar gambar agar rasio aspek tetap terjaga dengan tinggi fixed 60mm
             const cropRatio = (origH / origW) * (cropHeightPercent / 100);
             const imgHeight = 60.0;
             const imgWidth = imgHeight / cropRatio;
             const imgX = (297 - imgWidth) / 2;
             const imgY = 28.0;
-            
+
             pdf.addImage(croppedBase64, 'PNG', imgX, imgY, imgWidth, imgHeight);
+            pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
             resolve();
           };
           img.onerror = () => {
@@ -2472,66 +2481,85 @@ function printBAPP(rows) {
         pdf.setFontSize(10);
         pdf.text('[Bukti Screenshot Tidak Tersedia]', 148.5, imgY + 30, { align: 'center' });
       }
-      
+
       // 4. Area Tanda Tangan
       const sigY = 120.0;
       pdf.setFont('times', 'normal');
       pdf.setFontSize(11);
-      
+
       // Kolom Kiri: PIHAK KEDUA
       pdf.text('PIHAK KEDUA,', 70, sigY, { align: 'center' });
       // Kolom Kanan: PIHAK PERTAMA
       pdf.text('PIHAK PERTAMA,', 227, sigY, { align: 'center' });
-      
+
       // Tanda Tangan Yulian (Pihak Pertama)
       if (ttdYulianBase64) {
-        const ttdX = 177 + (100 - 32) / 2;
-        pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 4.5, 32, 16);
+        const ttdX = 177.5 + (100 - 20) / 2;
+        pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 0, 20, 30);
       }
-      
+
       // Tanda Tangan PPK Ning Sri Lestari (Lebar 50mm, Tinggi 25mm sesuai instruksi terakhir)
       if (ttdNingBase64) {
-        const ttdX = 85 + (100 - 32) / 2; // ttd_x = 119
-        pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 42, 50, 25);
+        const ttdX = 87 + (100 - 32) / 2;
+        pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 38, 50, 25);
       }
-      
+
       // Nama Terang Bold & Underlined
       pdf.setFont('times', 'bold');
-      
+
       // Kiri: Nama Petugas
       pdf.text(nama, 70, sigY + 25, { align: 'center' });
       const leftWidth = pdf.getTextWidth(nama);
       pdf.setLineWidth(0.3);
-      pdf.line(70 - leftWidth/2, sigY + 26, 70 + leftWidth/2, sigY + 26);
-      
+      pdf.line(70 - leftWidth / 2, sigY + 26, 70 + leftWidth / 2, sigY + 26);
+
       // Kanan: YULIAN SARWO EDI
       pdf.text('YULIAN SARWO EDI', 227, sigY + 25, { align: 'center' });
       const rightWidth = pdf.getTextWidth('YULIAN SARWO EDI');
-      pdf.line(227 - rightWidth/2, sigY + 26, 227 + rightWidth/2, sigY + 26);
-      
+      pdf.line(227 - rightWidth / 2, sigY + 26, 227 + rightWidth / 2, sigY + 26);
+
       // Menyetujui: PPK NING SRI LESTARI (Tengah Bawah)
       pdf.setFont('times', 'normal');
       pdf.text('Menyetujui,', 148.5, sigY + 33, { align: 'center' });
       pdf.text('Pejabat Pembuat Komitmen', 148.5, sigY + 38, { align: 'center' });
-      
+
       pdf.setFont('times', 'bold');
       pdf.text('NING SRI LESTARI', 148.5, sigY + 63, { align: 'center' });
       const ppkWidth = pdf.getTextWidth('NING SRI LESTARI');
-      pdf.line(148.5 - ppkWidth/2, sigY + 64, 148.5 + ppkWidth/2, sigY + 64);
+      pdf.line(148.5 - ppkWidth / 2, sigY + 64, 148.5 + ppkWidth / 2, sigY + 64);
     }
-    
+
     indicator.style.borderColor = '#10b981';
     indicator.style.color = '#10b981';
     indicator.innerHTML = '✓ Berhasil membuat PDF!';
-    
+
     // Buka output PDF di tab baru
     const pdfBlobUrl = pdf.output('bloburl');
     window.open(pdfBlobUrl, '_blank');
-    
+
     setTimeout(() => {
       indicator.remove();
     }, 2000);
   });
+}
+
+async function triggerRollback(batchId) {
+  if (!confirm('Apakah Anda yakin ingin membatalkan (rollback) seluruh data dari upload batch ini? Tindakan ini akan menghapus record baru dan mengembalikan status record yang diperbarui.')) {
+    return;
+  }
+
+  showToast('Memproses rollback batch...', 'info');
+
+  try {
+    const { data, error } = await db.rpc('rollback_upload_batch', { p_batch_id: batchId });
+    if (error) throw error;
+
+    showToast(`Rollback berhasil! ${data.deleted_count} data dihapus, ${data.reverted_count} data dikembalikan.`, 'success');
+    await loadBatchHistory();
+  } catch (err) {
+    showToast('Gagal memproses rollback: ' + err.message, 'error');
+    console.error(err);
+  }
 }
 
 

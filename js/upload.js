@@ -191,6 +191,14 @@ function rowsToRecordsFull(rows, tipe, tanggalData) {
       }
     }
 
+    const noteColName = tipe === 'keluarga' 
+      ? `Anomali ${nomor} Dtsen Penjelasan`
+      : `Anomali ${nomor} Penjelasan`;
+    const noteColIdx = headerRow.findIndex(h => h.toLowerCase().trim() === noteColName.toLowerCase().trim());
+    const catatanVal = noteColIdx >= 0 && row[noteColIdx] !== null && row[noteColIdx] !== undefined
+      ? String(row[noteColIdx]).trim()
+      : null;
+
     return {
       assignment_id:  assignmentId,
       tipe,
@@ -201,6 +209,7 @@ function rowsToRecordsFull(rows, tipe, tanggalData) {
       nomor_anomali:  nomor,
       nama_anomali:   nama,
       tindak_lanjut_status: mapTindakLanjutToStatus(get('Tindak Lanjut')),
+      catatan:        catatanVal || null,
       first_seen:     tanggalData,
       last_seen:      tanggalData,
       raw_data:       Object.keys(rawData).length > 0 ? rawData : null
