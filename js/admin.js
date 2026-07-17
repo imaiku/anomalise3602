@@ -1454,7 +1454,7 @@ async function loadBAPPData() {
     while (hasMore) {
       const { data, error, count } = await db
         .from('bapp_uploads')
-        .select('*, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)', { count: page === 0 ? 'exact' : 'none' })
+        .select('id, profile_id, kode_kec, crop_top, crop_bottom, created_at, profiles:profile_id(nama, role, sobatid), wilayah_kec:kode_kec(nmkec)', { count: page === 0 ? 'exact' : 'none' })
         .order('created_at', { ascending: false })
         .range(page * pageSize, (page + 1) * pageSize - 1);
 
@@ -1738,11 +1738,25 @@ function renderBappPagination() {
 }
 
 // Screenshot preview and download features
-function showScreenshot(id) {
+async function showScreenshot(id) {
   const item = allBappUploads.find(b => b.id === id);
-  if (!item || !item.screenshot) {
-    showToast('Screenshot tidak ditemukan', 'error');
-    return;
+  if (!item) return;
+  
+  if (!item.screenshot) {
+    showToast('Memuat screenshot...', 'info');
+    try {
+      const { data, error } = await db
+        .from('bapp_uploads')
+        .select('screenshot')
+        .eq('id', id)
+        .single();
+      if (error || !data) throw error || new Error('Data tidak ditemukan');
+      item.screenshot = data.screenshot;
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal memuat screenshot: ' + err.message, 'error');
+      return;
+    }
   }
 
   const img = document.getElementById('screenshotPreviewImage');
@@ -1792,10 +1806,10 @@ function updateSelectedBappCount() {
 // Menjalankan OCR paksa massal untuk baris BAPP yang dicentang (Khusus Superadmin)
 async function ocrSelectedBAPP() {
   const checkedIds = Array.from(document.querySelectorAll('.bapp-row-checkbox:checked')).map(cb => cb.value);
-  const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id) && b.screenshot);
+  const selectedRows = allBappUploads.filter(b => checkedIds.includes(b.id));
   
   if (selectedRows.length === 0) {
-    showToast('Pilih BAPP yang memiliki screenshot', 'error');
+    showToast('Pilih BAPP terlebih dahulu', 'error');
     return;
   }
   
@@ -1829,6 +1843,30 @@ async function ocrSelectedBAPP() {
         transition: all 0.3s ease;
       `;
       document.body.appendChild(indicator);
+    }
+    
+    // Tarik screenshot yang belum di-load untuk ID terpilih sekaligus (batch query)
+    const missingIds = selectedRows.filter(r => !r.screenshot).map(r => r.id);
+    if (missingIds.length > 0) {
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Mengunduh gambar BAPP...`;
+      try {
+        const { data, error } = await db
+          .from('bapp_uploads')
+          .select('id, screenshot')
+          .in('id', missingIds);
+        if (error) throw error;
+        data.forEach(item => {
+          const found = allBappUploads.find(x => x.id === item.id);
+          if (found) found.screenshot = item.screenshot;
+        });
+      } catch (err) {
+        console.error(err);
+        showToast('Gagal mengunduh gambar: ' + err.message, 'error');
+        indicator.remove();
+        ocrBtn.disabled = false;
+        ocrBtn.innerHTML = originalText;
+        return;
+      }
     }
     
     for (let i = 0; i < selectedRows.length; i++) {
@@ -1988,11 +2026,25 @@ function runOcrAutoDetect(imageSrc, rangeTop, rangeBottom, labelTop, labelBottom
 }
 
 // Edit BAPP Crop Settings visually with live preview overlays
-function editBappCrop(id) {
+async function editBappCrop(id) {
   const b = allBappUploads.find(item => item.id === id);
-  if (!b || !b.screenshot) {
-    showToast('Screenshot tidak ditemukan', 'error');
-    return;
+  if (!b) return;
+  
+  if (!b.screenshot) {
+    showToast('Memuat gambar screenshot...', 'info');
+    try {
+      const { data, error } = await db
+        .from('bapp_uploads')
+        .select('screenshot')
+        .eq('id', id)
+        .single();
+      if (error || !data) throw error || new Error('Screenshot tidak ditemukan di database');
+      b.screenshot = data.screenshot;
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal memuat screenshot: ' + err.message, 'error');
+      return;
+    }
   }
 
   // Ambil data crop langsung dari properti database, default ke top: 12.5% dan bottom: 46.5%
@@ -2054,9 +2106,10 @@ function editBappCrop(id) {
         margin-bottom: 16px;
         font-weight: 500;
         transition: all 0.3s ease;
+        display: none;
       ">
         <span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;margin-right:6px"></span>
-        Memuat kecerdasan OCR untuk mendeteksi teks...
+        Memproses OCR...
       </div>
       
       <!-- Container Visual Preview -->
@@ -2134,15 +2187,16 @@ function editBappCrop(id) {
           cursor: pointer;
           font-size: 0.875rem;
         ">Batal</button>
-        <button id="btn-editor-reset" style="
+        <button id="btn-editor-auto" style="
           background: #334155;
-          border: none;
-          color: #f8fafc;
+          border: 1px solid rgba(56, 189, 248, 0.2);
+          color: #38bdf8;
           padding: 8px 16px;
           border-radius: 8px;
           cursor: pointer;
           font-size: 0.875rem;
-        ">Reset Otomatis</button>
+          font-weight: 600;
+        ">Potong Otomatis</button>
         <button id="btn-editor-save" style="
           background: #0ea5e9;
           border: none;
@@ -2167,10 +2221,18 @@ function editBappCrop(id) {
   const overlayBottom = modal.querySelector('#crop-overlay-bottom');
   const ocrStatus = modal.querySelector('#ocr-status-bar');
 
-  // Pemicu OCR Otomatis setelah modal terbuka
-  loadTesseract(() => {
-    runOcrAutoDetect(b.screenshot, rangeTop, rangeBottom, labelTop, labelBottom, overlayTop, overlayBottom, ocrStatus);
-  });
+  // Deteksi krop otomatis manual lewat tombol "Potong Otomatis"
+  modal.querySelector('#btn-editor-auto').onclick = () => {
+    ocrStatus.style.display = 'block';
+    ocrStatus.style.background = 'rgba(56, 189, 248, 0.1)';
+    ocrStatus.style.borderColor = 'rgba(56, 189, 248, 0.2)';
+    ocrStatus.style.color = '#38bdf8';
+    ocrStatus.innerHTML = '<span class="spinner" style="width:10px;height:10px;border-width:2px;display:inline-block;margin-right:6px"></span> Menjalankan OCR...';
+    
+    loadTesseract(() => {
+      runOcrAutoDetect(b.screenshot, rangeTop, rangeBottom, labelTop, labelBottom, overlayTop, overlayBottom, ocrStatus);
+    });
+  };
 
   // Real-time slider update
   rangeTop.addEventListener('input', (e) => {
@@ -2194,26 +2256,6 @@ function editBappCrop(id) {
   });
 
   modal.querySelector('#btn-editor-cancel').onclick = () => modal.remove();
-
-  modal.querySelector('#btn-editor-reset').onclick = async () => {
-    try {
-      const { error } = await db
-        .from('bapp_uploads')
-        .update({ crop_top: 12.5, crop_bottom: 46.5 })
-        .eq('id', id);
-
-      if (error) throw error;
-
-      b.crop_top = 12.5;
-      b.crop_bottom = 46.5;
-      showToast('Pemotongan direset ke otomatis', 'success');
-      modal.remove();
-      filterBAPP();
-    } catch (err) {
-      console.error(err);
-      showToast('Gagal mereset krop: ' + err.message, 'error');
-    }
-  };
 
   modal.querySelector('#btn-editor-save').onclick = async () => {
     const t = parseFloat(rangeTop.value);
@@ -2299,6 +2341,30 @@ function printBAPP(rows) {
         transition: all 0.3s ease;
       `;
       document.body.appendChild(indicator);
+    }
+    
+    // Tarik screenshot yang belum di-load untuk baris terpilih sekaligus (batch query)
+    const missingIds = rows.filter(r => !r.screenshot).map(r => r.id);
+    if (missingIds.length > 0) {
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Mengunduh gambar BAPP...`;
+      try {
+        const { data, error } = await db
+          .from('bapp_uploads')
+          .select('id, screenshot')
+          .in('id', missingIds);
+        if (error) throw error;
+        data.forEach(item => {
+          const found = allBappUploads.find(x => x.id === item.id);
+          if (found) found.screenshot = item.screenshot;
+          const rowItem = rows.find(x => x.id === item.id);
+          if (rowItem) rowItem.screenshot = item.screenshot;
+        });
+      } catch (err) {
+        console.error(err);
+        showToast('Gagal mengunduh gambar: ' + err.message, 'error');
+        indicator.remove();
+        return;
+      }
     }
     
     // Inisialisasi jsPDF (Landscape A4, unit: mm)

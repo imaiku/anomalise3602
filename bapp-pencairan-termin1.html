@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
   <style>
     body {
       background: linear-gradient(135deg, #FFF3EB 0%, #FFFFFF 100%);
@@ -577,6 +578,47 @@
       document.getElementById('dropzone').style.display = 'block';
     }
 
+    // Fungsi untuk mendeteksi batas krop menggunakan Tesseract OCR saat upload
+    function detectCropBounds(imageSrc) {
+      return new Promise((resolve) => {
+        if (!window.Tesseract) {
+          resolve({ top: 12.5, bottom: 46.5 });
+          return;
+        }
+        Tesseract.recognize(
+          imageSrc,
+          'eng'
+        ).then(({ data: { lines } }) => {
+          const img = new Image();
+          img.src = imageSrc;
+          img.onload = () => {
+            const h = img.naturalHeight;
+            let topY = null;
+            let bottomY = null;
+            
+            for (const line of lines) {
+              const text = line.text.toLowerCase();
+              if (topY === null && (text.includes('silakan') || text.includes('sensus') || text.includes('ekonomi') || text.includes('pilih'))) {
+                topY = line.bbox.y0;
+              }
+              if (text.includes('selesai') || text.includes('hari lagi') || text.includes('hari')) {
+                bottomY = line.bbox.y1;
+              }
+            }
+            
+            const finalTop = topY !== null ? Math.max(0, topY - 15) / h * 100 : 12.5;
+            const finalBottom = bottomY !== null ? Math.min(h, bottomY + 25) / h * 100 : 46.5;
+            
+            resolve({ top: parseFloat(finalTop.toFixed(1)), bottom: parseFloat(finalBottom.toFixed(1)) });
+          };
+          img.onerror = () => resolve({ top: 12.5, bottom: 46.5 });
+        }).catch(err => {
+          console.error(err);
+          resolve({ top: 12.5, bottom: 46.5 });
+        });
+      });
+    }
+
     // Submit Form
     async function handleSubmit(e) {
       e.preventDefault();
@@ -595,14 +637,20 @@
       }
 
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Mengirim Bukti...';
+      submitBtn.textContent = 'Mendeteksi Teks (OCR)...';
 
       try {
+        // Deteksi batas krop secara otomatis sebelum dikirim ke database
+        const bounds = await detectCropBounds(base64String);
+        
+        submitBtn.textContent = 'Mengirim Bukti...';
         const { error } = await db.from('bapp_uploads').upsert(
           {
             profile_id: profileId,
             kode_kec: kodeKec,
             screenshot: base64String,
+            crop_top: bounds.top,
+            crop_bottom: bounds.bottom,
             created_at: new Date().toISOString()
           },
           { onConflict: 'profile_id' }
