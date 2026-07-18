@@ -2794,7 +2794,7 @@ async function printSelectedSPTermin1() {
       for (let idx = 0; idx < pmls.length; idx++) {
         const pml = pmls[idx];
         indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat surat ${idx + 1}/${pmls.length}: ${pml.nama}...`;
-        if (idx > 0) pdf.addPage();
+        if (idx > 0) pdf.addPage('a4', 'p');
         const { data: rekapData, error: rpcErr } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pml.id });
         if (rpcErr) throw rpcErr;
         buildSPTermin1Pages(pdf, pml, rekapData, idx > 0, ttdYulianBase64);
