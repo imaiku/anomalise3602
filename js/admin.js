@@ -2214,172 +2214,6 @@ function printBAPP(rows) {
 async function triggerRollback(batchId) {
   if (!confirm('Apakah Anda yakin ingin membatalkan (rollback) seluruh data dari upload batch ini? Tindakan ini akan menghapus record baru dan mengembalikan status record yang diperbarui.')) {
     return;
-    // Tarik screenshot yang belum di-load untuk baris terpilih sekaligus (batch query)
-    const missingIds = rows.filter(r => !r.screenshot).map(r => r.id);
-    if (missingIds.length > 0) {
-      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Mengunduh gambar BAPP...`;
-      try {
-        const { data, error } = await db
-          .from('bapp_uploads')
-          .select('id, screenshot')
-          .in('id', missingIds);
-        if (error) throw error;
-        data.forEach(item => {
-          const found = allBappUploads.find(x => x.id === item.id);
-          if (found) found.screenshot = item.screenshot;
-          const rowItem = rows.find(x => x.id === item.id);
-          if (rowItem) rowItem.screenshot = item.screenshot;
-        });
-      } catch (err) {
-        console.error(err);
-        showToast('Gagal mengunduh gambar: ' + err.message, 'error');
-        indicator.remove();
-        return;
-      }
-    }
-    // Inisialisasi jsPDF (Landscape A4, unit: mm)
-    const pdf = new jsPDF({
-      orientation: 'landscape',
-      unit: 'mm',
-      format: 'a4'
-    });
-    // Helper untuk load gambar digital signature local sebagai base64
-    const loadImgAsBase64 = (url) => {
-      return new Promise((resolve) => {
-        const img = new Image();
-        img.crossOrigin = 'Anonymous';
-        img.src = url;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width;
-          canvas.height = img.height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        };
-        img.onerror = () => {
-          resolve(null);
-        };
-      });
-    };
-    // Muat tanda tangan digital local
-    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
-    const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      indicator.innerHTML = `
-        <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
-        Membuat Halaman PDF BAPP (${i + 1}/${rows.length})...
-      `;
-      if (i > 0) {
-        pdf.addPage();
-      }
-      const nama = r.profiles?.nama || '.........................................';
-      const kecamatan = r.wilayah_kec?.nmkec || '.........................................';
-      // 1. Nomor Halaman
-      pdf.setFont('times', 'normal');
-      pdf.setFontSize(11);
-      pdf.text('-4-', 148.5, 12, { align: 'center' });
-      // 2. Judul Bagian
-      pdf.setFont('times', 'bold');
-      pdf.setFontSize(12);
-      pdf.text('II. BUKTI PENCAPAIAN PEKERJAAN KECAMATAN ' + kecamatan.toUpperCase(), 20, 20);
-      // 3. Render Bukti Screenshot (Potong sisi klien menggunakan Canvas)
-      if (r.screenshot) {
-        await new Promise((resolve) => {
-          const img = new Image();
-          img.src = r.screenshot;
-          img.onload = () => {
-            const topOffset = (r.crop_top !== undefined && r.crop_top !== null) ? parseFloat(r.crop_top) : 12.5;
-            const bottomOffset = (r.crop_bottom !== undefined && r.crop_bottom !== null) ? parseFloat(r.crop_bottom) : 46.5;
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const origW = img.naturalWidth;
-            const origH = img.naturalHeight;
-            const cropHeightPercent = bottomOffset - topOffset;
-            const cropHeight = origH * (cropHeightPercent / 100);
-            const startY = origH * (topOffset / 100);
-            canvas.width = origW;
-            canvas.height = cropHeight;
-            ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
-            const croppedBase64 = canvas.toDataURL('image/png');
-            // Hitung lebar gambar agar rasio aspek tetap terjaga dengan tinggi fixed 60mm
-            const cropRatio = (origH / origW) * (cropHeightPercent / 100);
-            const imgHeight = 60.0;
-            const imgWidth = imgHeight / cropRatio;
-            const imgX = (297 - imgWidth) / 2;
-            const imgY = 28.0;
-            pdf.addImage(croppedBase64, 'PNG', imgX, imgY, imgWidth, imgHeight);
-            pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
-            resolve();
-          };
-          img.onerror = () => {
-            resolve();
-          };
-        });
-      } else {
-        // Fallback jika tidak ada gambar
-        const imgHeight = 60.0;
-        const imgWidth = 80.0;
-        const imgX = (297 - imgWidth) / 2;
-        const imgY = 28.0;
-        pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
-        pdf.setFont('times', 'italic');
-        pdf.setFontSize(10);
-        pdf.text('[Bukti Screenshot Tidak Tersedia]', 148.5, imgY + 30, { align: 'center' });
-      }
-      // 4. Area Tanda Tangan
-      const sigY = 120.0;
-      pdf.setFont('times', 'normal');
-      pdf.setFontSize(11);
-      // Kolom Kiri: PIHAK KEDUA
-      pdf.text('PIHAK KEDUA,', 70, sigY, { align: 'center' });
-      // Kolom Kanan: PIHAK PERTAMA
-      pdf.text('PIHAK PERTAMA,', 227, sigY, { align: 'center' });
-      // Tanda Tangan Yulian (Pihak Pertama)
-      if (ttdYulianBase64) {
-        const ttdX = 177.5 + (100 - 20) / 2;
-        pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 0, 20, 30);
-      }
-      // Tanda Tangan PPK Ning Sri Lestari (Lebar 50mm, Tinggi 25mm sesuai instruksi terakhir)
-      if (ttdNingBase64) {
-        const ttdX = 87 + (100 - 32) / 2;
-        pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 38, 50, 25);
-      }
-      // Nama Terang Bold & Underlined
-      pdf.setFont('times', 'bold');
-      // Kiri: Nama Petugas
-      pdf.text(nama, 70, sigY + 25, { align: 'center' });
-      const leftWidth = pdf.getTextWidth(nama);
-      pdf.setLineWidth(0.3);
-      pdf.line(70 - leftWidth / 2, sigY + 26, 70 + leftWidth / 2, sigY + 26);
-      // Kanan: YULIAN SARWO EDI
-      pdf.text('YULIAN SARWO EDI', 227, sigY + 25, { align: 'center' });
-      const rightWidth = pdf.getTextWidth('YULIAN SARWO EDI');
-      pdf.line(227 - rightWidth / 2, sigY + 26, 227 + rightWidth / 2, sigY + 26);
-      // Menyetujui: PPK NING SRI LESTARI (Tengah Bawah)
-      pdf.setFont('times', 'normal');
-      pdf.text('Menyetujui,', 148.5, sigY + 33, { align: 'center' });
-      pdf.text('Pejabat Pembuat Komitmen', 148.5, sigY + 38, { align: 'center' });
-      pdf.setFont('times', 'bold');
-      pdf.text('NING SRI LESTARI', 148.5, sigY + 63, { align: 'center' });
-      const ppkWidth = pdf.getTextWidth('NING SRI LESTARI');
-      pdf.line(148.5 - ppkWidth / 2, sigY + 64, 148.5 + ppkWidth / 2, sigY + 64);
-    }
-    indicator.style.borderColor = '#10b981';
-    indicator.style.color = '#10b981';
-    indicator.innerHTML = '✓ Berhasil membuat PDF!';
-    // Buka output PDF di tab baru
-    const pdfBlobUrl = pdf.output('bloburl');
-    window.open(pdfBlobUrl, '_blank');
-    setTimeout(() => {
-      indicator.remove();
-    }, 2000);
-  };
-}
-async function triggerRollback(batchId) {
-  if (!confirm('Apakah Anda yakin ingin membatalkan (rollback) seluruh data dari upload batch ini? Tindakan ini akan menghapus record baru dan mengembalikan status record yang diperbarui.')) {
-    return;
   }
   showToast('Memproses rollback batch...', 'info');
   try {
@@ -2825,6 +2659,57 @@ async function processNoSuratImport() {
     btn.disabled = false;
   }
 }
+async function registerBookmanFont(pdf) {
+  const [normalRes, boldRes] = await Promise.all([
+    fetch('font/BOOKOS-normal.js'),
+    fetch('font/BOOKOSB-bold.js')
+  ]);
+  if (!normalRes.ok || !boldRes.ok) {
+    throw new Error('Gagal memuat file script font Bookman dari server');
+  }
+  const [normalText, boldText] = await Promise.all([
+    normalRes.text(),
+    boldRes.text()
+  ]);
+
+  const extractFont = (text) => {
+    const match = text.match(/var\s+font\s*=\s*['"]([^'"]+)['"]/);
+    return match ? match[1] : null;
+  };
+
+  const normalBase64 = extractFont(normalText);
+  const boldBase64 = extractFont(boldText);
+
+  if (!normalBase64 || !boldBase64) {
+    throw new Error('Gagal mengekstrak data base64 font Bookman');
+  }
+
+  pdf.addFileToVFS("BOOKOS.ttf", normalBase64);
+  pdf.addFont("BOOKOS.ttf", "Bookman", "normal");
+
+  pdf.addFileToVFS("BOOKOSB.ttf", boldBase64);
+  pdf.addFont("BOOKOSB.ttf", "Bookman", "bold");
+}
+
+function loadImgAsBase64(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'Anonymous';
+    img.src = url;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => {
+      resolve(null);
+    };
+  });
+}
+
 function printSPTermin1(pmlId, sobatid) {
   const pml = allPMLData.find(p => p.sobatid === sobatid);
   if (!pml || !pml.no_sp_pemeriksaan_t1) {
@@ -2846,13 +2731,20 @@ function printSPTermin1(pmlId, sobatid) {
       `;
       document.body.appendChild(indicator);
     }
-    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Menyiapkan Surat Pernyataan...`;
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
     try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Menyiapkan Surat Pernyataan...`;
       // Fetch rekap data via RPC
       const { data: rekapData, error: rpcErr } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pmlId });
       if (rpcErr) throw rpcErr;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      buildSPTermin1Pages(pdf, pml, rekapData, false);
+
+      // Load Yulian's signature
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      buildSPTermin1Pages(pdf, pml, rekapData, false, ttdYulianBase64);
       indicator.style.borderColor = '#10b981';
       indicator.style.color = '#10b981';
       indicator.innerHTML = '✓ Berhasil membuat PDF Surat Pernyataan!';
@@ -2891,16 +2783,21 @@ async function printSelectedSPTermin1() {
       `;
       document.body.appendChild(indicator);
     }
-    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat PDF batch (${pmls.length} PML)...`;
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
     try {
       const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      // Load Yulian's signature once for batch
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
       for (let idx = 0; idx < pmls.length; idx++) {
         const pml = pmls[idx];
         indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat surat ${idx + 1}/${pmls.length}: ${pml.nama}...`;
         if (idx > 0) pdf.addPage();
         const { data: rekapData, error: rpcErr } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pml.id });
         if (rpcErr) throw rpcErr;
-        buildSPTermin1Pages(pdf, pml, rekapData, idx > 0);
+        buildSPTermin1Pages(pdf, pml, rekapData, idx > 0, ttdYulianBase64);
       }
       indicator.style.borderColor = '#10b981';
       indicator.style.color = '#10b981';
@@ -2916,121 +2813,236 @@ async function printSelectedSPTermin1() {
     }
   });
 }
+
+// Wrapper alias for printSelectedTermin1
+async function printSelectedTermin1() {
+  await printSelectedSPTermin1();
+}
+// ---------------------------------------------------------------
+// Helper: draw justified text manually in jsPDF (for custom fonts)
+// ---------------------------------------------------------------
+function drawJustifiedText(pdf, text, x, y, maxWidth, lineHeight) {
+  const lines = pdf.splitTextToSize(text, maxWidth);
+  lines.forEach((line, lineIdx) => {
+    const currentY = y + lineIdx * lineHeight;
+
+    // Last line is left-aligned
+    if (lineIdx === lines.length - 1) {
+      pdf.text(line, x, currentY);
+      return;
+    }
+
+    const words = line.trim().split(/\s+/);
+    if (words.length <= 1) {
+      pdf.text(line, x, currentY);
+      return;
+    }
+
+    // Calculate total width of words
+    let wordsWidth = 0;
+    words.forEach(word => {
+      wordsWidth += pdf.getTextWidth(word);
+    });
+
+    const remainingSpace = maxWidth - wordsWidth;
+    const wordSpacing = remainingSpace / (words.length - 1);
+
+    let currentX = x;
+    words.forEach((word, wordIdx) => {
+      pdf.text(word, currentX, currentY);
+      currentX += pdf.getTextWidth(word) + wordSpacing;
+    });
+  });
+}
+
 // ---------------------------------------------------------------
 // Helper: build 3-page SP Termin I for one PML onto existing pdf
 // addedBefore = true means caller already added a new page
 // ---------------------------------------------------------------
-function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
-  const tanggal = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-  const M = 25;      // left margin
-  const W = 165;     // text width (210 - 25 - 20)
-  const MR = 190;    // right boundary
-  const lh = 6;      // base line height
-  // ─────────────────────────────────────────
-  // HALAMAN 1 — SURAT PERNYATAAN
-  // ─────────────────────────────────────────
-  // (page already added by caller if addedBefore, otherwise we are on page 1 freshly)
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(12);
-  pdf.text('SURAT PERNYATAAN PENYELESAIAN', 105, 30, { align: 'center' });
-  pdf.text('PEMERIKSAAN LAPANGAN SENSUS EKONOMI 2026 TERMIN I', 105, 37, { align: 'center' });
-  pdf.setFont('times', 'normal');
-  pdf.setFontSize(11);
-  pdf.text(`Nomor: ${pml.no_sp_pemeriksaan_t1 || '......./SE2026/.../.../2026'}`, 105, 46, { align: 'center' });
-  // — Identitas
-  let y = 58;
-  pdf.text('Yang bertanda tangan di bawah ini:', M, y);
-  y += lh + 1;
-  const col1 = M + 5;    // label indent
-  const col2 = M + 35;   // colon position
-  const col3 = M + 38;   // value position
-  const identitas = [
-    ['Nama', pml.nama ? pml.nama.toUpperCase() : '............................', false],
-    ['NIK', pml.nik || '............................', false],
-    ['Jabatan', `Pemeriksa Lapangan Sensus Ekonomi 2026 Kecamatan ${pml.kecamatan || '...'}`, false],
-  ];
-  identitas.forEach(([label, value]) => {
-    pdf.setFont('times', 'normal');
-    pdf.text(label, col1, y);
-    pdf.text(':', col2, y);
-    const wrapped = pdf.splitTextToSize(value, MR - col3);
-    pdf.text(wrapped, col3, y);
-    y += wrapped.length * lh;
+function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) {
+  const tanggal = new Date().toLocaleDateString("id-ID", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
   });
-  y += 2;
-  pdf.text('Dengan ini menyatakan:', M, y);
-  y += lh;
-  // 5 poin pernyataan (justified manually via splitTextToSize)
+  const namaUpper = (pml.nama || '').toUpperCase();
+
+  pdf.setLineHeightFactor(1.0);
+  const M = 25;
+  const W = 160;
+  const MR = 185;
+  const lh = 5;
+
+  //==================================================
+  // HALAMAN 1
+  //==================================================
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN PENYELESAIAN", 105, 30, { align: "center" });
+  pdf.text("PEMERIKSAAN LAPANGAN SENSUS EKONOMI 2026 TERMIN I", 105, 36, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${pml.no_sp_pemeriksaan_t1 || "......./SE2026/.../.../2026"}`, 105, 44, { align: "center" });
+
+  //--------------------------------------------------
+  // Identitas
+  //--------------------------------------------------
+
+  let y = 56;
+  pdf.text("Yang bertanda tangan di bawah ini:", M, y);
+
+  y += 8;
+
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+
+  const identitas = [
+    ["Nama", pml.nama ? pml.nama.toUpperCase() : "....................................."],
+    ["NIK", pml.nik || "....................................."],
+    ["Jabatan", `Pemeriksa Lapangan Sensus Ekonomi 2026 Kecamatan ${pml.kecamatan || "..."}`]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], MR - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+  y += 3;
+  pdf.text("Dengan ini menyatakan:", M, y);
+  y += 6;
+  //--------------------------------------------------
+  // Poin
+  //--------------------------------------------------
+
   const poin = [
-    `bahwa telah melaksanakan pekerjaan Pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${pml.no_spk || '...'}, sesuai dengan target pekerjaan termin I;`,
+    `bahwa telah melaksanakan pekerjaan Pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${pml.no_spk || "..."}, sesuai dengan target pekerjaan termin I;`,
     `bahwa hasil pekerjaan Pemeriksaan Lapangan Sensus Ekonomi 2026 termin I telah diperiksa dan diketahui oleh Ketua Tim Pelaksana Sensus Ekonomi 2026 BPS Kabupaten Lebak;`,
     `bahwa hasil pekerjaan yang telah diselesaikan dan diperiksa sebagaimana dimaksud dalam angka 1 dan angka 2 tercantum dalam lampiran;`,
     `bahwa seluruh hasil pekerjaan termin I adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
-    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`,
+    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
   ];
-  const numX = M + 3;     // "1."
-  const textX = M + 9;     // poin text starts here
-  const textW = MR - textX;
+
+  const numX = M;
+  const textX = M + 8;
+  const textWidth = MR - textX;
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.setLineHeightFactor(1.0);
+
   poin.forEach((teks, i) => {
-    const wrapped = pdf.splitTextToSize(teks, textW);
+    // Hitung jumlah baris hanya untuk menaikkan posisi Y
+    const lines = pdf.splitTextToSize(teks, textWidth);
+
+    // Nomor
     pdf.text(`${i + 1}.`, numX, y);
-    pdf.text(wrapped, textX, y);
-    y += wrapped.length * lh + 1;
+
+    // Isi poin (manual justify)
+    drawJustifiedText(pdf, teks, textX, y, textWidth, 5);
+
+    y += lines.length * 5;
   });
+
+  //--------------------------------------------------
+  // Penutup
+  //--------------------------------------------------
   y += 2;
-  const penutup = `Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.`;
-  const wrappedPenutup = pdf.splitTextToSize(penutup, W);
-  pdf.text(wrappedPenutup, M, y);
-  y += wrappedPenutup.length * lh + 8;
-  // TTD PML (kanan)
-  const ttdX = 130;
-  pdf.text(`Lebak, ${tanggal}`, ttdX, y);
-  pdf.text('Yang membuat pernyataan,', ttdX, y + lh);
-  y += lh * 5;
-  const namaUpper = (pml.nama || '').toUpperCase();
-  const namaW = pdf.getTextWidth(namaUpper);
-  pdf.text(`(${namaUpper})`, ttdX, y);
-  // ─────────────────────────────────────────
-  // HALAMAN 2 — LAMPIRAN (TABEL PPL)
-  // ─────────────────────────────────────────
-  pdf.addPage();
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('-2-', 105, 12, { align: 'center' });
-  // Kop lampiran (kanan atas)
-  pdf.setFont('times', 'normal');
-  pdf.setFontSize(10);
+  const penutup =
+    "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
+
+  const penutupLines = pdf.splitTextToSize(
+    penutup,
+    W
+  );
+
+  // Manual justify
+  drawJustifiedText(pdf, penutup, M, y, W, 5);
+
+  y += penutupLines.length * 5 + 10;
+  //--------------------------------------------------
+  // TTD
+  //--------------------------------------------------
+  const ttdX = 152;
+  pdf.text(`Lebak, 16 Juli 2026`, ttdX, y, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", ttdX, y + lh, { align: "center" });
+  y += 28;
+  pdf.text(`(${(pml.nama || "").toUpperCase()})`, ttdX, y, { align: "center" });
+  //==================================================
+  // HALAMAN 2 — LAMPIRAN
+  //==================================================
+
+  pdf.addPage("a4", "l");
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text("-2-", 148.5, 12, { align: "center" });
   const kopLamp = [
-    'Lampiran',
-    'Surat Pernyataan Penyelesaian Pemeriksaan',
-    'Lapangan Sensus Ekonomi 2026 Termin I',
-    `Nomor ${pml.no_sp_pemeriksaan_t1 || '...'}`,
+    "Lampiran",
+    "Surat Pernyataan Penyelesaian Pemeriksaan",
+    "Lapangan Sensus Ekonomi 2026 Termin I",
+    `Nomor ${pml.no_sp_pemeriksaan_t1 || "..."}`
   ];
+
   let kopY = 20;
   kopLamp.forEach(line => {
-    pdf.text(line, MR, kopY, { align: 'right' });
-    kopY += lh;
+    pdf.text(line, 170, kopY, { align: "left" });
+    kopY += 5;
   });
-  // Judul tabel
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('Daftar Hasil Pekerjaan Penyelesaian Pemeriksaan Lapangan Termin I', 105, kopY + 4, { align: 'center' });
+
+  pdf.text("Daftar Hasil Pekerjaan Penyelesaian Pemeriksaan Lapangan Termin I", 148.5, kopY + 6, { align: "center" });
   // Dimensi kolom tabel
-  const tX = M;                      // table start X
-  const colW = [10, 65, 22, 38, 25];   // No | Nama | Target Prelist | Realisasi | Presentase
-  const rH = 8;                      // row height
+  const rows = (rekapData && rekapData.length > 0) ? rekapData : [];
+  const headers = [
+    "No",
+    "Nama Petugas Lapangan",
+    "Target Prelist",
+    "Realisasi Hasil Pemeriksaan",
+    "Presentase (%)"
+  ];
+
+  // Lebar awal berdasarkan judul
+  let colW = headers.map(h => pdf.getTextWidth(h) + 8);
+
+  // Cek seluruh isi
+  rows.forEach((row, i) => {
+    const tgt = parseInt(row.total_target) || 0;
+    const real = parseInt(row.total_capaian1) || 0;
+    const pct = tgt > 0
+      ? ((real / tgt) * 100).toFixed(2) + "%"
+      : "0.00%";
+
+    const values = [
+      String(i + 1),
+      (row.nama_ppl || "").toUpperCase(),
+      String(tgt),
+      String(real),
+      pct
+    ];
+
+    values.forEach((v, idx) => {
+      colW[idx] = Math.max(colW[idx], pdf.getTextWidth(v) + 8);
+    });
+  });
+
+  const totalTableWidth = colW.reduce((sum, w) => sum + w, 0);
+  const tX = 148.5 - totalTableWidth / 2;          // table start X (centered)
+  const rH = 8;                                    // row height
   let tY = kopY + 10;
+
   // Fungsi gambar header
   const drawTableHeader = (y) => {
-    pdf.setFont('times', 'bold');
-    pdf.setFontSize(10);
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(12);
     let cx = tX;
     // Row 1 (header text)
     const heads = [
       ['No', 1],
       ['Nama Petugas Lapangan', 1],
       ['Target\nPrelist', 1],
-      ['Realisasi Hasil Pendataan\n(Usaha+Keluarga)', 1],
+      ['Realisasi Hasil Pemeriksaan\n(Usaha+Keluarga)', 1],
       ['Presentase (%)', 1],
     ];
     // Draw all cells with multi-line text
@@ -3046,6 +3058,8 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
       cx += w;
     });
     // Column number row
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(10);
     const colNumY = y + hH;
     cx = tX;
     colW.forEach((w, ci) => {
@@ -3053,20 +3067,20 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
       pdf.text(`(${ci + 1})`, cx + w / 2, colNumY + 4.5, { align: 'center' });
       cx += w;
     });
-    pdf.setFont('times', 'normal');
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(12);
     return colNumY + rH * 0.8; // return Y after header
   };
   tY = drawTableHeader(tY);
   // Data rows
   let totalTgt = 0;
   let totalReal = 0;
-  const rows = (rekapData && rekapData.length > 0) ? rekapData : [];
   rows.forEach((row, i) => {
-    if (tY > 262) {
-      pdf.addPage();
-      pdf.setFont('times', 'bold');
+    if (tY > 175) {
+      pdf.addPage('a4', 'l');
+      pdf.setFont('Bookman', 'bold');
       pdf.setFontSize(11);
-      pdf.text('-3-', 105, 12, { align: 'center' });
+      pdf.text('-3-', 148.5, 12, { align: 'center' });
       tY = 20;
       tY = drawTableHeader(tY);
     }
@@ -3076,8 +3090,8 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
     totalTgt += tgt;
     totalReal += real;
     let cx = tX;
-    pdf.setFont('times', 'normal');
-    pdf.setFontSize(10);
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(12);
     [
       (i + 1).toString(),
       (row.nama_ppl || '-').toUpperCase(),
@@ -3098,18 +3112,16 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
     tY += rH;
   });
   // Jumlah row
-  if (tY > 262) {
-    pdf.addPage();
+  if (tY > 175) {
+    pdf.addPage('a4', 'l');
     tY = 20;
   }
   const totalPct = totalTgt > 0 ? ((totalReal / totalTgt) * 100).toFixed(2) : '0.00';
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(10);
   let cx = tX;
   ['Jumlah', '', totalTgt.toString(), totalReal.toString(), totalPct + '%'].forEach((val, ci) => {
     if (ci === 0) {
       pdf.rect(cx, tY, colW[0] + colW[1], rH);
-      pdf.text('Jumlah', cx + (colW[0] + colW[1]) / 2, tY + 5, { align: 'center' });
+      pdf.text('Jumlah', cx + (colW[0] + colW[1]) / 2, tY + 5, { align: 'left' });
       cx += colW[0] + colW[1];
     } else if (ci === 1) {
       // merged already
@@ -3119,317 +3131,48 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore) {
       cx += colW[ci];
     }
   });
-  // ─────────────────────────────────────────
-  // HALAMAN 3 — TANDA TANGAN GANDA
-  // ─────────────────────────────────────────
-  pdf.addPage();
-  pdf.setFont('times', 'bold');
-  pdf.setFontSize(11);
-  pdf.text('-3-', 105, 12, { align: 'center' });
-  // TTD PML (kanan atas)
-  pdf.setFont('times', 'normal');
-  pdf.setFontSize(11);
-  let h3Y = 25;
-  pdf.text('Yang membuat pernyataan,', MR, h3Y, { align: 'right' });
-  h3Y += lh * 5;
-  pdf.text(`(${namaUpper})`, MR, h3Y, { align: 'right' });
-  // TTD Ketua Tim (kiri)
-  const ketua = ['Mengetahui,', 'Ketua Tim Pelaksana Sensus Ekonomi 2026', 'Kabupaten Lebak'];
-  let ketuaY = h3Y - lh * 3;
-  ketua.forEach(ln => {
-    pdf.text(ln, M, ketuaY);
-    ketuaY += lh;
-  });
-  ketuaY += lh * 3;
-  pdf.setFont('times', 'bold');
-  pdf.text('(YULIAN SARWO EDI)', M, ketuaY);
-  pdf.setFont('times', 'normal');
-  pdf.text('NIP.197707101999121001', M, ketuaY + lh);
-}
+  //==================================================
+  // HALAMAN 3 — TANDA TANGAN
+  //==================================================
 
-if (rpcErr) throw rpcErr;
-const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-pdf.setFont('times', 'bold');
-pdf.setFontSize(14);
-pdf.text('SURAT PERNYATAAN PEMERIKSAAN LAPANGAN', 105, 30, { align: 'center' });
-pdf.text('SENSUS EKONOMI 2026', 105, 36, { align: 'center' });
-pdf.text('TERMIN I', 105, 42, { align: 'center' });
-pdf.setFont('times', 'normal');
-pdf.setFontSize(11);
-pdf.text('Yang bertanda tangan di bawah ini:', 25, 60);
-pdf.text('Nama', 30, 68);
-pdf.text(':', 65, 68);
-pdf.setFont('times', 'bold');
-pdf.text((pml.nama || '-').toUpperCase(), 68, 68);
-pdf.setFont('times', 'normal');
-pdf.text('NIK', 30, 74);
-pdf.text(':', 65, 74);
-pdf.text(pml.nik || '-', 68, 74);
-pdf.text('Jabatan', 30, 80);
-pdf.text(':', 65, 80);
-pdf.text('Pengawas Lapangan (PML)', 68, 80);
-pdf.text('Nomor SPK', 30, 86);
-pdf.text(':', 65, 86);
-pdf.text(pml.no_spk || '-', 68, 86);
-pdf.text('Nomor Surat', 30, 92);
-pdf.text(':', 65, 92);
-pdf.text(pml.no_sp_pemeriksaan_t1 || '-', 68, 92);
-const text = `Menyatakan bahwa saya telah melakukan pemeriksaan lapangan Sensus Ekonomi 2026 Termin I terhadap hasil pendataan yang dilakukan oleh Petugas Pendata Lapangan (PPL) di bawah pengawasan saya, dengan rincian target dan capaian terlampir pada halaman lampiran surat ini.`;
-const splitText = pdf.splitTextToSize(text, 160);
-pdf.text(splitText, 25, 102);
-let startY = 118;
-const textTutup = `Demikian surat pernyataan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.`;
-const splitTutup = pdf.splitTextToSize(textTutup, 160);
-pdf.text(splitTutup, 25, startY);
-startY += 15;
-const tanggal = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-pdf.text(`Lebak, ${tanggal}`, 135, startY);
-pdf.text('Pengawas Lapangan,', 135, startY + 6);
-pdf.setFont('times', 'bold');
-pdf.text((pml.nama || '-').toUpperCase(), 135, startY + 30);
-const namaWidth = pdf.getTextWidth((pml.nama || '-').toUpperCase());
-pdf.setLineWidth(0.3);
-pdf.line(135, startY + 31, 135 + namaWidth, startY + 31);
-// --- HALAMAN 2: LAMPIRAN (TABEL PPL) ---
-pdf.addPage();
-pdf.setFont('times', 'bold');
-pdf.setFontSize(14);
-pdf.text('LAMPIRAN', 105, 30, { align: 'center' });
-pdf.setFontSize(12);
-pdf.text('SURAT PERNYATAAN PEMERIKSAAN LAPANGAN TERMIN I', 105, 36, { align: 'center' });
-pdf.setFont('times', 'normal');
-pdf.setFontSize(11);
-pdf.text('Daftar Petugas Pendata Lapangan (PPL) di bawah pengawasan:', 25, 50);
-pdf.setFont('times', 'bold');
-pdf.text((pml.nama || '-').toUpperCase(), 25, 56);
-// Render Table
-startY = 66;
-pdf.setFont('times', 'bold');
-// Header Table
-pdf.rect(25, startY, 10, 8);
-pdf.text('No', 30, startY + 5.5, { align: 'center' });
-pdf.rect(35, startY, 55, 8);
-pdf.text('Nama PPL', 62, startY + 5.5, { align: 'center' });
-pdf.rect(90, startY, 30, 8);
-pdf.text('Target', 105, startY + 5.5, { align: 'center' });
-pdf.rect(120, startY, 30, 8);
-pdf.text('Cap. PPL', 135, startY + 5.5, { align: 'center' });
-pdf.rect(150, startY, 35, 8);
-pdf.text('Cap. PML T1', 167, startY + 5.5, { align: 'center' });
-pdf.setFont('times', 'normal');
-startY += 8;
-let no = 1;
-let totalTgt = 0;
-let totalReal = 0;
-let totalPml = 0;
-if (rekapData && rekapData.length > 0) {
-  rekapData.forEach(row => {
-    // Periksa apakah perlu pindah halaman
-    if (startY > 260) {
-      pdf.addPage();
-      startY = 20;
-      // Print header again
-      pdf.setFont('times', 'bold');
-      pdf.rect(25, startY, 10, 8);
-      pdf.text('No', 30, startY + 5.5, { align: 'center' });
-      pdf.rect(35, startY, 55, 8);
-      pdf.text('Nama PPL', 62, startY + 5.5, { align: 'center' });
-      pdf.rect(90, startY, 30, 8);
-      pdf.text('Target', 105, startY + 5.5, { align: 'center' });
-      pdf.rect(120, startY, 30, 8);
-      pdf.text('Cap. PPL', 135, startY + 5.5, { align: 'center' });
-      pdf.rect(150, startY, 35, 8);
-      pdf.text('Cap. PML T1', 167, startY + 5.5, { align: 'center' });
-      pdf.setFont('times', 'normal');
-      startY += 8;
-    }
-    pdf.rect(25, startY, 10, 8);
-    pdf.text(no.toString(), 30, startY + 5.5, { align: 'center' });
-    pdf.rect(35, startY, 55, 8);
-    pdf.text(' ' + (row.nama_ppl || '-').toUpperCase(), 36, startY + 5.5);
-    pdf.rect(90, startY, 30, 8);
-    pdf.text((row.total_target || 0).toString(), 105, startY + 5.5, { align: 'center' });
-    pdf.rect(120, startY, 30, 8);
-    pdf.text((row.total_capaian1 || 0).toString(), 135, startY + 5.5, { align: 'center' });
-    pdf.rect(150, startY, 35, 8);
-    pdf.text((row.total_capaian1_pml || 0).toString(), 167, startY + 5.5, { align: 'center' });
-    totalTgt += parseInt(row.total_target) || 0;
-    totalReal += parseInt(row.total_capaian1) || 0;
-    totalPml += parseInt(row.total_capaian1_pml) || 0;
-    startY += 8;
-    no++;
-  });
-} else {
-  pdf.rect(25, startY, 160, 8);
-  pdf.text('Tidak ada data PPL', 105, startY + 5.5, { align: 'center' });
-  startY += 8;
-}
-// Total row
-if (startY > 260) {
-  pdf.addPage();
-  startY = 20;
-}
-pdf.setFont('times', 'bold');
-pdf.rect(25, startY, 65, 8);
-pdf.text('TOTAL', 57, startY + 5.5, { align: 'center' });
-pdf.rect(90, startY, 30, 8);
-pdf.text(totalTgt.toString(), 105, startY + 5.5, { align: 'center' });
-pdf.rect(120, startY, 30, 8);
-pdf.text(totalReal.toString(), 135, startY + 5.5, { align: 'center' });
-pdf.rect(150, startY, 35, 8);
-pdf.text(totalPml.toString(), 167, startY + 5.5, { align: 'center' });
-startY += 8;
-// Catatan sumber capaian
-pdf.setFont('times', 'italic');
-pdf.setFontSize(9);
-pdf.text('* Cap. PPL = capaian berdasarkan data PPL | Cap. PML T1 = capaian berdasarkan pemeriksaan PML Termin I', 25, startY + 4);
-indicator.style.borderColor = '#10b981';
-indicator.style.color = '#10b981';
-indicator.innerHTML = '✓ Berhasil membuat PDF Surat Pernyataan!';
-const pdfBlobUrl = pdf.output('bloburl');
-window.open(pdfBlobUrl, '_blank');
-setTimeout(() => { indicator.remove(); }, 2000);
-    } catch (err) {
-  console.error(err);
-  indicator.style.background = 'rgba(239, 68, 68, 0.1)';
-  indicator.style.borderColor = 'rgba(239, 68, 68, 0.2)';
-  indicator.style.color = '#ef4444';
-  indicator.innerHTML = 'Gagal membuat PDF: ' + err.message;
-  setTimeout(() => { indicator.remove(); }, 4000);
-}
-  });
-}
-// Batch print: cetak semua PML yang dipilih dalam satu PDF
-async function printSelectedSPTermin1() {
-  const ids = Array.from(selectedSPTermin1Ids);
-  if (ids.length === 0) return;
-  const pmls = allPMLData.filter(p => ids.includes(p.sobatid) && p.no_sp_pemeriksaan_t1);
-  if (pmls.length === 0) {
-    showToast('Tidak ada PML terpilih yang memiliki Nomor SP Termin I', 'error');
-    return;
+  pdf.addPage("a4", "l");
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text("-3-", 148.5, 12, { align: "center" });
+
+  const kiriX = 25;
+  const kananX = 272;
+
+  // Tinggi blok
+  const topY = 48;
+
+  //====================
+  // kanan
+  //====================
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text("Yang membuat pernyataan,", kananX - 40, topY, { align: "center" });
+  const namaY = topY + 28;
+  pdf.text(`(${namaUpper})`, kananX - 40, namaY, { align: "center" });
+
+  //====================
+  // kiri
+  //====================
+  pdf.setFont("Bookman", "normal");
+  y = topY + 46;
+  pdf.text("Mengetahui,", kiriX, y);
+  y += 6;
+  pdf.text("Ketua Tim Pelaksana Sensus Ekonomi 2026", kiriX, y);
+  y += 6;
+  pdf.text("Kabupaten Lebak", kiriX, y);
+
+  // Konfigurasi ukuran dan posisi tanda tangan Yulian (Bisa di-custom)
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', kiriX + 8, y, 20, 30);
   }
-  loadJsPDF(async () => {
-    const { jsPDF } = window.jspdf;
-    let indicator = document.getElementById('auto-crop-bg-indicator');
-    if (!indicator) {
-      indicator = document.createElement('div');
-      indicator.id = 'auto-crop-bg-indicator';
-      indicator.style = `
-        position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8;
-        color: #f8fafc; padding: 14px 20px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
-        z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;
-        font-family: system-ui, sans-serif; font-weight: 500;
-      `;
-      document.body.appendChild(indicator);
-    }
-    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat PDF batch (${pmls.length} PML)...`;
-    try {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const tanggal = new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-      for (let idx = 0; idx < pmls.length; idx++) {
-        const pml = pmls[idx];
-        indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat surat ${idx + 1}/${pmls.length}: ${pml.nama}...`;
-        if (idx > 0) pdf.addPage();
-        // --- HALAMAN 1: SURAT PERNYATAAN ---
-        pdf.setFont('times', 'bold');
-        pdf.setFontSize(14);
-        pdf.text('SURAT PERNYATAAN PEMERIKSAAN LAPANGAN', 105, 30, { align: 'center' });
-        pdf.text('SENSUS EKONOMI 2026', 105, 36, { align: 'center' });
-        pdf.text('TERMIN I', 105, 42, { align: 'center' });
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(11);
-        pdf.text('Yang bertanda tangan di bawah ini:', 25, 60);
-        pdf.text('Nama', 30, 68); pdf.text(':', 65, 68);
-        pdf.setFont('times', 'bold');
-        pdf.text((pml.nama || '-').toUpperCase(), 68, 68);
-        pdf.setFont('times', 'normal');
-        pdf.text('NIK', 30, 74); pdf.text(':', 65, 74);
-        pdf.text(pml.nik || '-', 68, 74);
-        pdf.text('Jabatan', 30, 80); pdf.text(':', 65, 80);
-        pdf.text('Pengawas Lapangan (PML)', 68, 80);
-        pdf.text('Nomor SPK', 30, 86); pdf.text(':', 65, 86);
-        pdf.text(pml.no_spk || '-', 68, 86);
-        pdf.text('Nomor Surat', 30, 92); pdf.text(':', 65, 92);
-        pdf.text(pml.no_sp_pemeriksaan_t1 || '-', 68, 92);
-        const bodyText = `Menyatakan bahwa saya telah melakukan pemeriksaan lapangan Sensus Ekonomi 2026 Termin I terhadap hasil pendataan yang dilakukan oleh Petugas Pendata Lapangan (PPL) di bawah pengawasan saya, dengan rincian target dan capaian terlampir pada halaman lampiran surat ini.`;
-        pdf.text(pdf.splitTextToSize(bodyText, 160), 25, 102);
-        let startY = 118;
-        const closingText = `Demikian surat pernyataan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.`;
-        pdf.text(pdf.splitTextToSize(closingText, 160), 25, startY);
-        startY += 15;
-        pdf.text(`Lebak, ${tanggal}`, 135, startY);
-        pdf.text('Pengawas Lapangan,', 135, startY + 6);
-        pdf.setFont('times', 'bold');
-        pdf.text((pml.nama || '-').toUpperCase(), 135, startY + 30);
-        const nw = pdf.getTextWidth((pml.nama || '-').toUpperCase());
-        pdf.setLineWidth(0.3);
-        pdf.line(135, startY + 31, 135 + nw, startY + 31);
-        // --- HALAMAN 2: LAMPIRAN TABEL PPL ---
-        const { data: rekapData, error: rpcErr } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pml.id });
-        if (rpcErr) throw rpcErr;
-        pdf.addPage();
-        pdf.setFont('times', 'bold');
-        pdf.setFontSize(14);
-        pdf.text('LAMPIRAN', 105, 30, { align: 'center' });
-        pdf.setFontSize(12);
-        pdf.text('SURAT PERNYATAAN PEMERIKSAAN LAPANGAN TERMIN I', 105, 36, { align: 'center' });
-        pdf.setFont('times', 'normal');
-        pdf.setFontSize(11);
-        pdf.text('Daftar Petugas Pendata Lapangan (PPL) di bawah pengawasan:', 25, 50);
-        pdf.setFont('times', 'bold');
-        pdf.text((pml.nama || '-').toUpperCase(), 25, 56);
-        startY = 66;
-        const drawHeader = (y) => {
-          pdf.setFont('times', 'bold');
-          pdf.rect(25, y, 10, 8); pdf.text('No', 30, y + 5.5, { align: 'center' });
-          pdf.rect(35, y, 55, 8); pdf.text('Nama PPL', 62, y + 5.5, { align: 'center' });
-          pdf.rect(90, y, 30, 8); pdf.text('Target', 105, y + 5.5, { align: 'center' });
-          pdf.rect(120, y, 30, 8); pdf.text('Cap. PPL', 135, y + 5.5, { align: 'center' });
-          pdf.rect(150, y, 35, 8); pdf.text('Cap. PML T1', 167, y + 5.5, { align: 'center' });
-          pdf.setFont('times', 'normal');
-        };
-        drawHeader(startY);
-        startY += 8;
-        let no = 1, totalTgt = 0, totalReal = 0, totalPml = 0;
-        if (rekapData && rekapData.length > 0) {
-          rekapData.forEach(row => {
-            if (startY > 260) { pdf.addPage(); startY = 20; drawHeader(startY); startY += 8; }
-            pdf.rect(25, startY, 10, 8); pdf.text(no.toString(), 30, startY + 5.5, { align: 'center' });
-            pdf.rect(35, startY, 55, 8); pdf.text(' ' + (row.nama_ppl || '-').toUpperCase(), 36, startY + 5.5);
-            pdf.rect(90, startY, 30, 8); pdf.text((row.total_target || 0).toString(), 105, startY + 5.5, { align: 'center' });
-            pdf.rect(120, startY, 30, 8); pdf.text((row.total_capaian1 || 0).toString(), 135, startY + 5.5, { align: 'center' });
-            pdf.rect(150, startY, 35, 8); pdf.text((row.total_capaian1_pml || 0).toString(), 167, startY + 5.5, { align: 'center' });
-            totalTgt += parseInt(row.total_target) || 0;
-            totalReal += parseInt(row.total_capaian1) || 0;
-            totalPml += parseInt(row.total_capaian1_pml) || 0;
-            startY += 8; no++;
-          });
-        } else {
-          pdf.rect(25, startY, 160, 8);
-          pdf.text('Tidak ada data PPL', 105, startY + 5.5, { align: 'center' });
-          startY += 8;
-        }
-        if (startY > 260) { pdf.addPage(); startY = 20; }
-        pdf.setFont('times', 'bold');
-        pdf.rect(25, startY, 65, 8); pdf.text('TOTAL', 57, startY + 5.5, { align: 'center' });
-        pdf.rect(90, startY, 30, 8); pdf.text(totalTgt.toString(), 105, startY + 5.5, { align: 'center' });
-        pdf.rect(120, startY, 30, 8); pdf.text(totalReal.toString(), 135, startY + 5.5, { align: 'center' });
-        pdf.rect(150, startY, 35, 8); pdf.text(totalPml.toString(), 167, startY + 5.5, { align: 'center' });
-        startY += 8;
-        pdf.setFont('times', 'italic'); pdf.setFontSize(9);
-        pdf.text('* Cap. PPL = capaian berdasarkan data PPL | Cap. PML T1 = capaian berdasarkan pemeriksaan PML Termin I', 25, startY + 4);
-      }
-      indicator.style.borderColor = '#10b981';
-      indicator.style.color = '#10b981';
-      indicator.innerHTML = `✓ PDF batch ${pmls.length} PML berhasil dibuat!`;
-      window.open(pdf.output('bloburl'), '_blank');
-      setTimeout(() => { indicator.remove(); }, 2000);
-    } catch (err) {
-      console.error(err);
-      indicator.style.borderColor = '#ef4444';
-      indicator.style.color = '#ef4444';
-      indicator.innerHTML = 'Gagal membuat PDF: ' + err.message;
-      setTimeout(() => { indicator.remove(); }, 4000);
-    }
-  });
+
+  // ruang tanda tangan
+  y += 28;
+  pdf.text("(YULIAN SARWO EDI)", kiriX, y);
+  pdf.text("NIP.197707101999121001", kiriX, y + 6);
 }

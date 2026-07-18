@@ -437,6 +437,7 @@ const EXPECTED_CAPAIAN_COLS = [
   'Kode SLS', 'Target', 'Capaian PPL T1', 'Capaian PPL T2', 'Capaian PML T1', 'Capaian PML T2'
 ];
 let parsedCapaianData = null;
+let missingCapaianSlsCount = 0;
 
 function generateCapaianTemplate() {
   const wb = XLSX.utils.book_new();
@@ -473,13 +474,51 @@ async function processCapaianFile(file) {
     if (!result.valid) {
       document.getElementById('importCapaianPreviewArea')?.classList.add('hidden');
       parsedCapaianData = null;
+      missingCapaianSlsCount = 0;
       return;
     }
 
     setZoneFile('zoneCapaian', 'capaianImportLabel', file.name, true);
-    parsedCapaianData = result.dataRows;
+    const rawData = result.dataRows;
 
-    document.getElementById('importCapaianCount').textContent = `${parsedCapaianData.length} baris data ditemukan`;
+    // Check which SLS exist in the database
+    const slsCodes = rawData.map(c => c.kode_sls);
+    const existingSls = new Set();
+    const dbChunkSize = 500;
+    
+    document.getElementById('capaianValidation').innerHTML = '<div class="chip">Mengecek keberadaan SLS di database...</div>';
+
+    for (let i = 0; i < slsCodes.length; i += dbChunkSize) {
+      const chunk = slsCodes.slice(i, i + dbChunkSize);
+      const { data } = await db.from('wilayah_subsls').select('kode_sls_gabungan').in('kode_sls_gabungan', chunk);
+      if (data) {
+        data.forEach(row => existingSls.add(row.kode_sls_gabungan));
+      }
+    }
+
+    const missingSls = rawData.filter(c => !existingSls.has(c.kode_sls));
+    parsedCapaianData = rawData.filter(c => existingSls.has(c.kode_sls));
+    missingCapaianSlsCount = missingSls.length;
+
+    let validMsg = `<div class="chip success">Format file valid (${rawData.length} baris)</div>`;
+    if (missingSls.length > 0) {
+      validMsg += ` <div class="chip warning" style="margin-left:0.5rem">${missingSls.length} SLS tidak ditemukan di database wilayah (akan diabaikan)</div>`;
+    }
+    document.getElementById('capaianValidation').innerHTML = validMsg;
+
+    if (missingSls.length > 0) {
+      const missingList = missingSls.slice(0, 10).map(m => m.kode_sls).join(', ');
+      const extraInfo = missingSls.length > 10 ? `... dan ${missingSls.length - 10} lainnya` : '';
+      const validationContainer = document.getElementById('capaianValidation');
+      validationContainer.innerHTML += `
+        <div style="margin-top:0.5rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:var(--warning);font-size:0.85rem">
+          <strong>Peringatan:</strong> Beberapa SLS berikut tidak terdaftar di database wilayah dan target/capaiannya tidak akan diimpor:<br>
+          <code style="word-break:break-all;color:inherit">${escHtml(missingList)}</code>${escHtml(extraInfo)}
+        </div>
+      `;
+    }
+
+    document.getElementById('importCapaianCount').textContent = `${parsedCapaianData.length} baris data valid siap diimpor`;
     const tbody = document.getElementById('importCapaianTableBody');
     tbody.innerHTML = parsedCapaianData.slice(0, 50).map(s => `
       <tr>
@@ -498,6 +537,7 @@ async function processCapaianFile(file) {
     document.getElementById('importCapaianPreviewArea')?.classList.remove('hidden');
   } catch (err) {
     document.getElementById('capaianValidation').innerHTML = `<div class="chip error">Error: ${escHtml(err.message)}</div>`;
+    missingCapaianSlsCount = 0;
   }
 }
 
@@ -524,7 +564,7 @@ function validateCapaianExcel(rows) {
 
   const dataRows = rows.slice(1).filter(r => r && r.some(c => c !== null && c !== ''));
   const rowErrors = [];
-  const validRows = [];
+  const uniqueRows = new Map();
 
   for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
     const row = dataRows[i];
@@ -542,17 +582,25 @@ function validateCapaianExcel(rows) {
     const pml1   = mapIdx.pml1 !== -1 ? parseInt(row[mapIdx.pml1]) || 0 : 0;
     const pml2   = mapIdx.pml2 !== -1 ? parseInt(row[mapIdx.pml2]) || 0 : 0;
 
-    validRows.push({ kode_sls: rawSls, target, ppl1, ppl2, pml1, pml2 });
+    uniqueRows.set(rawSls, { kode_sls: rawSls, target, ppl1, ppl2, pml1, pml2 });
   }
 
   if (rowErrors.length > 0) return { valid: false, errors: rowErrors };
-  return { valid: true, errors: [], dataRows: validRows };
+  return { valid: true, errors: [], dataRows: Array.from(uniqueRows.values()) };
 }
 
 async function processCapaianImport() {
   if (!parsedCapaianData?.length) return;
 
   const btn = document.getElementById('processCapaianImportBtn');
+  
+  if (missingCapaianSlsCount > 0) {
+    const confirmImport = confirm(`Peringatan: Ada ${missingCapaianSlsCount} SLS yang tidak terdaftar di database wilayah dan akan diabaikan. Apakah Anda yakin ingin melanjutkan proses impor?`);
+    if (!confirmImport) {
+      return;
+    }
+  }
+
   btn.disabled = true;
   btn.textContent = 'Memproses...';
 
@@ -565,10 +613,16 @@ async function processCapaianImport() {
       btn.textContent = `Memproses (${i} / ${parsedCapaianData.length})...`;
 
       // 1. Update targets in wilayah_subsls
-      const targetPayload = chunk.map(c => ({
-        kode_sls_gabungan: c.kode_sls,
-        target: c.target
-      }));
+      const targetPayload = chunk.map(c => {
+        const full = c.kode_sls;
+        return {
+          kode_sls_gabungan: full,
+          kode_sls: full.substring(0, 14),
+          kdsls: full.substring(10, 14),
+          kdsubsls: full.substring(14, 16),
+          target: c.target
+        };
+      });
 
       // In Supabase, upserting only partial columns when conflict occurs acts as an update
       const { error: targetErr } = await db.from('wilayah_subsls').upsert(targetPayload, { onConflict: 'kode_sls_gabungan' });
@@ -598,6 +652,7 @@ async function processCapaianImport() {
     document.getElementById('importCapaianPreviewArea')?.classList.add('hidden');
     document.getElementById('fileCapaian').value = '';
     parsedCapaianData = null;
+    missingCapaianSlsCount = 0;
 
     showSection('sp-termin1');
     await loadSPTermin1Data(); // Refresh SP Termin I table counts/capaian
