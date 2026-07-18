@@ -84,8 +84,11 @@
                             const resJson = await response.json();
                             console.log(`[Bot Sync Reject] Respon JSON dari BPS:`, resJson);
 
-                            // Deteksi jika respon adalah pesan error "Sudah Rejected"
-                            const isAlreadyRejected = resJson.message && resJson.message.toUpperCase().includes('REJECTED');
+                            // Deteksi jika respon adalah pesan error "Sudah Rejected" atau status assignment tidak mendukung/terlewati
+                            const isAlreadyRejected = resJson.message && (
+                                resJson.message.toUpperCase().includes('REJECTED') ||
+                                resJson.message.toUpperCase().includes('SUBMITTED BY PENCACAH')
+                            );
 
                             isActuallySuccess = (resJson.success !== false &&
                                 resJson.status !== 'error' &&
