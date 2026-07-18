@@ -445,6 +445,15 @@
           </svg>
           Import SLS & PML
         </button>
+        <button class="sidebar-item" onclick="showSection('import-capaian')" id="nav-import-capaian">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21.2 15c.5-1.1.8-2.3.8-3.5 0-4.4-3.6-8-8-8s-8 3.6-8 8c0 1.2.3 2.4.8 3.5" />
+            <path d="M3 15h18" />
+            <path d="M12 15v7" />
+          </svg>
+          Import Capaian SLS
+        </button>
         <button class="sidebar-item" onclick="showSection('bapp')" id="nav-bapp">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -455,6 +464,16 @@
             <polyline points="10 9 9 9 8 9" />
           </svg>
           BAPP (Cetak PDF)
+        </button>
+        <button class="sidebar-item" onclick="showSection('sp-termin1')" id="nav-sp-termin1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" x2="8" y1="13" y2="13" />
+            <line x1="16" x2="8" y1="17" y2="17" />
+            <line x1="10" x2="8" y1="9" y2="9" />
+          </svg>
+          SP Termin I (Cetak PDF)
         </button>
       </div>
     </aside>
@@ -1015,6 +1034,81 @@
         </div>
       </div>
 
+      <!-- ============ IMPORT CAPAIAN SLS ============ -->
+      <div class="section-panel" id="panel-import-capaian">
+        <div class="section-title">Import Capaian & Target SLS</div>
+        <div class="section-sub">Upload file Excel berisi data target dan realisasi capaian SLS untuk di-update secara massal.</div>
+
+        <div class="card card-body mb-4" style="max-width:600px">
+          <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Capaian SLS</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom SLS, Target, dan Realisasi sesuai.</div>
+          <button class="btn btn-secondary btn-sm" onclick="generateCapaianTemplate()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            Download Template Excel Capaian
+          </button>
+        </div>
+
+        <div class="upload-card mb-4" style="max-width:600px">
+          <div class="upload-card-title">File Excel Capaian SLS</div>
+          <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
+          <div class="upload-zone" id="zoneCapaian" onclick="document.getElementById('fileCapaian').click()"
+            ondragover="handleDragOver(event,'zoneCapaian')" ondragleave="handleDragLeave('zoneCapaian')"
+            ondrop="handleCapaianDrop(event)">
+            <input type="file" id="fileCapaian" accept=".xlsx,.xls" onchange="handleCapaianFileSelect(event)">
+            <div class="upload-zone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </div>
+            <div class="upload-zone-title" id="capaianImportLabel">Pilih atau seret file di sini</div>
+            <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
+          </div>
+          <div id="capaianValidation" class="mt-2"></div>
+        </div>
+
+        <!-- Preview Impor Capaian -->
+        <div id="importCapaianPreviewArea" class="hidden">
+          <div class="table-wrapper mb-4">
+            <div class="table-header">
+              <div class="table-title">Preview Target & Capaian SLS</div>
+              <div class="table-count" id="importCapaianCount">0 baris ditemukan</div>
+            </div>
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>Kode SLS</th>
+                  <th>Target (Wilayah)</th>
+                  <th>Capaian PPL T1</th>
+                  <th>Capaian PPL T2</th>
+                  <th>Capaian PML T1</th>
+                  <th>Capaian PML T2</th>
+                </tr>
+              </thead>
+              <tbody id="importCapaianTableBody"></tbody>
+            </table>
+          </div>
+
+          <div style="display:flex;gap:0.75rem">
+            <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
+            <button class="btn btn-primary" id="processCapaianImportBtn" onclick="processCapaianImport()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                <path d="m9 11 3 3L22 4" />
+              </svg>
+              Proses Impor Capaian
+            </button>
+          </div>
+        </div>
+      </div>
+      
       <!-- ============ SLS TANPA PPL ============ -->
       <div class="section-panel" id="panel-unassigned">
         <div class="section-title">Assignment Tanpa PPL</div>
@@ -1165,6 +1259,86 @@
           </div>
 
         </div>
+      </div>
+
+      <!-- ============ SP TERMIN I PANEL ============ -->
+      <div class="section-panel" id="panel-sp-termin1">
+        <div class="section-title">Surat Pernyataan Termin I</div>
+        <div class="section-sub">Pantau, isi nomor surat, dan cetak PDF Surat Pernyataan Pemeriksaan Lapangan Termin I untuk PML.</div>
+
+        <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
+          <input type="text" class="filter-select" id="spTerm1Search" placeholder="Cari nama atau Sobat ID PML..." oninput="filterSPTermin1()" style="max-width:260px">
+          
+          <select id="spTerm1KecamatanFilter" class="filter-select" onchange="filterSPTermin1()" style="max-width:200px">
+            <option value="">Semua Kecamatan</option>
+          </select>
+          
+          <button class="btn btn-secondary btn-sm" onclick="loadSPTermin1Data()" style="height:38px;margin-bottom:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            Refresh
+          </button>
+
+          <button id="spTerm1PrintSelectedBtn" class="btn btn-success btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span id="spTerm1PrintSelectedLabel">Cetak Terpilih (0)</span>
+          </button>
+          
+          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUploadNoSuratModal()" style="height:38px;margin-bottom:0;margin-left:auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Upload Nomor
+          </button>
+        </div>
+
+        <div class="table-wrapper">
+          <div class="table-header">
+            <div class="table-title">Daftar PML</div>
+            <div class="table-count" id="spTerm1TableCount">Total: 0 PML</div>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="width:36px;text-align:center">
+                  <input type="checkbox" id="spTerm1SelectAll" onchange="toggleSelectAllSPTermin1(this)" title="Pilih semua" style="cursor:pointer;width:15px;height:15px">
+                </th>
+                <th onclick="sortSPTermin1('nama')" style="cursor:pointer;white-space:nowrap">Nama PML <span class="sp-sort-icon" id="sort-sp-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+                <th onclick="sortSPTermin1('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sp-sort-icon" id="sort-sp-kecamatan" style="opacity:0.1;font-size:0.7rem">▲</span></th>
+                <th>No. SPK</th>
+                <th>No. Surat Termin I</th>
+                <th style="text-align:center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="spTerm1TableBody">
+              <tr>
+                <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="spTerm1PageSizeSelect" class="filter-select" onchange="changeSPTermin1PageSize()" style="width:80px;padding:0.25rem">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="spTerm1Pagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
+        </div>
+
       </div>
 
     </main>
@@ -1372,6 +1546,75 @@
     </div>
   </div>
 
+  <!-- Modal Edit Nomor Surat SP -->
+  <div class="modal-overlay" id="noSuratModal" onclick="if(event.target===this)closeNoSuratModal()">
+    <div class="bottom-sheet" style="max-width:520px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Edit Nomor Surat & SPK</div>
+      </div>
+      <div class="bottom-sheet-body">
+        <input type="hidden" id="noSuratSobatid">
+        <div class="form-group">
+          <label class="form-label">Nomor SPK (Perjanjian Kerja)</label>
+          <input type="text" id="inputNoSpk" class="form-input" placeholder="Contoh: 123/SPK/BPS/2026">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Nomor SP Pemeriksaan Termin I</label>
+          <input type="text" id="inputNoSpTerm1" class="form-input" placeholder="Contoh: 456/SP/BPS/T1/2026">
+        </div>
+        <div class="form-group mb-4">
+          <label class="form-label">Nomor SP Pemeriksaan Termin II</label>
+          <input type="text" id="inputNoSpTerm2" class="form-input" placeholder="Contoh: 789/SP/BPS/T2/2026">
+        </div>
+      </div>
+      <div class="bottom-sheet-footer">
+        <button class="btn btn-secondary" onclick="closeNoSuratModal()">Batal</button>
+        <button class="btn btn-primary" onclick="saveNoSurat()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Upload Batch Nomor Surat SP -->
+  <div class="modal-overlay" id="uploadNoSuratModal" onclick="if(event.target===this)closeUploadNoSuratModal()">
+    <div class="bottom-sheet" style="max-width:520px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="justify-content:space-between">
+        <div class="bottom-sheet-title">Upload Nomor Surat & SPK</div>
+        <button class="btn btn-secondary btn-sm" onclick="downloadNoSuratTemplate()" style="display:flex;align-items:center;gap:0.25rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download Template
+        </button>
+      </div>
+      <div class="bottom-sheet-body">
+        <div class="form-group">
+          <div class="upload-zone" id="zoneNoSurat" onclick="document.getElementById('fileNoSurat').click()"
+            ondragover="handleDragOver(event,'zoneNoSurat')" ondragleave="handleDragLeave('zoneNoSurat')"
+            ondrop="handleNoSuratDrop(event)">
+            <input type="file" id="fileNoSurat" accept=".xlsx,.xls" onchange="handleNoSuratFileSelect(event)">
+            <div class="upload-zone-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+            </div>
+            <div class="upload-zone-title" id="noSuratImportLabel">Pilih atau seret file Excel di sini</div>
+            <div class="upload-zone-sub">Minimal memuat kolom <b>Sobat ID</b> dan 1 kolom data nomor (fleksibel).</div>
+          </div>
+          <div id="noSuratValidation" class="mt-2"></div>
+        </div>
+      </div>
+      <div class="bottom-sheet-footer">
+        <button class="btn btn-secondary" onclick="closeUploadNoSuratModal()">Batal</button>
+        <button class="btn btn-primary" id="uploadNoSuratBtn" onclick="processNoSuratImport()" disabled>Mulai Upload</button>
+      </div>
+    </div>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/config.js"></script>

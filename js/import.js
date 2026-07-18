@@ -127,9 +127,20 @@ function validateUserExcel(rows) {
     return { valid: false, errors: ['File kosong atau tidak memiliki data'] };
   }
 
-  const headerErrors = validateHeaders(rows[0], EXPECTED_USER_COLS);
-  if (headerErrors.length > 0) {
-    return { valid: false, errors: ['Format header tidak sesuai template:', ...headerErrors] };
+  // Header mapping (fleksibel)
+  const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+  const mapIdx = { sobatid: -1, nik: -1, nama: -1, role: -1, email: -1 };
+
+  headers.forEach((h, idx) => {
+    if (h.includes('sobatid') || h.includes('sobat id')) mapIdx.sobatid = idx;
+    else if (h === 'nik' || h.includes('password')) mapIdx.nik = idx;
+    else if (h === 'nama' || h.includes('nama lengkap')) mapIdx.nama = idx;
+    else if (h.includes('role')) mapIdx.role = idx;
+    else if (h.includes('email')) mapIdx.email = idx;
+  });
+
+  if (mapIdx.sobatid === -1) {
+    return { valid: false, errors: ['Kolom "Sobat ID" wajib ada di header baris pertama'] };
   }
 
   const dataRows = rows.slice(1).filter(r => r && r.some(c => c !== null && c !== ''));
@@ -137,18 +148,18 @@ function validateUserExcel(rows) {
   const validRows = [];
 
   for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
-    const [sobatidRaw, nikRaw, namaRaw, roleRaw, emailRaw] = dataRows[i];
-    const sobatid = String(sobatidRaw || '').trim();
-    const nik     = String(nikRaw    || '').trim();
-    const nama    = String(namaRaw   || '').trim();
-    const role    = String(roleRaw   || '').trim().toLowerCase();
-    const email   = String(emailRaw  || '').trim();
+    const row = dataRows[i];
+    const sobatid = String(mapIdx.sobatid !== -1 ? row[mapIdx.sobatid] || '' : '').trim();
+    const nik     = String(mapIdx.nik !== -1 ? row[mapIdx.nik] || '' : '').trim();
+    const nama    = String(mapIdx.nama !== -1 ? row[mapIdx.nama] || '' : '').trim();
+    const role    = String(mapIdx.role !== -1 ? row[mapIdx.role] || '' : '').trim().toLowerCase();
+    const email   = String(mapIdx.email !== -1 ? row[mapIdx.email] || '' : '').trim();
     const rowNum  = i + 2;
 
     if (!sobatid || !/^\d+$/.test(sobatid)) rowErrors.push(`Baris ${rowNum}: Sobat ID wajib diisi dan harus berupa angka`);
-    if (!nik     || !/^\d+$/.test(nik))     rowErrors.push(`Baris ${rowNum}: NIK wajib diisi dan harus berupa angka`);
-    if (!nama)                               rowErrors.push(`Baris ${rowNum}: Nama Lengkap wajib diisi`);
-    if (!['ppl', 'pml', 'admin', 'superadmin'].includes(role))
+    if (mapIdx.nik !== -1 && (!nik || !/^\d+$/.test(nik))) rowErrors.push(`Baris ${rowNum}: NIK wajib diisi dan harus berupa angka`);
+    if (mapIdx.nama !== -1 && !nama) rowErrors.push(`Baris ${rowNum}: Nama Lengkap wajib diisi`);
+    if (mapIdx.role !== -1 && !['ppl', 'pml', 'admin', 'superadmin'].includes(role))
                                              rowErrors.push(`Baris ${rowNum}: Role "${role}" tidak dikenali (harus ppl/pml/admin/superadmin)`);
 
     if (rowErrors.length === 0) validRows.push({ sobatid, nik, nama, role, email });
@@ -417,4 +428,184 @@ function generateWilayahTemplate() {
   ws['!cols'] = headers.map(h => ({ wch: Math.max(h.length + 2, 16) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Master Wilayah');
   XLSX.writeFile(wb, 'template_master_wilayah.xlsx');
+}
+
+// ============================================================
+// CAPAIAN & TARGET SLS IMPORT
+// ============================================================
+const EXPECTED_CAPAIAN_COLS = [
+  'Kode SLS', 'Target', 'Capaian PPL T1', 'Capaian PPL T2', 'Capaian PML T1', 'Capaian PML T2'
+];
+let parsedCapaianData = null;
+
+function generateCapaianTemplate() {
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([
+    EXPECTED_CAPAIAN_COLS,
+    ['3602070001001900', 50, 45, 0, 42, 0]
+  ]);
+  ws['!cols'] = EXPECTED_CAPAIAN_COLS.map(h => ({ wch: Math.max(h.length + 2, 18) }));
+  XLSX.utils.book_append_sheet(wb, ws, 'Capaian SLS');
+  XLSX.writeFile(wb, 'template_capaian_sls.xlsx');
+}
+
+function handleCapaianDrop(e) {
+  e.preventDefault();
+  document.getElementById('zoneCapaian')?.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processCapaianFile(file);
+}
+
+function handleCapaianFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processCapaianFile(file);
+}
+
+async function processCapaianFile(file) {
+  setZoneFile('zoneCapaian', 'capaianImportLabel', file.name, false);
+  document.getElementById('capaianValidation').innerHTML = '<div class="chip">Memvalidasi...</div>';
+
+  try {
+    const rows = await parseExcelFile(file);
+    const result = validateCapaianExcel(rows);
+
+    renderValidationResult('capaianValidation', result);
+    if (!result.valid) {
+      document.getElementById('importCapaianPreviewArea')?.classList.add('hidden');
+      parsedCapaianData = null;
+      return;
+    }
+
+    setZoneFile('zoneCapaian', 'capaianImportLabel', file.name, true);
+    parsedCapaianData = result.dataRows;
+
+    document.getElementById('importCapaianCount').textContent = `${parsedCapaianData.length} baris data ditemukan`;
+    const tbody = document.getElementById('importCapaianTableBody');
+    tbody.innerHTML = parsedCapaianData.slice(0, 50).map(s => `
+      <tr>
+        <td class="mono">${escHtml(s.kode_sls)}</td>
+        <td>${s.target}</td>
+        <td>${s.ppl1}</td>
+        <td>${s.ppl2}</td>
+        <td>${s.pml1}</td>
+        <td>${s.pml2}</td>
+      </tr>
+    `).join('') +
+    (parsedCapaianData.length > 50
+      ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
+      : '');
+
+    document.getElementById('importCapaianPreviewArea')?.classList.remove('hidden');
+  } catch (err) {
+    document.getElementById('capaianValidation').innerHTML = `<div class="chip error">Error: ${escHtml(err.message)}</div>`;
+  }
+}
+
+function validateCapaianExcel(rows) {
+  if (!rows || rows.length < 2) {
+    return { valid: false, errors: ['File kosong atau tidak memiliki data'] };
+  }
+
+  const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+  const mapIdx = { sls: -1, target: -1, ppl1: -1, ppl2: -1, pml1: -1, pml2: -1 };
+
+  headers.forEach((h, idx) => {
+    if (h.includes('sls') || h.includes('sls_gabungan')) mapIdx.sls = idx;
+    else if (h.includes('target')) mapIdx.target = idx;
+    else if (h.includes('ppl t1') || h.includes('ppl 1') || h.includes('capaian1') || h.includes('ppl termin 1')) mapIdx.ppl1 = idx;
+    else if (h.includes('ppl t2') || h.includes('ppl 2') || h.includes('capaian2') || h.includes('ppl termin 2')) mapIdx.ppl2 = idx;
+    else if (h.includes('pml t1') || h.includes('pml 1') || h.includes('pml termin 1') || h.includes('capaian1_pml')) mapIdx.pml1 = idx;
+    else if (h.includes('pml t2') || h.includes('pml 2') || h.includes('pml termin 2') || h.includes('capaian2_pml')) mapIdx.pml2 = idx;
+  });
+
+  if (mapIdx.sls === -1) {
+    return { valid: false, errors: ['Kolom "Kode SLS" atau "Kode SLS Gabungan" wajib ada di header baris pertama'] };
+  }
+
+  const dataRows = rows.slice(1).filter(r => r && r.some(c => c !== null && c !== ''));
+  const rowErrors = [];
+  const validRows = [];
+
+  for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
+    const row = dataRows[i];
+    const rawSls = String(mapIdx.sls !== -1 ? row[mapIdx.sls] || '' : '').trim();
+    const rowNum = i + 2;
+
+    if (!rawSls || !/^\d{16}$/.test(rawSls)) {
+      rowErrors.push(`Baris ${rowNum}: Kode SLS wajib 16 digit angka`);
+      continue;
+    }
+
+    const target = mapIdx.target !== -1 ? parseInt(row[mapIdx.target]) || 0 : 0;
+    const ppl1   = mapIdx.ppl1 !== -1 ? parseInt(row[mapIdx.ppl1]) || 0 : 0;
+    const ppl2   = mapIdx.ppl2 !== -1 ? parseInt(row[mapIdx.ppl2]) || 0 : 0;
+    const pml1   = mapIdx.pml1 !== -1 ? parseInt(row[mapIdx.pml1]) || 0 : 0;
+    const pml2   = mapIdx.pml2 !== -1 ? parseInt(row[mapIdx.pml2]) || 0 : 0;
+
+    validRows.push({ kode_sls: rawSls, target, ppl1, ppl2, pml1, pml2 });
+  }
+
+  if (rowErrors.length > 0) return { valid: false, errors: rowErrors };
+  return { valid: true, errors: [], dataRows: validRows };
+}
+
+async function processCapaianImport() {
+  if (!parsedCapaianData?.length) return;
+
+  const btn = document.getElementById('processCapaianImportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Memproses...';
+
+  let successCount = 0;
+  const chunkSize = 500;
+
+  try {
+    for (let i = 0; i < parsedCapaianData.length; i += chunkSize) {
+      const chunk = parsedCapaianData.slice(i, i + chunkSize);
+      btn.textContent = `Memproses (${i} / ${parsedCapaianData.length})...`;
+
+      // 1. Update targets in wilayah_subsls
+      const targetPayload = chunk.map(c => ({
+        kode_sls_gabungan: c.kode_sls,
+        target: c.target
+      }));
+
+      // In Supabase, upserting only partial columns when conflict occurs acts as an update
+      const { error: targetErr } = await db.from('wilayah_subsls').upsert(targetPayload, { onConflict: 'kode_sls_gabungan' });
+      if (targetErr) throw targetErr;
+
+      // 2. Upsert achievement numbers in capaian table
+      const capaianPayload = chunk.map(c => ({
+        kode_sls_gabungan: c.kode_sls,
+        capaian1: c.ppl1,
+        capaian2: c.ppl2,
+        capaian1_pml: c.pml1,
+        capaian2_pml: c.pml2,
+        updated_at: new Date().toISOString()
+      }));
+
+      const { error: capaianErr } = await db.from('capaian').upsert(capaianPayload, { onConflict: 'kode_sls_gabungan' });
+      if (capaianErr) throw capaianErr;
+
+      successCount += chunk.length;
+    }
+
+    showToast(`Impor capaian selesai! Berhasil memperbarui ${successCount} data SLS.`, 'success');
+
+    // Reset UI
+    setZoneFile('zoneCapaian', 'capaianImportLabel', null, false);
+    document.getElementById('capaianValidation').innerHTML = '';
+    document.getElementById('importCapaianPreviewArea')?.classList.add('hidden');
+    document.getElementById('fileCapaian').value = '';
+    parsedCapaianData = null;
+
+    showSection('sp-termin1');
+    await loadSPTermin1Data(); // Refresh SP Termin I table counts/capaian
+  } catch (err) {
+    console.error('Proses impor capaian gagal:', err);
+    showToast('Gagal memproses impor: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Proses Impor Capaian';
+  }
 }
