@@ -469,7 +469,7 @@ async function loadUsers() {
   while (hasMore) {
     const { data, error } = await db
       .from('profiles')
-      .select('id, sobatid, nama, role, email_ref, is_active')
+      .select('id, sobatid, nik, nama, role, email_ref, is_active')
       .in('role', ['ppl', 'pml'])
       .order('role').order('nama')
       .range(from, from + step - 1);
@@ -2237,7 +2237,7 @@ let spTermin1SortConfig = { key: 'nama', dir: 'asc' };
 let selectedSPTermin1Ids = new Set(); // menyimpan sobatid PML yang dipilih
 async function loadSPTermin1Data() {
   const tbody = document.getElementById('spTerm1TableBody');
-  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem"><span class="spinner" style="width:24px;height:24px;border-width:3px"></span><div style="margin-top:0.5rem;color:var(--text-muted)">Memuat data PML...</div></td></tr>';
+  tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem"><span class="spinner" style="width:24px;height:24px;border-width:3px"></span><div style="margin-top:0.5rem;color:var(--text-muted)">Memuat data PML...</div></td></tr>';
   try {
     if (!allUsers || allUsers.length === 0) {
       await loadUsers();
@@ -2256,6 +2256,25 @@ async function loadSPTermin1Data() {
       });
     }
     const pmls = allUsers.filter(u => u.role === 'pml' && u.is_active);
+
+    // Fetch all PML achievement totals via RPC
+    let pmlCapaianMap = {};
+    try {
+      const { data: capData, error: capErr } = await db.rpc('get_all_pml_capaian');
+      if (!capErr && capData) {
+        capData.forEach(c => {
+          if (c.pml_id) {
+            pmlCapaianMap[c.pml_id] = {
+              target: parseInt(c.total_target) || 0,
+              capaian: parseInt(c.total_capaian) || 0
+            };
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Gagal memuat detail capaian PML:', e);
+    }
+
     let noSurats = [];
     let fromNoSurat = 0;
     let hasMoreNoSurat = true;
@@ -2285,17 +2304,24 @@ async function loadSPTermin1Data() {
     });
     allPMLData = pmls.map(p => {
       const key = String(p.sobatid || '').trim();
+      const capInfo = pmlCapaianMap[p.id] || { target: 0, capaian: 0 };
+      const pctVal = capInfo.target > 0 ? (capInfo.capaian / capInfo.target) * 100 : 0;
+      const pct = pctVal.toFixed(2) + '%';
       return {
         ...p,
         no_spk: noSuratMap[key]?.no_spk || '',
         no_sp_pemeriksaan_t1: noSuratMap[key]?.no_sp_pemeriksaan_t1 || '',
-        no_sp_pemeriksaan_t2: noSuratMap[key]?.no_sp_pemeriksaan_t2 || ''
+        no_sp_pemeriksaan_t2: noSuratMap[key]?.no_sp_pemeriksaan_t2 || '',
+        total_target: capInfo.target,
+        total_capaian: capInfo.capaian,
+        capaian_pct: pctVal,
+        capaian_label: `${capInfo.capaian}/${capInfo.target} (${pct})`
       };
     });
     filterSPTermin1();
   } catch (err) {
     showToast('Gagal memuat data SP Termin I: ' + err.message, 'error');
-    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger)">Gagal memuat: ${escHtml(err.message)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger)">Gagal memuat: ${escHtml(err.message)}</td></tr>`;
   }
 }
 function filterSPTermin1() {
@@ -2309,8 +2335,13 @@ function filterSPTermin1() {
   });
   // Sort
   filtered.sort((a, b) => {
-    let valA = (a[spTermin1SortConfig.key] || '').toLowerCase();
-    let valB = (b[spTermin1SortConfig.key] || '').toLowerCase();
+    let valA = a[spTermin1SortConfig.key];
+    let valB = b[spTermin1SortConfig.key];
+    if (typeof valA === 'number' && typeof valB === 'number') {
+      return spTermin1SortConfig.dir === 'asc' ? valA - valB : valB - valA;
+    }
+    valA = (valA || '').toString().toLowerCase();
+    valB = (valB || '').toString().toLowerCase();
     if (valA < valB) return spTermin1SortConfig.dir === 'asc' ? -1 : 1;
     if (valA > valB) return spTermin1SortConfig.dir === 'asc' ? 1 : -1;
     return 0;
@@ -2337,7 +2368,7 @@ function renderSPTermin1Table(data) {
   const tbody = document.getElementById('spTerm1TableBody');
   const pag = document.getElementById('spTerm1Pagination');
   if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data PML</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data PML</td></tr>';
     pag.innerHTML = '';
     return;
   }
@@ -2368,6 +2399,9 @@ function renderSPTermin1Table(data) {
       </td>
       <td>
         ${p.no_sp_pemeriksaan_t1 ? `<span class="badge" style="background:rgba(16,185,129,0.1);color:#10b981;border:1px solid rgba(16,185,129,0.3)">${escHtml(p.no_sp_pemeriksaan_t1)}</span>` : `<span style="color:var(--text-subtle);font-style:italic">Belum diisi</span>`}
+      </td>
+      <td style="text-align:center">
+        <span style="font-weight:600;color:var(--text-strong)">${escHtml(p.capaian_label || '0/0 (0.00%)')}</span>
       </td>
       <td style="text-align:center">
         <div style="display:flex;gap:0.5rem;justify-content:center">
@@ -2794,7 +2828,7 @@ async function printSelectedSPTermin1() {
       for (let idx = 0; idx < pmls.length; idx++) {
         const pml = pmls[idx];
         indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat surat ${idx + 1}/${pmls.length}: ${pml.nama}...`;
-        if (idx > 0) pdf.addPage('a4', 'p');
+        if (idx > 0) pdf.addPage('a4', 'portrait');
         const { data: rekapData, error: rpcErr } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pml.id });
         if (rpcErr) throw rpcErr;
         buildSPTermin1Pages(pdf, pml, rekapData, idx > 0, ttdYulianBase64);
@@ -2975,7 +3009,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   // HALAMAN 2 — LAMPIRAN
   //==================================================
 
-  pdf.addPage("a4", "l");
+  pdf.addPage("a4", "landscape");
   pdf.setFont("Bookman", "normal");
   pdf.setFontSize(12);
   pdf.text("-2-", 148.5, 12, { align: "center" });
@@ -3009,7 +3043,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   // Cek seluruh isi
   rows.forEach((row, i) => {
     const tgt = parseInt(row.total_target) || 0;
-    const real = parseInt(row.total_capaian1) || 0;
+    const real = parseInt(row.total_capaian1_pml) || 0;
     const pct = tgt > 0
       ? ((real / tgt) * 100).toFixed(2) + "%"
       : "0.00%";
@@ -3085,7 +3119,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
       tY = drawTableHeader(tY);
     }
     const tgt = parseInt(row.total_target) || 0;
-    const real = parseInt(row.total_capaian1) || 0;
+    const real = parseInt(row.total_capaian1_pml) || 0;
     const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) : '0.00';
     totalTgt += tgt;
     totalReal += real;
@@ -3113,7 +3147,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   });
   // Jumlah row
   if (tY > 175) {
-    pdf.addPage('a4', 'l');
+    pdf.addPage('a4', 'landscape');
     tY = 20;
   }
   const totalPct = totalTgt > 0 ? ((totalReal / totalTgt) * 100).toFixed(2) : '0.00';
@@ -3135,7 +3169,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   // HALAMAN 3 — TANDA TANGAN
   //==================================================
 
-  pdf.addPage("a4", "l");
+  pdf.addPage("a4", "landscape");
   pdf.setFont("Bookman", "normal");
   pdf.setFontSize(12);
   pdf.text("-3-", 148.5, 12, { align: "center" });

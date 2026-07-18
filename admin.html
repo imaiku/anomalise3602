@@ -1281,22 +1281,22 @@
             Refresh
           </button>
 
-          <button id="spTerm1PrintSelectedBtn" class="btn btn-success btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9"></polyline>
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-              <rect x="6" y="14" width="12" height="8"></rect>
-            </svg>
-            <span id="spTerm1PrintSelectedLabel">Cetak Terpilih (0)</span>
-          </button>
-          
-          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUploadNoSuratModal()" style="height:38px;margin-bottom:0;margin-left:auto">
+          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUploadNoSuratModal()" style="height:38px;margin-bottom:0">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
             </svg>
             Upload Nomor
+          </button>
+
+          <button id="spTerm1PrintSelectedBtn" class="btn btn-primary btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;margin-left:auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9"></polyline>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+              <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            <span id="spTerm1PrintSelectedLabel">Cetak Terpilih (0)</span>
           </button>
         </div>
 
@@ -1314,7 +1314,8 @@
                 <th onclick="sortSPTermin1('nama')" style="cursor:pointer;white-space:nowrap">Nama PML <span class="sp-sort-icon" id="sort-sp-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
                 <th onclick="sortSPTermin1('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sp-sort-icon" id="sort-sp-kecamatan" style="opacity:0.1;font-size:0.7rem">▲</span></th>
                 <th>No. SPK</th>
-                <th>No. Surat Termin I</th>
+                <th>No. SP</th>
+                <th onclick="sortSPTermin1('capaian_pct')" style="cursor:pointer;white-space:nowrap;text-align:center">Capaian <span class="sp-sort-icon" id="sort-sp-capaian_pct" style="opacity:0.1;font-size:0.7rem">⇅</span></th>
                 <th style="text-align:center">Aksi</th>
               </tr>
             </thead>

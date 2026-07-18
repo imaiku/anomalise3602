@@ -127,31 +127,23 @@ BEGIN
       WHERE email = (v_user->>'sobatid') || '@anomali3602.se';
 
       IF v_user_id IS NOT NULL THEN
-        -- A. User sudah ada, lakukan update profile saja (Timpah Data)
-        INSERT INTO public.profiles (
-          id,
-          sobatid,
-          nik,
-          nama,
-          role,
-          email_ref,
-          is_active
-        ) VALUES (
-          v_user_id,
-          v_user->>'sobatid',
-          v_user->>'nik',
-          v_user->>'nama',
-          v_user->>'role',
-          NULLIF(v_user->>'email', ''),
-          true
-        )
-        ON CONFLICT (sobatid) DO UPDATE SET
-          nik = COALESCE(EXCLUDED.nik, profiles.nik),
-          nama = EXCLUDED.nama,
-          role = EXCLUDED.role,
-          email_ref = EXCLUDED.email_ref,
-          is_active = EXCLUDED.is_active,
-          updated_at = now();
+        -- A. User sudah ada, lakukan update profile (Dukung parsial update seperti update NIK saja)
+        UPDATE public.profiles
+        SET 
+          nik = COALESCE(NULLIF(v_user->>'nik', ''), nik),
+          nama = COALESCE(NULLIF(v_user->>'nama', ''), nama),
+          role = COALESCE(NULLIF(v_user->>'role', ''), role),
+          email_ref = COALESCE(NULLIF(v_user->>'email', ''), email_ref),
+          updated_at = now()
+        WHERE id = v_user_id;
+
+        -- Jika NIK disediakan, update password di auth.users ke NIK baru
+        IF NULLIF(v_user->>'nik', '') IS NOT NULL THEN
+          UPDATE auth.users
+          SET encrypted_password = extensions.crypt(NULLIF(v_user->>'nik', ''), extensions.gen_salt('bf', 10)),
+              updated_at = now()
+          WHERE id = v_user_id;
+        END IF;
       ELSE
         -- B. User belum ada, daftarkan baru
         v_user_id := gen_random_uuid();
