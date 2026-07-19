@@ -36,7 +36,7 @@
     // 3. Perulangan Sync
     async function syncRejections() {
         try {
-            const { data: claimedRows, error } = await db.rpc('claim_and_fetch_rejections', { p_limit: 10 });
+            const { data: claimedRows, error } = await db.rpc('claim_and_fetch_rejections', { p_limit: 50 });
 
             if (error) throw error;
             if (!claimedRows || claimedRows.length === 0) return;
@@ -54,8 +54,8 @@
             let processedIndex = 0;
 
             for (const assignmentId of claimedIds) {
-                // Berikan jeda acak sebelum setiap request agar menyerupai tindakan manusia (1.5s - 4s)
-                const loopDelay = 1500 + Math.random() * 2500;
+                // Berikan jeda acak sebelum setiap request agar menyerupai tindakan manusia (0.5s - 3s)
+                const loopDelay = 500 + Math.random() * 2500;
                 console.log(`[Bot Sync Reject] Menunggu ${Math.round(loopDelay) / 1000} detik sebelum memproses ID: ${assignmentId}`);
                 await sleep(loopDelay);
 
@@ -146,8 +146,8 @@
     // Perulangan dinamis dengan jeda acak setelah setiap eksekusi
     async function startDynamicSync() {
         await syncRejections();
-        // Berikan jeda acak antar-siklus pemeriksaan (misalnya 7 sampai 18 detik)
-        const nextCheckDelay = 7000 + Math.random() * 11000;
+        // Berikan jeda acak antar-siklus pemeriksaan (misalnya 5 sampai 15 detik)
+        const nextCheckDelay = 5000 + Math.random() * 10000;
         console.log(`%c[Bot Sync Reject] Pemeriksaan berikutnya dalam ${Math.round(nextCheckDelay / 1000)} detik...`, "color: #6b7280; font-style: italic;");
         setTimeout(startDynamicSync, nextCheckDelay);
     }
