@@ -28,7 +28,10 @@
         return null;
     }
 
-    console.log("%c[Bot Sync Reject] Bot aktif dan memantau antrean database setiap 5 detik!", "color: #3b82f6; font-weight: bold;");
+    // Helper delay
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+    console.log("%c[Bot Sync Reject] Bot aktif dan memantau antrean database dengan interval dinamis/acak!", "color: #3b82f6; font-weight: bold;");
 
     // 3. Perulangan Sync
     async function syncRejections() {
@@ -51,6 +54,11 @@
             let processedIndex = 0;
 
             for (const assignmentId of claimedIds) {
+                // Berikan jeda acak sebelum setiap request agar menyerupai tindakan manusia (1.5s - 4s)
+                const loopDelay = 1500 + Math.random() * 2500;
+                console.log(`[Bot Sync Reject] Menunggu ${Math.round(loopDelay) / 1000} detik sebelum memproses ID: ${assignmentId}`);
+                await sleep(loopDelay);
+
                 console.log(`[Bot Sync Reject] Mengirim POST Reject untuk ID: ${assignmentId}`);
 
                 try {
@@ -87,6 +95,7 @@
                             // Deteksi jika respon adalah pesan error "Sudah Rejected" atau status assignment tidak mendukung/terlewati
                             const isAlreadyRejected = resJson.message && (
                                 resJson.message.toUpperCase().includes('REJECTED') ||
+                                resJson.message.toUpperCase().includes('REVOKED BY PENGAWAS') ||
                                 resJson.message.toUpperCase().includes('SUBMITTED BY PENCACAH')
                             );
 
@@ -134,5 +143,14 @@
         }
     }
 
-    setInterval(syncRejections, 5000);
+    // Perulangan dinamis dengan jeda acak setelah setiap eksekusi
+    async function startDynamicSync() {
+        await syncRejections();
+        // Berikan jeda acak antar-siklus pemeriksaan (misalnya 7 sampai 18 detik)
+        const nextCheckDelay = 7000 + Math.random() * 11000;
+        console.log(`%c[Bot Sync Reject] Pemeriksaan berikutnya dalam ${Math.round(nextCheckDelay / 1000)} detik...`, "color: #6b7280; font-style: italic;");
+        setTimeout(startDynamicSync, nextCheckDelay);
+    }
+
+    startDynamicSync();
 })();
