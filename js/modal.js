@@ -424,8 +424,8 @@ function handleOverlayClick(e) { if (e.target === document.getElementById('detai
 let bulkSelectedData = [];
 function openBulkModal() {
   if (!selectedIds.size) return;
-  if (selectedIds.size > 10) {
-    showToast('Maksimal assignment yang dapat dibuka bersamaan adalah 10!', 'warning');
+  if (selectedIds.size > 50) {
+    showToast('Maksimal assignment yang dapat dibuka bersamaan adalah 50!', 'warning');
     return;
   }
   bulkSelectedData = allData.filter(g => selectedIds.has(g.assignment_id));
@@ -792,7 +792,7 @@ async function handleModalLoginSubmit() {
     if (userRoleBadge) {
       userRoleBadge.textContent = profile.role.toUpperCase();
       userRoleBadge.className = `type-badge type-${profile.role === 'ppl' ? 'keluarga' :
-          profile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+        profile.role === 'pml' ? 'usaha' : 'keduanya'}`;
       userRoleBadge.style.display = 'inline-block';
     }
     loginNavBtn?.classList.add('hidden');
