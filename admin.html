@@ -475,6 +475,12 @@
           </svg>
           SP Termin I (Cetak PDF)
         </button>
+        <button class="sidebar-item" onclick="showSection('berkas-lainnya')" id="nav-berkas-lainnya">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          Berkas Lainnya
+        </button>
       </div>
     </aside>
 
@@ -1290,6 +1296,8 @@
             Upload Nomor
           </button>
 
+
+
           <button id="spTerm1PrintSelectedBtn" class="btn btn-primary btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;margin-left:auto">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>
@@ -1340,6 +1348,40 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- ============ BERKAS LAINNYA PANEL ============ -->
+      <div class="section-panel" id="panel-berkas-lainnya">
+        <div class="section-title">Berkas Lainnya</div>
+        <div class="section-sub">Daftar berkas pelaporan dan dokumen administratif lainnya yang dapat diunduh.</div>
+
+        <div class="table-wrapper" style="max-width: 600px;">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="width:60px;text-align:center">No</th>
+                <th>Nama Berkas</th>
+                <th style="text-align:center;width:150px">Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="text-align:center">1</td>
+                <td style="font-weight:600">LK Beban Kerja</td>
+                <td style="text-align:center">
+                  <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel()" style="display:inline-flex;align-items:center;gap:0.35rem;margin:0 auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7 10 12 15 17 10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Unduh Excel
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
 
     </main>

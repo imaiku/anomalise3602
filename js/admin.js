@@ -1213,6 +1213,321 @@ function exportUsersToExcel() {
   }
 }
 
+async function exportCapaianToExcel() {
+  showToast('Memproses data untuk ekspor Excel...', 'info');
+  try {
+    // 1. Fetch profiles (ppl, pml)
+    let profiles = [];
+    let fromProf = 0;
+    let hasMoreProf = true;
+    while (hasMoreProf) {
+      const { data, error } = await db.from('profiles')
+        .select('id, sobatid, nama, email_ref, role')
+        .in('role', ['ppl', 'pml'])
+        .eq('is_active', true)
+        .range(fromProf, fromProf + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMoreProf = false;
+      } else {
+        profiles = profiles.concat(data);
+        if (data.length < 1000) hasMoreProf = false;
+        else fromProf += 1000;
+      }
+    }
+
+    // 2. Fetch pml_ppl mapping
+    let relations = [];
+    let fromRel = 0;
+    let hasMoreRel = true;
+    while (hasMoreRel) {
+      const { data, error } = await db.from('pml_ppl')
+        .select('pml_id, ppl_id')
+        .range(fromRel, fromRel + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMoreRel = false;
+      } else {
+        relations = relations.concat(data);
+        if (data.length < 1000) hasMoreRel = false;
+        else fromRel += 1000;
+      }
+    }
+
+    // 3. Fetch active user_sls
+    let userSls = [];
+    let fromSls = 0;
+    let hasMoreSls = true;
+    while (hasMoreSls) {
+      const { data, error } = await db.from('user_sls')
+        .select('user_id, kode_sls')
+        .eq('status', 'aktif')
+        .range(fromSls, fromSls + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMoreSls = false;
+      } else {
+        userSls = userSls.concat(data);
+        if (data.length < 1000) hasMoreSls = false;
+        else fromSls += 1000;
+      }
+    }
+
+    // 4. Fetch wilayah_subsls targets
+    let subsls = [];
+    let fromSub = 0;
+    let hasMoreSub = true;
+    while (hasMoreSub) {
+      const { data, error } = await db.from('wilayah_subsls')
+        .select('kode_sls_gabungan, target')
+        .range(fromSub, fromSub + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMoreSub = false;
+      } else {
+        subsls = subsls.concat(data);
+        if (data.length < 1000) hasMoreSub = false;
+        else fromSub += 1000;
+      }
+    }
+
+    // 5. Fetch capaian
+    let achievements = [];
+    let fromCap = 0;
+    let hasMoreCap = true;
+    while (hasMoreCap) {
+      const { data, error } = await db.from('capaian')
+        .select('kode_sls_gabungan, capaian1')
+        .range(fromCap, fromCap + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMoreCap = false;
+      } else {
+        achievements = achievements.concat(data);
+        if (data.length < 1000) hasMoreCap = false;
+        else fromCap += 1000;
+      }
+    }
+
+    // Map targets & achievements by kode_sls_gabungan
+    const targetMap = {};
+    subsls.forEach(s => {
+      targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
+    });
+
+    const realisasiMap = {};
+    achievements.forEach(a => {
+      realisasiMap[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
+    });
+
+    // Map profile by id for quick lookup
+    const profileMap = {};
+    profiles.forEach(p => {
+      profileMap[p.id] = p;
+    });
+
+    // Group PPLs by PML
+    const pmlToPpl = {};
+    relations.forEach(r => {
+      if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = new Set();
+      pmlToPpl[r.pml_id].add(r.ppl_id);
+    });
+
+    // Find PPLs that might not have a PML assigned
+    const allPplIds = new Set(profiles.filter(p => p.role === 'ppl').map(p => p.id));
+    const mappedPplIds = new Set(relations.map(r => r.ppl_id));
+    const unmappedPplIds = [...allPplIds].filter(id => !mappedPplIds.has(id));
+
+    // Map user_sls by user_id
+    const userSlsMap = {};
+    userSls.forEach(us => {
+      if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+      userSlsMap[us.user_id].push(us.kode_sls);
+    });
+
+    const pmls = profiles.filter(p => p.role === 'pml');
+
+    // Rows to export
+    const excelRows = [];
+
+    // Helper to process PPL and return record data
+    const processPplData = (pplId, pmlName, pmlEmail) => {
+      const ppl = profileMap[pplId];
+      if (!ppl) return null;
+
+      const slsCodes = userSlsMap[pplId] || [];
+      const kecs = new Set();
+      const desas = new Set();
+      const slsSubslsList = [];
+
+      let totalTarget = 0;
+      let totalRealisasi = 0;
+
+      slsCodes.forEach(code => {
+        // e.g. 3602010004000100
+        // prov 36 (0,2), kab 02 (2,4), kec 010 (4,7), des 004 (7,10), sls 0001 (10,14), subsls 00 (14,16)
+        if (code.length >= 16) {
+          const kec = code.substring(4, 7);
+          const des = code.substring(7, 10);
+          const slsSub = code.substring(10, 16);
+          kecs.add(kec);
+          desas.add(des);
+          slsSubslsList.push(slsSub);
+        }
+        totalTarget += targetMap[code] || 0;
+        totalRealisasi += realisasiMap[code] || 0;
+      });
+
+      const pctVal = totalTarget > 0 ? (totalRealisasi / totalTarget) * 100 : 0;
+      const pct = pctVal.toFixed(2) + '%';
+
+      return {
+        'Nama PML': pmlName,
+        'Email PML': pmlEmail || '—',
+        'Nama PPL': ppl.nama,
+        'Email PPL': ppl.email_ref || '—',
+        'Kode Kec': Array.from(kecs).sort().join(', '),
+        'Kode Desa': Array.from(desas).sort().join(', '),
+        'Kode SLS+SubSLS': slsSubslsList.sort().join(', '),
+        'Target': totalTarget,
+        'Realisasi': totalRealisasi,
+        'Persentase': pct,
+        _target: totalTarget,
+        _realisasi: totalRealisasi
+      };
+    };
+
+    let grandTotalTarget = 0;
+    let grandTotalRealisasi = 0;
+
+    // 1. Process PML groups
+    pmls.sort((a, b) => a.nama.localeCompare(b.nama)).forEach(pml => {
+      const pplIds = Array.from(pmlToPpl[pml.id] || []);
+      if (pplIds.length === 0) return;
+
+      let pmlTargetSum = 0;
+      let pmlRealisasiSum = 0;
+
+      // Sort PPLs by name
+      const pplsData = pplIds
+        .map(id => processPplData(id, pml.nama, pml.email_ref))
+        .filter(Boolean)
+        .sort((a, b) => a['Nama PPL'].localeCompare(b['Nama PPL']));
+
+      if (pplsData.length === 0) return;
+
+      pplsData.forEach(row => {
+        excelRows.push({
+          'Nama PML': row['Nama PML'],
+          'Email PML': row['Email PML'],
+          'Nama PPL': row['Nama PPL'],
+          'Email PPL': row['Email PPL'],
+          'Kode Kec': row['Kode Kec'],
+          'Kode Desa': row['Kode Desa'],
+          'Kode SLS+SubSLS': row['Kode SLS+SubSLS'],
+          'Target': row['Target'],
+          'Realisasi': row['Realisasi'],
+          'Persentase': row['Persentase']
+        });
+        pmlTargetSum += row._target;
+        pmlRealisasiSum += row._realisasi;
+      });
+
+      // Add Subtotal row for PML
+      const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+      excelRows.push({
+        'Nama PML': `SUB TOTAL`,
+        'Email PML': '',
+        'Nama PPL': '',
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': pmlTargetSum,
+        'Realisasi': pmlRealisasiSum,
+        'Persentase': subtotalPct
+      });
+
+      grandTotalTarget += pmlTargetSum;
+      grandTotalRealisasi += pmlRealisasiSum;
+    });
+
+    // 2. Process PPLs without PML (if any)
+    if (unmappedPplIds.length > 0) {
+      let unmappedTargetSum = 0;
+      let unmappedRealisasiSum = 0;
+
+      const pplsData = unmappedPplIds
+        .map(id => processPplData(id, 'TANPA PML', ''))
+        .filter(Boolean)
+        .sort((a, b) => a['Nama PPL'].localeCompare(b['Nama PPL']));
+
+      if (pplsData.length > 0) {
+        pplsData.forEach(row => {
+          excelRows.push({
+            'Nama PML': row['Nama PML'],
+            'Email PML': row['Email PML'],
+            'Nama PPL': row['Nama PPL'],
+            'Email PPL': row['Email PPL'],
+            'Kode Kec': row['Kode Kec'],
+            'Kode Desa': row['Kode Desa'],
+            'Kode SLS+SubSLS': row['Kode SLS+SubSLS'],
+            'Target': row['Target'],
+            'Realisasi': row['Realisasi'],
+            'Persentase': row['Persentase']
+          });
+          unmappedTargetSum += row._target;
+          unmappedRealisasiSum += row._realisasi;
+        });
+
+        // Add Subtotal row for Unmapped PPLs
+        const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+        excelRows.push({
+          'Nama PML': 'SUB TOTAL TANPA PML',
+          'Email PML': '',
+          'Nama PPL': '',
+          'Email PPL': '',
+          'Kode Kec': '',
+          'Kode Desa': '',
+          'Kode SLS+SubSLS': '',
+          'Target': unmappedTargetSum,
+          'Realisasi': unmappedRealisasiSum,
+          'Persentase': subtotalPct
+        });
+
+        grandTotalTarget += unmappedTargetSum;
+        grandTotalRealisasi += unmappedRealisasiSum;
+      }
+    }
+
+    // 3. Add Grand Total row for the county
+    const grandPct = grandTotalTarget > 0 ? ((grandTotalRealisasi / grandTotalTarget) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'Nama PML': 'TOTAL KABUPATEN',
+      'Email PML': '',
+      'Nama PPL': '',
+      'Email PPL': '',
+      'Kode Kec': '',
+      'Kode Desa': '',
+      'Kode SLS+SubSLS': '',
+      'Target': grandTotalTarget,
+      'Realisasi': grandTotalRealisasi,
+      'Persentase': grandPct
+    });
+
+    // 4. Generate worksheet and workbook
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    XLSX.utils.book_append_sheet(wb, ws, 'Capaian PML-PPL');
+    XLSX.writeFile(wb, 'capaian_pml_ppl.xlsx');
+    showToast('Ekspor Excel berhasil!', 'success');
+  } catch (err) {
+    console.error('Export Excel error:', err);
+    showToast('Gagal ekspor Excel: ' + err.message, 'error');
+  }
+}
+
+
 // ============================================================
 // BAPP (CETAK PDF) MANAGEMENT LOGIC
 // ============================================================
