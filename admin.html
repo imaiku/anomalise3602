@@ -1263,7 +1263,6 @@
             </div>
             <div id="bappPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
           </div>
-
         </div>
       </div>
 
@@ -1277,6 +1276,11 @@
           
           <select id="spTerm1KecamatanFilter" class="filter-select" onchange="filterSPTermin1()" style="max-width:200px">
             <option value="">Semua Kecamatan</option>
+          </select>
+
+          <select id="spTerm1GelombangFilter" class="filter-select" onchange="loadSPTermin1Data()" style="max-width:150px; border: 1px solid var(--primary); font-weight: 600;">
+            <option value="1" selected>Gelombang 1</option>
+            <option value="2">Gelombang 2</option>
           </select>
           
           <button class="btn btn-secondary btn-sm" onclick="loadSPTermin1Data()" style="height:38px;margin-bottom:0">
@@ -1295,8 +1299,6 @@
             </svg>
             Upload Nomor
           </button>
-
-
 
           <button id="spTerm1PrintSelectedBtn" class="btn btn-primary btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;margin-left:auto">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1329,7 +1331,7 @@
             </thead>
             <tbody id="spTerm1TableBody">
               <tr>
-                <td colspan="6" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
+                <td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
               </tr>
             </tbody>
           </table>
@@ -1361,7 +1363,7 @@
               <tr>
                 <th style="width:60px;text-align:center">No</th>
                 <th>Nama Berkas</th>
-                <th style="text-align:center;width:150px">Aksi</th>
+                <th style="text-align:center;width:250px">Aksi</th>
               </tr>
             </thead>
             <tbody>
@@ -1369,22 +1371,43 @@
                 <td style="text-align:center">1</td>
                 <td style="font-weight:600">LK Beban Kerja</td>
                 <td style="text-align:center">
-                  <div style="display:flex;gap:0.5rem;justify-content:center">
-                    <button class="btn btn-primary btn-sm" onclick="previewCapaian()" style="display:inline-flex;align-items:center;gap:0.35rem">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg>
-                      Preview
-                    </button>
-                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel()" style="display:inline-flex;align-items:center;gap:0.35rem">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg>
-                      Unduh Excel
-                    </button>
+                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
+                    <div style="display:flex;gap:0.35rem;justify-content:center">
+                      <span style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
+                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Preview
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Excel
+                      </button>
+                    </div>
+                    <div style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
+                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Preview
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Excel
+                      </button>
+                    </div>
                   </div>
                 </td>
               </tr>
@@ -1669,7 +1692,7 @@
   </div>
   <!-- Modal Preview LK Beban Kerja -->
   <div class="modal-overlay" id="previewLkModal" onclick="if(event.target===this)closePreviewLkModal()">
-    <div class="bottom-sheet" style="max-width:90%;width:1200px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
+    <div class="bottom-sheet" style="max-width:95%;width:1400px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
       <div class="bottom-sheet-handle"></div>
       <div class="bottom-sheet-header" style="display:flex;justify-content:space-between;align-items:center">
         <div class="bottom-sheet-title">Preview LK Beban Kerja</div>
@@ -1690,6 +1713,9 @@
                 <th style="text-align:right">Target</th>
                 <th style="text-align:right">Realisasi</th>
                 <th style="text-align:right">Persentase</th>
+                <th style="text-align:center">Coverage SLS</th>
+                <th style="text-align:center">Min Coverage</th>
+                <th style="text-align:center">Eligible</th>
               </tr>
             </thead>
             <tbody id="previewLkTableBody">

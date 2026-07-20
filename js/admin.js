@@ -1213,7 +1213,19 @@ function exportUsersToExcel() {
   }
 }
 
-async function generateCapaianReportData() {
+function checkPPLEligibility(totalCapaian, totalTarget, coverage, totalSls) {
+  const pct = totalTarget > 0 ? (totalCapaian / totalTarget) : 0;
+  const minCoverage = Math.ceil(totalSls * 0.4);
+  return {
+    pctEligible: pct >= 0.4,
+    coverageEligible: coverage >= minCoverage,
+    eligible: pct >= 0.4 && coverage >= minCoverage,
+    pct,
+    minCoverage
+  };
+}
+
+async function generateCapaianReportData(gelombang = 1) {
   // 1. Fetch profiles (ppl, pml)
   let profiles = [];
   let fromProf = 0;
@@ -1295,7 +1307,7 @@ async function generateCapaianReportData() {
   let hasMoreCap = true;
   while (hasMoreCap) {
     const { data, error } = await db.from('capaian')
-      .select('kode_sls_gabungan, capaian1')
+      .select('kode_sls_gabungan, capaian1, capaian1_g2')
       .range(fromCap, fromCap + 999);
     if (error) throw error;
     if (!data || data.length === 0) {
@@ -1313,9 +1325,11 @@ async function generateCapaianReportData() {
     targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
   });
 
-  const realisasiMap = {};
+  const realisasiMapG1 = {};
+  const realisasiMapG2 = {};
   achievements.forEach(a => {
-    realisasiMap[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
+    realisasiMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
+    realisasiMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
   });
 
   // Map profile by id for quick lookup
@@ -1348,6 +1362,21 @@ async function generateCapaianReportData() {
   const excelRows = [];
   const rowTypes = [];
 
+  // Helper to determine if PPL is eligible for G1
+  const getPplStatus = (pplId) => {
+    const slsCodes = userSlsMap[pplId] || [];
+    let pplTargetSum = 0;
+    let pplRealisasiSum = 0;
+    let coverage = 0;
+    slsCodes.forEach(code => {
+      pplTargetSum += targetMap[code] || 0;
+      const real = realisasiMapG1[code] || 0;
+      pplRealisasiSum += real;
+      if (real > 0) coverage++;
+    });
+    return checkPPLEligibility(pplRealisasiSum, pplTargetSum, coverage, slsCodes.length);
+  };
+
   const addPplRows = (pplId, pmlName, pmlEmail) => {
     const ppl = profileMap[pplId];
     if (!ppl) return { targetSum: 0, realisasiSum: 0 };
@@ -1355,6 +1384,18 @@ async function generateCapaianReportData() {
     const slsCodes = userSlsMap[pplId] || [];
     let pplTargetSum = 0;
     let pplRealisasiSum = 0;
+    let pplCoverage = 0;
+
+    const currentRealisasiMap = gelombang === 1 ? realisasiMapG1 : realisasiMapG2;
+
+    // Filter G2 check
+    if (gelombang === 2) {
+      const g1Status = getPplStatus(pplId);
+      // Jika lolos G1, skip dari laporan G2
+      if (g1Status.eligible) {
+        return { targetSum: 0, realisasiSum: 0, skipped: true };
+      }
+    }
 
     const sortedSls = [...slsCodes].sort();
 
@@ -1369,7 +1410,10 @@ async function generateCapaianReportData() {
         'Kode SLS+SubSLS': '—',
         'Target': 0,
         'Realisasi': 0,
-        'Persentase': '0.00%'
+        'Persentase': '0.00%',
+        'Coverage': '0/0',
+        'Min Coverage': '0',
+        'Eligible': '✗'
       });
       rowTypes.push('data');
     } else {
@@ -1383,9 +1427,10 @@ async function generateCapaianReportData() {
           slsSub = code.substring(10, 16);
         }
         const target = targetMap[code] || 0;
-        const realisasi = realisasiMap[code] || 0;
+        const realisasi = currentRealisasiMap[code] || 0;
         pplTargetSum += target;
         pplRealisasiSum += realisasi;
+        if (realisasi > 0) pplCoverage++;
 
         const pctVal = target > 0 ? (realisasi / target) * 100 : 0;
         const pct = pctVal.toFixed(2) + '%';
@@ -1400,13 +1445,18 @@ async function generateCapaianReportData() {
           'Kode SLS+SubSLS': slsSub,
           'Target': target,
           'Realisasi': realisasi,
-          'Persentase': pct
+          'Persentase': pct,
+          'Coverage': '',
+          'Min Coverage': '',
+          'Eligible': ''
         });
         rowTypes.push('data');
       });
     }
 
     const pplPct = pplTargetSum > 0 ? ((pplRealisasiSum / pplTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+    const eligibility = checkPPLEligibility(pplRealisasiSum, pplTargetSum, pplCoverage, slsCodes.length);
+
     excelRows.push({
       'Nama PML': `SUB TOTAL PPL: ${ppl.nama}`,
       'Email PML': '',
@@ -1417,11 +1467,14 @@ async function generateCapaianReportData() {
       'Kode SLS+SubSLS': '',
       'Target': pplTargetSum,
       'Realisasi': pplRealisasiSum,
-      'Persentase': pplPct
+      'Persentase': pplPct,
+      'Coverage': `${pplCoverage}/${slsCodes.length}`,
+      'Min Coverage': `≥ ${eligibility.minCoverage}`,
+      'Eligible': eligibility.eligible ? '✓' : '✗'
     });
     rowTypes.push('subtotal_ppl');
 
-    return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum };
+    return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum, skipped: false };
   };
 
   let grandTotalTarget = 0;
@@ -1433,67 +1486,85 @@ async function generateCapaianReportData() {
 
     let pmlTargetSum = 0;
     let pmlRealisasiSum = 0;
+    let hasVisiblePpl = false;
 
     const sortedPplIds = pplIds
       .filter(id => profileMap[id])
       .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
 
     sortedPplIds.forEach(id => {
-      const { targetSum, realisasiSum } = addPplRows(id, pml.nama, pml.email_ref);
-      pmlTargetSum += targetSum;
-      pmlRealisasiSum += realisasiSum;
+      const { targetSum, realisasiSum, skipped } = addPplRows(id, pml.nama, pml.email_ref);
+      if (!skipped) {
+        pmlTargetSum += targetSum;
+        pmlRealisasiSum += realisasiSum;
+        hasVisiblePpl = true;
+      }
     });
 
-    const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-    excelRows.push({
-      'Nama PML': `SUB TOTAL PML: ${pml.nama}`,
-      'Email PML': '',
-      'Nama PPL': '',
-      'Email PPL': '',
-      'Kode Kec': '',
-      'Kode Desa': '',
-      'Kode SLS+SubSLS': '',
-      'Target': pmlTargetSum,
-      'Realisasi': pmlRealisasiSum,
-      'Persentase': subtotalPct
-    });
-    rowTypes.push('subtotal_pml');
+    if (hasVisiblePpl) {
+      const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+      excelRows.push({
+        'Nama PML': `SUB TOTAL PML: ${pml.nama}`,
+        'Email PML': '',
+        'Nama PPL': '',
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': pmlTargetSum,
+        'Realisasi': pmlRealisasiSum,
+        'Persentase': subtotalPct,
+        'Coverage': '',
+        'Min Coverage': '',
+        'Eligible': ''
+      });
+      rowTypes.push('subtotal_pml');
 
-    grandTotalTarget += pmlTargetSum;
-    grandTotalRealisasi += pmlRealisasiSum;
+      grandTotalTarget += pmlTargetSum;
+      grandTotalRealisasi += pmlRealisasiSum;
+    }
   });
 
   if (unmappedPplIds.length > 0) {
     let unmappedTargetSum = 0;
     let unmappedRealisasiSum = 0;
+    let hasVisibleUnmapped = false;
 
     const sortedUnmapped = unmappedPplIds
       .filter(id => profileMap[id])
-      .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
+      .sort((a, b) => profileMap[a].nama.localeCompare(b.nama));
 
     sortedUnmapped.forEach(id => {
-      const { targetSum, realisasiSum } = addPplRows(id, 'TANPA PML', '');
-      unmappedTargetSum += targetSum;
-      unmappedRealisasiSum += realisasiSum;
+      const { targetSum, realisasiSum, skipped } = addPplRows(id, 'TANPA PML', '');
+      if (!skipped) {
+        unmappedTargetSum += targetSum;
+        unmappedRealisasiSum += realisasiSum;
+        hasVisibleUnmapped = true;
+      }
     });
 
-    const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-    excelRows.push({
-      'Nama PML': 'SUB TOTAL TANPA PML',
-      'Email PML': '',
-      'Nama PPL': '',
-      'Email PPL': '',
-      'Kode Kec': '',
-      'Kode Desa': '',
-      'Kode SLS+SubSLS': '',
-      'Target': unmappedTargetSum,
-      'Realisasi': unmappedRealisasiSum,
-      'Persentase': subtotalPct
-    });
-    rowTypes.push('subtotal_pml');
+    if (hasVisibleUnmapped) {
+      const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+      excelRows.push({
+        'Nama PML': 'SUB TOTAL TANPA PML',
+        'Email PML': '',
+        'Nama PPL': '',
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': unmappedTargetSum,
+        'Realisasi': unmappedRealisasiSum,
+        'Persentase': subtotalPct,
+        'Coverage': '',
+        'Min Coverage': '',
+        'Eligible': ''
+      });
+      rowTypes.push('subtotal_pml');
 
-    grandTotalTarget += unmappedTargetSum;
-    grandTotalRealisasi += unmappedRealisasiSum;
+      grandTotalTarget += unmappedTargetSum;
+      grandTotalRealisasi += unmappedRealisasiSum;
+    }
   }
 
   const grandPct = grandTotalTarget > 0 ? ((grandTotalRealisasi / grandTotalTarget) * 100).toFixed(2) + '%' : '0.00%';
@@ -1507,17 +1578,20 @@ async function generateCapaianReportData() {
     'Kode SLS+SubSLS': '',
     'Target': grandTotalTarget,
     'Realisasi': grandTotalRealisasi,
-    'Persentase': grandPct
+    'Persentase': grandPct,
+    'Coverage': '',
+    'Min Coverage': '',
+    'Eligible': ''
   });
   rowTypes.push('grand_total');
 
   return { excelRows, rowTypes };
 }
 
-async function exportCapaianToExcel() {
-  showToast('Memproses data untuk ekspor Excel...', 'info');
+async function exportCapaianToExcel(gelombang = 1) {
+  showToast(`Memproses data untuk ekspor Excel Gelombang ${gelombang}...`, 'info');
   try {
-    const { excelRows, rowTypes } = await generateCapaianReportData();
+    const { excelRows, rowTypes } = await generateCapaianReportData(gelombang);
 
     // Generate worksheet and workbook
     const wb = XLSX.utils.book_new();
@@ -1584,8 +1658,8 @@ async function exportCapaianToExcel() {
     });
     ws['!cols'] = cols;
 
-    XLSX.utils.book_append_sheet(wb, ws, 'Capaian PML-PPL');
-    XLSX.writeFile(wb, 'capaian_pml_ppl.xlsx');
+    XLSX.utils.book_append_sheet(wb, ws, `LK Gelombang ${gelombang}`);
+    XLSX.writeFile(wb, `lk_beban_kerja_gelombang_${gelombang}.xlsx`);
     showToast('Ekspor Excel berhasil!', 'success');
   } catch (err) {
     console.error('Export Excel error:', err);
@@ -1593,10 +1667,10 @@ async function exportCapaianToExcel() {
   }
 }
 
-async function previewCapaian() {
-  showToast('Memproses data preview...', 'info');
+async function previewCapaian(gelombang = 1) {
+  showToast(`Memproses data preview Gelombang ${gelombang}...`, 'info');
   try {
-    const { excelRows, rowTypes } = await generateCapaianReportData();
+    const { excelRows, rowTypes } = await generateCapaianReportData(gelombang);
     const tbody = document.getElementById('previewLkTableBody');
     if (!tbody) return;
 
@@ -1635,6 +1709,9 @@ async function previewCapaian() {
         <td style="text-align:right">${row['Target']}</td>
         <td style="text-align:right">${row['Realisasi']}</td>
         <td style="text-align:right">${row['Persentase']}</td>
+        <td style="text-align:center; font-weight: bold;">${row['Coverage'] || ''}</td>
+        <td style="text-align:center; font-weight: bold;">${row['Min Coverage'] || ''}</td>
+        <td style="text-align:center; font-weight: bold; color: ${row['Eligible'] === '✓' ? '#10b981' : row['Eligible'] === '✗' ? '#ef4444' : ''}">${row['Eligible'] || ''}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -1646,7 +1723,7 @@ async function previewCapaian() {
       tr.style.fontStyle = 'italic';
       tr.style.color = '#6c757d';
       tr.innerHTML = `
-        <td colspan="10" style="text-align:center;padding:1rem;font-weight:500;">
+        <td colspan="13" style="text-align:center;padding:1rem;font-weight:500;">
           ... Menampilkan 100 dari total ${excelRows.length} baris. Silakan unduh file Excel untuk melihat data secara lengkap. ...
         </td>
       `;
@@ -1659,10 +1736,8 @@ async function previewCapaian() {
     }
   } catch (err) {
     console.error('Preview error:', err);
-    showToast('Gagal memuat preview: ' + err.message, 'error');
   }
 }
-
 function closePreviewLkModal() {
   const modal = document.getElementById('previewLkModal');
   if (modal) {
@@ -2714,7 +2789,9 @@ async function loadSPTermin1Data() {
     }
     const pmls = allUsers.filter(u => u.role === 'pml' && u.is_active);
 
-    // Fetch all PML achievement totals via RPC
+    const activeGelombang = parseInt(document.getElementById('spTerm1GelombangFilter')?.value || '1');
+
+    // Fetch all PML achievement totals via RPC (updated with total_capaian_g2 support)
     let pmlCapaianMap = {};
     try {
       const { data: capData, error: capErr } = await db.rpc('get_all_pml_capaian');
@@ -2723,7 +2800,8 @@ async function loadSPTermin1Data() {
           if (c.pml_id) {
             pmlCapaianMap[c.pml_id] = {
               target: parseInt(c.total_target) || 0,
-              capaian: parseInt(c.total_capaian) || 0
+              capaian: parseInt(c.total_capaian) || 0,
+              capaian_g2: parseInt(c.total_capaian_g2) || 0
             };
           }
         });
@@ -2759,22 +2837,41 @@ async function loadSPTermin1Data() {
         noSuratMap[String(n.sobatid).trim()] = n;
       }
     });
+
+    const checkPMLEligibility = (totalCapaian, totalTarget) => {
+      const pct = totalTarget > 0 ? (totalCapaian / totalTarget) : 0;
+      return { eligible: pct >= 0.4, pct };
+    };
+
     allPMLData = pmls.map(p => {
       const key = String(p.sobatid || '').trim();
-      const capInfo = pmlCapaianMap[p.id] || { target: 0, capaian: 0 };
-      const pctVal = capInfo.target > 0 ? (capInfo.capaian / capInfo.target) * 100 : 0;
+      const capInfo = pmlCapaianMap[p.id] || { target: 0, capaian: 0, capaian_g2: 0 };
+
+      const realisasi = activeGelombang === 1 ? capInfo.capaian : capInfo.capaian_g2;
+      const pctVal = capInfo.target > 0 ? (realisasi / capInfo.target) * 100 : 0;
       const pct = pctVal.toFixed(2) + '%';
+
+      // Check G1 status for filtering in G2
+      const g1Status = checkPMLEligibility(capInfo.capaian, capInfo.target);
+
       return {
         ...p,
         no_spk: noSuratMap[key]?.no_spk || '',
         no_sp_pemeriksaan_t1: noSuratMap[key]?.no_sp_pemeriksaan_t1 || '',
         no_sp_pemeriksaan_t2: noSuratMap[key]?.no_sp_pemeriksaan_t2 || '',
         total_target: capInfo.target,
-        total_capaian: capInfo.capaian,
+        total_capaian: realisasi,
         capaian_pct: pctVal,
-        capaian_label: `${capInfo.capaian}/${capInfo.target} (${pct})`
+        capaian_label: `${realisasi}/${capInfo.target} (${pct})`,
+        g1_eligible: g1Status.eligible
       };
     });
+
+    // If Gelombang 2 is active, filter only PMLs who failed G1 (did not reach 40%)
+    if (activeGelombang === 2) {
+      allPMLData = allPMLData.filter(p => !p.g1_eligible);
+    }
+
     filterSPTermin1();
   } catch (err) {
     showToast('Gagal memuat data SP Termin I: ' + err.message, 'error');
