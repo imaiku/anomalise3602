@@ -1349,52 +1349,84 @@ async function exportCapaianToExcel() {
 
     // Rows to export
     const excelRows = [];
+    const rowTypes = []; // Parallel array keeping track of 'data', 'subtotal_ppl', 'subtotal_pml', 'grand_total'
 
-    // Helper to process PPL and return record data
-    const processPplData = (pplId, pmlName, pmlEmail) => {
+    // Helper to process PPL, add a row for each SLS/region, and add a PPL subtotal row
+    const addPplRows = (pplId, pmlName, pmlEmail) => {
       const ppl = profileMap[pplId];
-      if (!ppl) return null;
+      if (!ppl) return { targetSum: 0, realisasiSum: 0 };
 
       const slsCodes = userSlsMap[pplId] || [];
-      const kecs = new Set();
-      const desas = new Set();
-      const slsSubslsList = [];
+      let pplTargetSum = 0;
+      let pplRealisasiSum = 0;
 
-      let totalTarget = 0;
-      let totalRealisasi = 0;
+      const sortedSls = [...slsCodes].sort();
 
-      slsCodes.forEach(code => {
-        // e.g. 3602010004000100
-        // prov 36 (0,2), kab 02 (2,4), kec 010 (4,7), des 004 (7,10), sls 0001 (10,14), subsls 00 (14,16)
-        if (code.length >= 16) {
-          const kec = code.substring(4, 7);
-          const des = code.substring(7, 10);
-          const slsSub = code.substring(10, 16);
-          kecs.add(kec);
-          desas.add(des);
-          slsSubslsList.push(slsSub);
-        }
-        totalTarget += targetMap[code] || 0;
-        totalRealisasi += realisasiMap[code] || 0;
+      if (sortedSls.length === 0) {
+        excelRows.push({
+          'Nama PML': pmlName,
+          'Email PML': pmlEmail || '—',
+          'Nama PPL': ppl.nama,
+          'Email PPL': ppl.email_ref || '—',
+          'Kode Kec': '—',
+          'Kode Desa': '—',
+          'Kode SLS+SubSLS': '—',
+          'Target': 0,
+          'Realisasi': 0,
+          'Persentase': '0.00%'
+        });
+        rowTypes.push('data');
+      } else {
+        sortedSls.forEach(code => {
+          let kec = '—';
+          let des = '—';
+          let slsSub = '—';
+          if (code.length >= 16) {
+            kec = code.substring(4, 7);
+            des = code.substring(7, 10);
+            slsSub = code.substring(10, 16);
+          }
+          const target = targetMap[code] || 0;
+          const realisasi = realisasiMap[code] || 0;
+          pplTargetSum += target;
+          pplRealisasiSum += realisasi;
+
+          const pctVal = target > 0 ? (realisasi / target) * 100 : 0;
+          const pct = pctVal.toFixed(2) + '%';
+
+          excelRows.push({
+            'Nama PML': pmlName,
+            'Email PML': pmlEmail || '—',
+            'Nama PPL': ppl.nama,
+            'Email PPL': ppl.email_ref || '—',
+            'Kode Kec': kec,
+            'Kode Desa': des,
+            'Kode SLS+SubSLS': slsSub,
+            'Target': target,
+            'Realisasi': realisasi,
+            'Persentase': pct
+          });
+          rowTypes.push('data');
+        });
+      }
+
+      // Add PPL Subtotal row
+      const pplPct = pplTargetSum > 0 ? ((pplRealisasiSum / pplTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+      excelRows.push({
+        'Nama PML': `SUB TOTAL PPL: ${ppl.nama}`,
+        'Email PML': '',
+        'Nama PPL': '',
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': pplTargetSum,
+        'Realisasi': pplRealisasiSum,
+        'Persentase': pplPct
       });
+      rowTypes.push('subtotal_ppl');
 
-      const pctVal = totalTarget > 0 ? (totalRealisasi / totalTarget) * 100 : 0;
-      const pct = pctVal.toFixed(2) + '%';
-
-      return {
-        'Nama PML': pmlName,
-        'Email PML': pmlEmail || '—',
-        'Nama PPL': ppl.nama,
-        'Email PPL': ppl.email_ref || '—',
-        'Kode Kec': Array.from(kecs).sort().join(', '),
-        'Kode Desa': Array.from(desas).sort().join(', '),
-        'Kode SLS+SubSLS': slsSubslsList.sort().join(', '),
-        'Target': totalTarget,
-        'Realisasi': totalRealisasi,
-        'Persentase': pct,
-        _target: totalTarget,
-        _realisasi: totalRealisasi
-      };
+      return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum };
     };
 
     let grandTotalTarget = 0;
@@ -1409,34 +1441,20 @@ async function exportCapaianToExcel() {
       let pmlRealisasiSum = 0;
 
       // Sort PPLs by name
-      const pplsData = pplIds
-        .map(id => processPplData(id, pml.nama, pml.email_ref))
-        .filter(Boolean)
-        .sort((a, b) => a['Nama PPL'].localeCompare(b['Nama PPL']));
+      const sortedPplIds = pplIds
+        .filter(id => profileMap[id])
+        .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
 
-      if (pplsData.length === 0) return;
-
-      pplsData.forEach(row => {
-        excelRows.push({
-          'Nama PML': row['Nama PML'],
-          'Email PML': row['Email PML'],
-          'Nama PPL': row['Nama PPL'],
-          'Email PPL': row['Email PPL'],
-          'Kode Kec': row['Kode Kec'],
-          'Kode Desa': row['Kode Desa'],
-          'Kode SLS+SubSLS': row['Kode SLS+SubSLS'],
-          'Target': row['Target'],
-          'Realisasi': row['Realisasi'],
-          'Persentase': row['Persentase']
-        });
-        pmlTargetSum += row._target;
-        pmlRealisasiSum += row._realisasi;
+      sortedPplIds.forEach(id => {
+        const { targetSum, realisasiSum } = addPplRows(id, pml.nama, pml.email_ref);
+        pmlTargetSum += targetSum;
+        pmlRealisasiSum += realisasiSum;
       });
 
       // Add Subtotal row for PML
       const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
       excelRows.push({
-        'Nama PML': `SUB TOTAL`,
+        'Nama PML': `SUB TOTAL PML: ${pml.nama}`,
         'Email PML': '',
         'Nama PPL': '',
         'Email PPL': '',
@@ -1447,6 +1465,7 @@ async function exportCapaianToExcel() {
         'Realisasi': pmlRealisasiSum,
         'Persentase': subtotalPct
       });
+      rowTypes.push('subtotal_pml');
 
       grandTotalTarget += pmlTargetSum;
       grandTotalRealisasi += pmlRealisasiSum;
@@ -1457,47 +1476,34 @@ async function exportCapaianToExcel() {
       let unmappedTargetSum = 0;
       let unmappedRealisasiSum = 0;
 
-      const pplsData = unmappedPplIds
-        .map(id => processPplData(id, 'TANPA PML', ''))
-        .filter(Boolean)
-        .sort((a, b) => a['Nama PPL'].localeCompare(b['Nama PPL']));
+      const sortedUnmapped = unmappedPplIds
+        .filter(id => profileMap[id])
+        .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
 
-      if (pplsData.length > 0) {
-        pplsData.forEach(row => {
-          excelRows.push({
-            'Nama PML': row['Nama PML'],
-            'Email PML': row['Email PML'],
-            'Nama PPL': row['Nama PPL'],
-            'Email PPL': row['Email PPL'],
-            'Kode Kec': row['Kode Kec'],
-            'Kode Desa': row['Kode Desa'],
-            'Kode SLS+SubSLS': row['Kode SLS+SubSLS'],
-            'Target': row['Target'],
-            'Realisasi': row['Realisasi'],
-            'Persentase': row['Persentase']
-          });
-          unmappedTargetSum += row._target;
-          unmappedRealisasiSum += row._realisasi;
-        });
+      sortedUnmapped.forEach(id => {
+        const { targetSum, realisasiSum } = addPplRows(id, 'TANPA PML', '');
+        unmappedTargetSum += targetSum;
+        unmappedRealisasiSum += realisasiSum;
+      });
 
-        // Add Subtotal row for Unmapped PPLs
-        const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-        excelRows.push({
-          'Nama PML': 'SUB TOTAL TANPA PML',
-          'Email PML': '',
-          'Nama PPL': '',
-          'Email PPL': '',
-          'Kode Kec': '',
-          'Kode Desa': '',
-          'Kode SLS+SubSLS': '',
-          'Target': unmappedTargetSum,
-          'Realisasi': unmappedRealisasiSum,
-          'Persentase': subtotalPct
-        });
+      // Add Subtotal row for Unmapped PPLs
+      const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+      excelRows.push({
+        'Nama PML': 'SUB TOTAL TANPA PML',
+        'Email PML': '',
+        'Nama PPL': '',
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': unmappedTargetSum,
+        'Realisasi': unmappedRealisasiSum,
+        'Persentase': subtotalPct
+      });
+      rowTypes.push('subtotal_pml');
 
-        grandTotalTarget += unmappedTargetSum;
-        grandTotalRealisasi += unmappedRealisasiSum;
-      }
+      grandTotalTarget += unmappedTargetSum;
+      grandTotalRealisasi += unmappedRealisasiSum;
     }
 
     // 3. Add Grand Total row for the county
@@ -1514,10 +1520,73 @@ async function exportCapaianToExcel() {
       'Realisasi': grandTotalRealisasi,
       'Persentase': grandPct
     });
+    rowTypes.push('grand_total');
 
     // 4. Generate worksheet and workbook
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelRows);
+
+    // Apply styles to subtotal and total rows
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      const type = rowTypes[R - 1];
+      if (!type || type === 'data') continue;
+
+      let cellStyle = {};
+      if (type === 'subtotal_ppl') {
+        cellStyle = {
+          fill: { fgColor: { rgb: "FFF2CC" } }, // Soft warm gold/yellow
+          font: { bold: true, color: { rgb: "333333" } },
+          border: {
+            top: { style: "thin", color: { rgb: "D9D9D9" } },
+            bottom: { style: "thin", color: { rgb: "D9D9D9" } }
+          }
+        };
+      } else if (type === 'subtotal_pml') {
+        cellStyle = {
+          fill: { fgColor: { rgb: "D9E1F2" } }, // Soft blue
+          font: { bold: true, color: { rgb: "1F4E78" } },
+          border: {
+            top: { style: "thin", color: { rgb: "A6B9D8" } },
+            bottom: { style: "double", color: { rgb: "1F4E78" } }
+          }
+        };
+      } else if (type === 'grand_total') {
+        cellStyle = {
+          fill: { fgColor: { rgb: "C6E0B4" } }, // Soft green
+          font: { bold: true, color: { rgb: "375623" } },
+          border: {
+            top: { style: "thin", color: { rgb: "7F7F7F" } },
+            bottom: { style: "double", color: { rgb: "375623" } }
+          }
+        };
+      }
+
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ c: C, r: R });
+        if (!ws[cellRef]) {
+          ws[cellRef] = { t: 's', v: '' };
+        }
+        ws[cellRef].s = cellStyle;
+      }
+    }
+
+    // Auto-fit column widths
+    const cols = [];
+    const headers = Object.keys(excelRows[0] || {});
+    headers.forEach(h => {
+      cols.push({ wch: Math.max(h.length + 3, 10) });
+    });
+    excelRows.forEach(row => {
+      headers.forEach((h, colIndex) => {
+        const val = row[h] ? row[h].toString() : '';
+        if (val.length + 3 > cols[colIndex].wch) {
+          cols[colIndex].wch = val.length + 3;
+        }
+      });
+    });
+    ws['!cols'] = cols;
+
     XLSX.utils.book_append_sheet(wb, ws, 'Capaian PML-PPL');
     XLSX.writeFile(wb, 'capaian_pml_ppl.xlsx');
     showToast('Ekspor Excel berhasil!', 'success');
