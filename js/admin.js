@@ -1213,316 +1213,313 @@ function exportUsersToExcel() {
   }
 }
 
-async function exportCapaianToExcel() {
-  showToast('Memproses data untuk ekspor Excel...', 'info');
-  try {
-    // 1. Fetch profiles (ppl, pml)
-    let profiles = [];
-    let fromProf = 0;
-    let hasMoreProf = true;
-    while (hasMoreProf) {
-      const { data, error } = await db.from('profiles')
-        .select('id, sobatid, nama, email_ref, role')
-        .in('role', ['ppl', 'pml'])
-        .eq('is_active', true)
-        .range(fromProf, fromProf + 999);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        hasMoreProf = false;
-      } else {
-        profiles = profiles.concat(data);
-        if (data.length < 1000) hasMoreProf = false;
-        else fromProf += 1000;
-      }
+async function generateCapaianReportData() {
+  // 1. Fetch profiles (ppl, pml)
+  let profiles = [];
+  let fromProf = 0;
+  let hasMoreProf = true;
+  while (hasMoreProf) {
+    const { data, error } = await db.from('profiles')
+      .select('id, sobatid, nama, email_ref, role')
+      .in('role', ['ppl', 'pml'])
+      .eq('is_active', true)
+      .range(fromProf, fromProf + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreProf = false;
+    } else {
+      profiles = profiles.concat(data);
+      if (data.length < 1000) hasMoreProf = false;
+      else fromProf += 1000;
     }
+  }
 
-    // 2. Fetch pml_ppl mapping
-    let relations = [];
-    let fromRel = 0;
-    let hasMoreRel = true;
-    while (hasMoreRel) {
-      const { data, error } = await db.from('pml_ppl')
-        .select('pml_id, ppl_id')
-        .range(fromRel, fromRel + 999);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        hasMoreRel = false;
-      } else {
-        relations = relations.concat(data);
-        if (data.length < 1000) hasMoreRel = false;
-        else fromRel += 1000;
-      }
+  // 2. Fetch pml_ppl mapping
+  let relations = [];
+  let fromRel = 0;
+  let hasMoreRel = true;
+  while (hasMoreRel) {
+    const { data, error } = await db.from('pml_ppl')
+      .select('pml_id, ppl_id')
+      .range(fromRel, fromRel + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreRel = false;
+    } else {
+      relations = relations.concat(data);
+      if (data.length < 1000) hasMoreRel = false;
+      else fromRel += 1000;
     }
+  }
 
-    // 3. Fetch active user_sls
-    let userSls = [];
-    let fromSls = 0;
-    let hasMoreSls = true;
-    while (hasMoreSls) {
-      const { data, error } = await db.from('user_sls')
-        .select('user_id, kode_sls')
-        .eq('status', 'aktif')
-        .range(fromSls, fromSls + 999);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        hasMoreSls = false;
-      } else {
-        userSls = userSls.concat(data);
-        if (data.length < 1000) hasMoreSls = false;
-        else fromSls += 1000;
-      }
+  // 3. Fetch active user_sls
+  let userSls = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data, error } = await db.from('user_sls')
+      .select('user_id, kode_sls')
+      .eq('status', 'aktif')
+      .range(fromSls, fromSls + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreSls = false;
+    } else {
+      userSls = userSls.concat(data);
+      if (data.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
     }
+  }
 
-    // 4. Fetch wilayah_subsls targets
-    let subsls = [];
-    let fromSub = 0;
-    let hasMoreSub = true;
-    while (hasMoreSub) {
-      const { data, error } = await db.from('wilayah_subsls')
-        .select('kode_sls_gabungan, target')
-        .range(fromSub, fromSub + 999);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        hasMoreSub = false;
-      } else {
-        subsls = subsls.concat(data);
-        if (data.length < 1000) hasMoreSub = false;
-        else fromSub += 1000;
-      }
+  // 4. Fetch wilayah_subsls targets
+  let subsls = [];
+  let fromSub = 0;
+  let hasMoreSub = true;
+  while (hasMoreSub) {
+    const { data, error } = await db.from('wilayah_subsls')
+      .select('kode_sls_gabungan, target')
+      .range(fromSub, fromSub + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreSub = false;
+    } else {
+      subsls = subsls.concat(data);
+      if (data.length < 1000) hasMoreSub = false;
+      else fromSub += 1000;
     }
+  }
 
-    // 5. Fetch capaian
-    let achievements = [];
-    let fromCap = 0;
-    let hasMoreCap = true;
-    while (hasMoreCap) {
-      const { data, error } = await db.from('capaian')
-        .select('kode_sls_gabungan, capaian1')
-        .range(fromCap, fromCap + 999);
-      if (error) throw error;
-      if (!data || data.length === 0) {
-        hasMoreCap = false;
-      } else {
-        achievements = achievements.concat(data);
-        if (data.length < 1000) hasMoreCap = false;
-        else fromCap += 1000;
-      }
+  // 5. Fetch capaian
+  let achievements = [];
+  let fromCap = 0;
+  let hasMoreCap = true;
+  while (hasMoreCap) {
+    const { data, error } = await db.from('capaian')
+      .select('kode_sls_gabungan, capaian1')
+      .range(fromCap, fromCap + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreCap = false;
+    } else {
+      achievements = achievements.concat(data);
+      if (data.length < 1000) hasMoreCap = false;
+      else fromCap += 1000;
     }
+  }
 
-    // Map targets & achievements by kode_sls_gabungan
-    const targetMap = {};
-    subsls.forEach(s => {
-      targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
-    });
+  // Map targets & achievements by kode_sls_gabungan
+  const targetMap = {};
+  subsls.forEach(s => {
+    targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
+  });
 
-    const realisasiMap = {};
-    achievements.forEach(a => {
-      realisasiMap[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
-    });
+  const realisasiMap = {};
+  achievements.forEach(a => {
+    realisasiMap[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
+  });
 
-    // Map profile by id for quick lookup
-    const profileMap = {};
-    profiles.forEach(p => {
-      profileMap[p.id] = p;
-    });
+  // Map profile by id for quick lookup
+  const profileMap = {};
+  profiles.forEach(p => {
+    profileMap[p.id] = p;
+  });
 
-    // Group PPLs by PML
-    const pmlToPpl = {};
-    relations.forEach(r => {
-      if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = new Set();
-      pmlToPpl[r.pml_id].add(r.ppl_id);
-    });
+  // Group PPLs by PML
+  const pmlToPpl = {};
+  relations.forEach(r => {
+    if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = new Set();
+    pmlToPpl[r.pml_id].add(r.ppl_id);
+  });
 
-    // Find PPLs that might not have a PML assigned
-    const allPplIds = new Set(profiles.filter(p => p.role === 'ppl').map(p => p.id));
-    const mappedPplIds = new Set(relations.map(r => r.ppl_id));
-    const unmappedPplIds = [...allPplIds].filter(id => !mappedPplIds.has(id));
+  // Find PPLs that might not have a PML assigned
+  const allPplIds = new Set(profiles.filter(p => p.role === 'ppl').map(p => p.id));
+  const mappedPplIds = new Set(relations.map(r => r.ppl_id));
+  const unmappedPplIds = [...allPplIds].filter(id => !mappedPplIds.has(id));
 
-    // Map user_sls by user_id
-    const userSlsMap = {};
-    userSls.forEach(us => {
-      if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
-      userSlsMap[us.user_id].push(us.kode_sls);
-    });
+  // Map user_sls by user_id
+  const userSlsMap = {};
+  userSls.forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+  });
 
-    const pmls = profiles.filter(p => p.role === 'pml');
+  const pmls = profiles.filter(p => p.role === 'pml');
 
-    // Rows to export
-    const excelRows = [];
-    const rowTypes = []; // Parallel array keeping track of 'data', 'subtotal_ppl', 'subtotal_pml', 'grand_total'
+  const excelRows = [];
+  const rowTypes = [];
 
-    // Helper to process PPL, add a row for each SLS/region, and add a PPL subtotal row
-    const addPplRows = (pplId, pmlName, pmlEmail) => {
-      const ppl = profileMap[pplId];
-      if (!ppl) return { targetSum: 0, realisasiSum: 0 };
+  const addPplRows = (pplId, pmlName, pmlEmail) => {
+    const ppl = profileMap[pplId];
+    if (!ppl) return { targetSum: 0, realisasiSum: 0 };
 
-      const slsCodes = userSlsMap[pplId] || [];
-      let pplTargetSum = 0;
-      let pplRealisasiSum = 0;
+    const slsCodes = userSlsMap[pplId] || [];
+    let pplTargetSum = 0;
+    let pplRealisasiSum = 0;
 
-      const sortedSls = [...slsCodes].sort();
+    const sortedSls = [...slsCodes].sort();
 
-      if (sortedSls.length === 0) {
+    if (sortedSls.length === 0) {
+      excelRows.push({
+        'Nama PML': pmlName,
+        'Email PML': pmlEmail || '—',
+        'Nama PPL': ppl.nama,
+        'Email PPL': ppl.email_ref || '—',
+        'Kode Kec': '—',
+        'Kode Desa': '—',
+        'Kode SLS+SubSLS': '—',
+        'Target': 0,
+        'Realisasi': 0,
+        'Persentase': '0.00%'
+      });
+      rowTypes.push('data');
+    } else {
+      sortedSls.forEach(code => {
+        let kec = '—';
+        let des = '—';
+        let slsSub = '—';
+        if (code.length >= 16) {
+          kec = code.substring(4, 7);
+          des = code.substring(7, 10);
+          slsSub = code.substring(10, 16);
+        }
+        const target = targetMap[code] || 0;
+        const realisasi = realisasiMap[code] || 0;
+        pplTargetSum += target;
+        pplRealisasiSum += realisasi;
+
+        const pctVal = target > 0 ? (realisasi / target) * 100 : 0;
+        const pct = pctVal.toFixed(2) + '%';
+
         excelRows.push({
           'Nama PML': pmlName,
           'Email PML': pmlEmail || '—',
           'Nama PPL': ppl.nama,
           'Email PPL': ppl.email_ref || '—',
-          'Kode Kec': '—',
-          'Kode Desa': '—',
-          'Kode SLS+SubSLS': '—',
-          'Target': 0,
-          'Realisasi': 0,
-          'Persentase': '0.00%'
+          'Kode Kec': kec,
+          'Kode Desa': des,
+          'Kode SLS+SubSLS': slsSub,
+          'Target': target,
+          'Realisasi': realisasi,
+          'Persentase': pct
         });
         rowTypes.push('data');
-      } else {
-        sortedSls.forEach(code => {
-          let kec = '—';
-          let des = '—';
-          let slsSub = '—';
-          if (code.length >= 16) {
-            kec = code.substring(4, 7);
-            des = code.substring(7, 10);
-            slsSub = code.substring(10, 16);
-          }
-          const target = targetMap[code] || 0;
-          const realisasi = realisasiMap[code] || 0;
-          pplTargetSum += target;
-          pplRealisasiSum += realisasi;
-
-          const pctVal = target > 0 ? (realisasi / target) * 100 : 0;
-          const pct = pctVal.toFixed(2) + '%';
-
-          excelRows.push({
-            'Nama PML': pmlName,
-            'Email PML': pmlEmail || '—',
-            'Nama PPL': ppl.nama,
-            'Email PPL': ppl.email_ref || '—',
-            'Kode Kec': kec,
-            'Kode Desa': des,
-            'Kode SLS+SubSLS': slsSub,
-            'Target': target,
-            'Realisasi': realisasi,
-            'Persentase': pct
-          });
-          rowTypes.push('data');
-        });
-      }
-
-      // Add PPL Subtotal row
-      const pplPct = pplTargetSum > 0 ? ((pplRealisasiSum / pplTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-      excelRows.push({
-        'Nama PML': `SUB TOTAL PPL: ${ppl.nama}`,
-        'Email PML': '',
-        'Nama PPL': '',
-        'Email PPL': '',
-        'Kode Kec': '',
-        'Kode Desa': '',
-        'Kode SLS+SubSLS': '',
-        'Target': pplTargetSum,
-        'Realisasi': pplRealisasiSum,
-        'Persentase': pplPct
       });
-      rowTypes.push('subtotal_ppl');
-
-      return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum };
-    };
-
-    let grandTotalTarget = 0;
-    let grandTotalRealisasi = 0;
-
-    // 1. Process PML groups
-    pmls.sort((a, b) => a.nama.localeCompare(b.nama)).forEach(pml => {
-      const pplIds = Array.from(pmlToPpl[pml.id] || []);
-      if (pplIds.length === 0) return;
-
-      let pmlTargetSum = 0;
-      let pmlRealisasiSum = 0;
-
-      // Sort PPLs by name
-      const sortedPplIds = pplIds
-        .filter(id => profileMap[id])
-        .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
-
-      sortedPplIds.forEach(id => {
-        const { targetSum, realisasiSum } = addPplRows(id, pml.nama, pml.email_ref);
-        pmlTargetSum += targetSum;
-        pmlRealisasiSum += realisasiSum;
-      });
-
-      // Add Subtotal row for PML
-      const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-      excelRows.push({
-        'Nama PML': `SUB TOTAL PML: ${pml.nama}`,
-        'Email PML': '',
-        'Nama PPL': '',
-        'Email PPL': '',
-        'Kode Kec': '',
-        'Kode Desa': '',
-        'Kode SLS+SubSLS': '',
-        'Target': pmlTargetSum,
-        'Realisasi': pmlRealisasiSum,
-        'Persentase': subtotalPct
-      });
-      rowTypes.push('subtotal_pml');
-
-      grandTotalTarget += pmlTargetSum;
-      grandTotalRealisasi += pmlRealisasiSum;
-    });
-
-    // 2. Process PPLs without PML (if any)
-    if (unmappedPplIds.length > 0) {
-      let unmappedTargetSum = 0;
-      let unmappedRealisasiSum = 0;
-
-      const sortedUnmapped = unmappedPplIds
-        .filter(id => profileMap[id])
-        .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
-
-      sortedUnmapped.forEach(id => {
-        const { targetSum, realisasiSum } = addPplRows(id, 'TANPA PML', '');
-        unmappedTargetSum += targetSum;
-        unmappedRealisasiSum += realisasiSum;
-      });
-
-      // Add Subtotal row for Unmapped PPLs
-      const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
-      excelRows.push({
-        'Nama PML': 'SUB TOTAL TANPA PML',
-        'Email PML': '',
-        'Nama PPL': '',
-        'Email PPL': '',
-        'Kode Kec': '',
-        'Kode Desa': '',
-        'Kode SLS+SubSLS': '',
-        'Target': unmappedTargetSum,
-        'Realisasi': unmappedRealisasiSum,
-        'Persentase': subtotalPct
-      });
-      rowTypes.push('subtotal_pml');
-
-      grandTotalTarget += unmappedTargetSum;
-      grandTotalRealisasi += unmappedRealisasiSum;
     }
 
-    // 3. Add Grand Total row for the county
-    const grandPct = grandTotalTarget > 0 ? ((grandTotalRealisasi / grandTotalTarget) * 100).toFixed(2) + '%' : '0.00%';
+    const pplPct = pplTargetSum > 0 ? ((pplRealisasiSum / pplTargetSum) * 100).toFixed(2) + '%' : '0.00%';
     excelRows.push({
-      'Nama PML': 'TOTAL KABUPATEN',
+      'Nama PML': `SUB TOTAL PPL: ${ppl.nama}`,
       'Email PML': '',
       'Nama PPL': '',
       'Email PPL': '',
       'Kode Kec': '',
       'Kode Desa': '',
       'Kode SLS+SubSLS': '',
-      'Target': grandTotalTarget,
-      'Realisasi': grandTotalRealisasi,
-      'Persentase': grandPct
+      'Target': pplTargetSum,
+      'Realisasi': pplRealisasiSum,
+      'Persentase': pplPct
     });
-    rowTypes.push('grand_total');
+    rowTypes.push('subtotal_ppl');
 
-    // 4. Generate worksheet and workbook
+    return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum };
+  };
+
+  let grandTotalTarget = 0;
+  let grandTotalRealisasi = 0;
+
+  pmls.sort((a, b) => a.nama.localeCompare(b.nama)).forEach(pml => {
+    const pplIds = Array.from(pmlToPpl[pml.id] || []);
+    if (pplIds.length === 0) return;
+
+    let pmlTargetSum = 0;
+    let pmlRealisasiSum = 0;
+
+    const sortedPplIds = pplIds
+      .filter(id => profileMap[id])
+      .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
+
+    sortedPplIds.forEach(id => {
+      const { targetSum, realisasiSum } = addPplRows(id, pml.nama, pml.email_ref);
+      pmlTargetSum += targetSum;
+      pmlRealisasiSum += realisasiSum;
+    });
+
+    const subtotalPct = pmlTargetSum > 0 ? ((pmlRealisasiSum / pmlTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'Nama PML': `SUB TOTAL PML: ${pml.nama}`,
+      'Email PML': '',
+      'Nama PPL': '',
+      'Email PPL': '',
+      'Kode Kec': '',
+      'Kode Desa': '',
+      'Kode SLS+SubSLS': '',
+      'Target': pmlTargetSum,
+      'Realisasi': pmlRealisasiSum,
+      'Persentase': subtotalPct
+    });
+    rowTypes.push('subtotal_pml');
+
+    grandTotalTarget += pmlTargetSum;
+    grandTotalRealisasi += pmlRealisasiSum;
+  });
+
+  if (unmappedPplIds.length > 0) {
+    let unmappedTargetSum = 0;
+    let unmappedRealisasiSum = 0;
+
+    const sortedUnmapped = unmappedPplIds
+      .filter(id => profileMap[id])
+      .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
+
+    sortedUnmapped.forEach(id => {
+      const { targetSum, realisasiSum } = addPplRows(id, 'TANPA PML', '');
+      unmappedTargetSum += targetSum;
+      unmappedRealisasiSum += realisasiSum;
+    });
+
+    const subtotalPct = unmappedTargetSum > 0 ? ((unmappedRealisasiSum / unmappedTargetSum) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'Nama PML': 'SUB TOTAL TANPA PML',
+      'Email PML': '',
+      'Nama PPL': '',
+      'Email PPL': '',
+      'Kode Kec': '',
+      'Kode Desa': '',
+      'Kode SLS+SubSLS': '',
+      'Target': unmappedTargetSum,
+      'Realisasi': unmappedRealisasiSum,
+      'Persentase': subtotalPct
+    });
+    rowTypes.push('subtotal_pml');
+
+    grandTotalTarget += unmappedTargetSum;
+    grandTotalRealisasi += unmappedRealisasiSum;
+  }
+
+  const grandPct = grandTotalTarget > 0 ? ((grandTotalRealisasi / grandTotalTarget) * 100).toFixed(2) + '%' : '0.00%';
+  excelRows.push({
+    'Nama PML': 'TOTAL KABUPATEN',
+    'Email PML': '',
+    'Nama PPL': '',
+    'Email PPL': '',
+    'Kode Kec': '',
+    'Kode Desa': '',
+    'Kode SLS+SubSLS': '',
+    'Target': grandTotalTarget,
+    'Realisasi': grandTotalRealisasi,
+    'Persentase': grandPct
+  });
+  rowTypes.push('grand_total');
+
+  return { excelRows, rowTypes };
+}
+
+async function exportCapaianToExcel() {
+  showToast('Memproses data untuk ekspor Excel...', 'info');
+  try {
+    const { excelRows, rowTypes } = await generateCapaianReportData();
+
+    // Generate worksheet and workbook
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(excelRows);
 
@@ -1596,6 +1593,82 @@ async function exportCapaianToExcel() {
   }
 }
 
+async function previewCapaian() {
+  showToast('Memproses data preview...', 'info');
+  try {
+    const { excelRows, rowTypes } = await generateCapaianReportData();
+    const tbody = document.getElementById('previewLkTableBody');
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    // Slice to top 100 rows
+    const maxPreview = 100;
+    const previewRows = excelRows.slice(0, maxPreview);
+
+    previewRows.forEach((row, i) => {
+      const type = rowTypes[i];
+      const tr = document.createElement('tr');
+
+      // Styles matching the spreadsheet
+      if (type === 'subtotal_ppl') {
+        tr.style.backgroundColor = '#FFF2CC';
+        tr.style.fontWeight = 'bold';
+      } else if (type === 'subtotal_pml') {
+        tr.style.backgroundColor = '#D9E1F2';
+        tr.style.fontWeight = 'bold';
+        tr.style.color = '#1F4E78';
+      } else if (type === 'grand_total') {
+        tr.style.backgroundColor = '#C6E0B4';
+        tr.style.fontWeight = 'bold';
+        tr.style.color = '#375623';
+      }
+
+      tr.innerHTML = `
+        <td>${row['Nama PML'] || ''}</td>
+        <td>${row['Email PML'] || ''}</td>
+        <td>${row['Nama PPL'] || ''}</td>
+        <td>${row['Email PPL'] || ''}</td>
+        <td style="text-align:center">${row['Kode Kec'] || ''}</td>
+        <td style="text-align:center">${row['Kode Desa'] || ''}</td>
+        <td style="text-align:center">${row['Kode SLS+SubSLS'] || ''}</td>
+        <td style="text-align:right">${row['Target']}</td>
+        <td style="text-align:right">${row['Realisasi']}</td>
+        <td style="text-align:right">${row['Persentase']}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+
+    // Add info row if data is truncated
+    if (excelRows.length > maxPreview) {
+      const tr = document.createElement('tr');
+      tr.style.backgroundColor = '#f8f9fa';
+      tr.style.fontStyle = 'italic';
+      tr.style.color = '#6c757d';
+      tr.innerHTML = `
+        <td colspan="10" style="text-align:center;padding:1rem;font-weight:500;">
+          ... Menampilkan 100 dari total ${excelRows.length} baris. Silakan unduh file Excel untuk melihat data secara lengkap. ...
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    const modal = document.getElementById('previewLkModal');
+    if (modal) {
+      modal.classList.add('open');
+    }
+  } catch (err) {
+    console.error('Preview error:', err);
+    showToast('Gagal memuat preview: ' + err.message, 'error');
+  }
+}
+
+function closePreviewLkModal() {
+  const modal = document.getElementById('previewLkModal');
+  if (modal) {
+    modal.classList.remove('open');
+  }
+}
 
 // ============================================================
 // BAPP (CETAK PDF) MANAGEMENT LOGIC

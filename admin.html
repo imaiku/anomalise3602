@@ -1369,14 +1369,23 @@
                 <td style="text-align:center">1</td>
                 <td style="font-weight:600">LK Beban Kerja</td>
                 <td style="text-align:center">
-                  <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel()" style="display:inline-flex;align-items:center;gap:0.35rem;margin:0 auto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                      <polyline points="7 10 12 15 17 10"></polyline>
-                      <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Unduh Excel
-                  </button>
+                  <div style="display:flex;gap:0.5rem;justify-content:center">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaian()" style="display:inline-flex;align-items:center;gap:0.35rem">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                      </svg>
+                      Preview
+                    </button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel()" style="display:inline-flex;align-items:center;gap:0.35rem">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      Unduh Excel
+                    </button>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -1658,6 +1667,40 @@
       </div>
     </div>
   </div>
+  <!-- Modal Preview LK Beban Kerja -->
+  <div class="modal-overlay" id="previewLkModal" onclick="if(event.target===this)closePreviewLkModal()">
+    <div class="bottom-sheet" style="max-width:90%;width:1200px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="bottom-sheet-title">Preview LK Beban Kerja</div>
+        <button class="btn btn-secondary btn-sm" onclick="closePreviewLkModal()">Tutup</button>
+      </div>
+      <div class="bottom-sheet-body" style="overflow-y:auto;flex:1;padding:1rem">
+        <div class="table-wrapper" style="max-height:60vh;overflow-y:auto">
+          <table class="admin-table" id="previewLkTable" style="font-size: 0.85rem">
+            <thead>
+              <tr>
+                <th>Nama PML</th>
+                <th>Email PML</th>
+                <th>Nama PPL</th>
+                <th>Email PPL</th>
+                <th style="text-align:center">Kec</th>
+                <th style="text-align:center">Desa</th>
+                <th style="text-align:center">SLS+SubSLS</th>
+                <th style="text-align:right">Target</th>
+                <th style="text-align:right">Realisasi</th>
+                <th style="text-align:right">Persentase</th>
+              </tr>
+            </thead>
+            <tbody id="previewLkTableBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="js/config.js"></script>
