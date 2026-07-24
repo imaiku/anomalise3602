@@ -1319,6 +1319,31 @@ async function generateCapaianReportData(gelombang = 1) {
     }
   }
 
+  // 6. Fetch active honorarium holds
+  let holdsRaw = [];
+  try {
+    const { data: holdData } = await db.from('honorarium_hold')
+      .select('user_id, gelombang')
+      .eq('is_active', true);
+    if (holdData) holdsRaw = holdData;
+  } catch (e) {
+    console.warn('Gagal memuat honorarium_hold:', e);
+  }
+  // Build a Set: key = "userId:gelombang" or "userId:all" if gelombang is null
+  const holdSet = new Set();
+  holdsRaw.forEach(h => {
+    if (h.gelombang === null || h.gelombang === undefined) {
+      // Hold berlaku untuk semua gelombang
+      holdSet.add(`${h.user_id}:1`);
+      holdSet.add(`${h.user_id}:2`);
+      holdSet.add(`${h.user_id}:3`);
+    } else {
+      holdSet.add(`${h.user_id}:${h.gelombang}`);
+    }
+  });
+
+  const isOnHold = (userId, gel) => holdSet.has(`${userId}:${gel}`);
+
   // Map targets & achievements by kode_sls_gabungan
   const targetMap = {};
   subsls.forEach(s => {
@@ -1373,16 +1398,48 @@ async function generateCapaianReportData(gelombang = 1) {
     return '';
   };
 
-  const pmls = profiles.filter(p => p.role === 'pml');
+  const getPplStatus = (pplId, gel) => {
+    const slsCodes = userSlsMap[pplId] || [];
+    let pplTargetSum = 0;
+    let pplRealisasiSum = 0;
+    let pplCoverage = 0;
+    let map = realisasiMapG1;
+    if (gel === 2) map = realisasiMapG2;
+    if (gel === 3) map = realisasiMapG3;
 
-  const excelRows = [];
-  const rowTypes = [];
+    slsCodes.forEach(code => {
+      pplTargetSum += targetMap[code] || 0;
+      const real = map[code] || 0;
+      pplRealisasiSum += real;
+      if (real > 0) pplCoverage++;
+    });
+    const base = checkPPLEligibility(pplRealisasiSum, pplTargetSum, pplCoverage, slsCodes.length);
+    // Honor hold override: if on hold, force not eligible
+    if (isOnHold(pplId, gel)) {
+      return { ...base, eligible: false, onHold: true };
+    }
+    return { ...base, onHold: false };
+  };
 
   const addPplRows = (pplId, pmlName, pmlEmail) => {
     const ppl = profileMap[pplId];
     if (!ppl) return { targetSum: 0, realisasiSum: 0 };
 
     const slsCodes = userSlsMap[pplId] || [];
+    const gStatus = getPplStatus(pplId, gelombang);
+
+    // Filtering rules for LK Beban Kerja:
+    // Gelombang 2: ONLY include if G2 eligible
+    if (gelombang === 2 && !gStatus.eligible) {
+      return { targetSum: 0, realisasiSum: 0, skipped: true };
+    }
+    // Gelombang 3: ONLY include if G3 eligible
+    if (gelombang === 3 && !gStatus.eligible) {
+      return { targetSum: 0, realisasiSum: 0, skipped: true };
+    }
+
+    const isNotEligibleG1 = (gelombang === 1 && !gStatus.eligible);
+
     let pplTargetSum = 0;
     let pplRealisasiSum = 0;
     let pplCoverage = 0;
@@ -1409,7 +1466,7 @@ async function generateCapaianReportData(gelombang = 1) {
         'Min Coverage': '0',
         'Eligible': '✗'
       });
-      rowTypes.push('data');
+      rowTypes.push(isNotEligibleG1 ? 'not_eligible_g1' : 'data');
     } else {
       sortedSls.forEach(code => {
         let kec = '—';
@@ -1444,7 +1501,7 @@ async function generateCapaianReportData(gelombang = 1) {
           'Min Coverage': '',
           'Eligible': ''
         });
-        rowTypes.push('data');
+        rowTypes.push(isNotEligibleG1 ? 'not_eligible_g1' : 'data');
       });
     }
 
@@ -1466,7 +1523,7 @@ async function generateCapaianReportData(gelombang = 1) {
       'Min Coverage': `≥ ${eligibility.minCoverage}`,
       'Eligible': eligibility.eligible ? '✓' : '✗'
     });
-    rowTypes.push('subtotal_ppl');
+    rowTypes.push(isNotEligibleG1 ? 'not_eligible_g1' : 'subtotal_ppl');
 
     return { targetSum: pplTargetSum, realisasiSum: pplRealisasiSum, skipped: false };
   };
@@ -1615,7 +1672,16 @@ async function exportCapaianToExcel(gelombang = 1) {
       if (!type || type === 'data') continue;
 
       let cellStyle = {};
-      if (type === 'subtotal_ppl') {
+      if (type === 'not_eligible_g1') {
+        cellStyle = {
+          fill: { fgColor: { rgb: "FCE4D6" } }, // Soft red/rose background
+          font: { bold: true, color: { rgb: "C00000" } }, // Red font
+          border: {
+            top: { style: "thin", color: { rgb: "F4B084" } },
+            bottom: { style: "thin", color: { rgb: "F4B084" } }
+          }
+        };
+      } else if (type === 'subtotal_ppl') {
         cellStyle = {
           fill: { fgColor: { rgb: "FFF2CC" } }, // Soft warm gold/yellow
           font: { bold: true, color: { rgb: "333333" } },
@@ -1696,7 +1762,11 @@ async function previewCapaian(gelombang = 1) {
       const tr = document.createElement('tr');
 
       // Styles matching the spreadsheet
-      if (type === 'subtotal_ppl') {
+      if (type === 'not_eligible_g1') {
+        tr.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
+        tr.style.color = '#ef4444';
+        tr.style.fontWeight = 'bold';
+      } else if (type === 'subtotal_ppl') {
         tr.style.backgroundColor = '#FFF2CC';
         tr.style.fontWeight = 'bold';
       } else if (type === 'subtotal_pml') {
@@ -3512,6 +3582,28 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     }
   }
 
+  // Fetch active honorarium holds
+  let holdsRawSE = [];
+  try {
+    const { data: holdData } = await db.from('honorarium_hold')
+      .select('user_id, gelombang')
+      .eq('is_active', true);
+    if (holdData) holdsRawSE = holdData;
+  } catch (e) {
+    console.warn('Gagal memuat honorarium_hold (SE):', e);
+  }
+  const holdSetSE = new Set();
+  holdsRawSE.forEach(h => {
+    if (h.gelombang === null || h.gelombang === undefined) {
+      holdSetSE.add(`${h.user_id}:1`);
+      holdSetSE.add(`${h.user_id}:2`);
+      holdSetSE.add(`${h.user_id}:3`);
+    } else {
+      holdSetSE.add(`${h.user_id}:${h.gelombang}`);
+    }
+  });
+  const isOnHoldSE = (userId, gel) => holdSetSE.has(`${userId}:${gel}`);
+
   // Map targets & achievements by SLS
   const targetMap = {};
   subsls.forEach(s => {
@@ -3591,9 +3683,13 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       const coverageG2 = codes.length > 0 ? (visitedG2 / codes.length) : 0;
       const coverageG3 = codes.length > 0 ? (visitedG3 / codes.length) : 0;
 
-      const isG1Eligible = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
-      const isG2Eligible = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
-      const isG3Eligible = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+      const isG1EligibleNumeric = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
+      const isG2EligibleNumeric = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
+      const isG3EligibleNumeric = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+      // Apply honorarium hold override
+      const isG1Eligible = isG1EligibleNumeric && !isOnHoldSE(p.id, 1);
+      const isG2Eligible = isG2EligibleNumeric && !isOnHoldSE(p.id, 2);
+      const isG3Eligible = isG3EligibleNumeric && !isOnHoldSE(p.id, 3);
 
       let chosenReal = realisasiG1;
       if (gelombang === 2) chosenReal = realisasiG2;
@@ -3612,16 +3708,30 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     } else if (p.role === 'pml') {
       const supervisedPpls = pmlToPpl[p.id] || [];
       let kdkec = '';
+      let totalPmlSls = 0;
+      let visitedPmlG1 = 0;
+      let visitedPmlG2 = 0;
+      let visitedPmlG3 = 0;
+
       supervisedPpls.forEach(pplId => {
         const codes = userSlsMap[pplId] || [];
         if (codes.length > 0 && !kdkec) {
           kdkec = codes[0].substring(4, 7);
         }
         codes.forEach(code => {
+          totalPmlSls++;
+          const cap1 = capaianPmlG1Map[code] || 0;
+          const cap2 = capaianPmlG2Map[code] || 0;
+          const cap3 = capaianPmlG3Map[code] || 0;
+
           target += targetMap[code] || 0;
-          realisasiG1 += capaianPmlG1Map[code] || 0;
-          realisasiG2 += capaianPmlG2Map[code] || 0;
-          realisasiG3 += capaianPmlG3Map[code] || 0;
+          realisasiG1 += cap1;
+          realisasiG2 += cap2;
+          realisasiG3 += cap3;
+
+          if (cap1 > 0) visitedPmlG1++;
+          if (cap2 > 0) visitedPmlG2++;
+          if (cap3 > 0) visitedPmlG3++;
         });
       });
 
@@ -3629,9 +3739,18 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
       const pctG3 = target > 0 ? (realisasiG3 / target) : 0;
 
-      const isG1Eligible = pctG1 >= 0.4;
-      const isG2Eligible = pctG2 >= 0.4;
-      const isG3Eligible = pctG3 >= 0.4;
+      const coverageG1 = totalPmlSls > 0 ? (visitedPmlG1 / totalPmlSls) : 0;
+      const coverageG2 = totalPmlSls > 0 ? (visitedPmlG2 / totalPmlSls) : 0;
+      const coverageG3 = totalPmlSls > 0 ? (visitedPmlG3 / totalPmlSls) : 0;
+
+      // PML eligibility requires BOTH capaian_pml/target >= 40% AND PML coverage >= 40%
+      const isG1EligibleNumericPml = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
+      const isG2EligibleNumericPml = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
+      const isG3EligibleNumericPml = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+      // Apply honorarium hold override
+      const isG1Eligible = isG1EligibleNumericPml && !isOnHoldSE(p.id, 1);
+      const isG2Eligible = isG2EligibleNumericPml && !isOnHoldSE(p.id, 2);
+      const isG3Eligible = isG3EligibleNumericPml && !isOnHoldSE(p.id, 3);
 
       let chosenReal = realisasiG1;
       if (gelombang === 2) chosenReal = realisasiG2;
@@ -4449,3 +4568,148 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   pdf.text("(YULIAN SARWO EDI)", kiriX, y);
   pdf.text("NIP.197707101999121001", kiriX, y + 6);
 }
+
+// =====================================================
+// HONORARIUM HOLD MANAGEMENT
+// =====================================================
+
+let allProfilesForHold = [];
+
+async function openHoldModal() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Akses ditolak: Hanya Superadmin yang dapat mengelola hold honorarium.', 'error');
+    return;
+  }
+  document.getElementById('holdModal').classList.add('open');
+
+  // Load profiles for dropdown if not already loaded
+  if (allProfilesForHold.length === 0) {
+    try {
+      // Use existing allUsers which already resolved and loaded the kecamatan for every user
+      if (allUsers.length === 0) {
+        await loadUsers();
+      }
+      allProfilesForHold = allUsers.filter(u => ['ppl', 'pml'].includes(u.role) && u.is_active);
+
+      const dl = document.getElementById('holdUserList');
+      dl.innerHTML = '';
+      allProfilesForHold.forEach(p => {
+        const kecName = p.kecamatan || '—';
+        const label = `[${p.role.toUpperCase()}][${kecName}] ${p.nama}`;
+        dl.innerHTML += `<option value="${escHtml(label)}">`;
+      });
+    } catch (err) {
+      showToast('Gagal memuat daftar petugas: ' + err.message, 'error');
+    }
+  }
+
+  // Clear search input on modal open
+  const searchInput = document.getElementById('holdUserSearch');
+  if (searchInput) searchInput.value = '';
+
+  await loadHoldList();
+}
+
+function closeHoldModal() {
+  document.getElementById('holdModal').classList.remove('open');
+}
+
+async function loadHoldList() {
+  const tbody = document.getElementById('holdListBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Memuat...</td></tr>';
+
+  try {
+    const { data, error } = await db.from('honorarium_hold')
+      .select('id, user_id, gelombang, alasan, is_active, created_at, profiles!honorarium_hold_user_id_fkey(nama, role)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    if (!data || data.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted)">Belum ada data hold.</td></tr>';
+      return;
+    }
+
+    tbody.innerHTML = data.map(h => {
+      const profile = h.profiles;
+      const namaText = profile ? `[${profile.role.toUpperCase()}] ${escHtml(profile.nama)}` : h.user_id;
+      const gelText = h.gelombang ? `G${h.gelombang}` : 'Semua';
+      const statusBadge = h.is_active
+        ? '<span style="color:#ef4444;font-weight:bold">Aktif</span>'
+        : '<span style="color:#10b981;font-weight:bold">Dicabut</span>';
+      return `<tr>
+        <td>${namaText}</td>
+        <td style="text-align:center">${gelText}</td>
+        <td>${escHtml(h.alasan)}</td>
+        <td style="text-align:center">${statusBadge}</td>
+        <td style="text-align:center">
+          ${h.is_active
+          ? `<button class="btn btn-danger btn-sm" onclick="releaseHold('${h.id}')">Cabut</button>`
+          : '—'}
+        </td>
+      </tr>`;
+    }).join('');
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:#ef4444">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+async function saveHold() {
+  const searchVal = document.getElementById('holdUserSearch').value.trim();
+  const gelombang = document.getElementById('holdGelombang').value;
+  const alasan = document.getElementById('holdAlasan').value.trim();
+
+  if (!searchVal) { showToast('Ketik dan pilih petugas terlebih dahulu.', 'error'); return; }
+  
+  // Resolve userId from full label input value
+  const matched = allProfilesForHold.find(p => {
+    const kecName = p.kecamatan || '—';
+    const label = `[${p.role.toUpperCase()}][${kecName}] ${p.nama}`;
+    return label === searchVal;
+  });
+
+  if (!matched) {
+    showToast('Petugas tidak ditemukan. Pastikan Anda memilih dari daftar saran nama yang muncul.', 'error');
+    return;
+  }
+  
+  const userId = matched.id;
+  if (!alasan) { showToast('Masukkan alasan penahanan.', 'error'); return; }
+
+  try {
+    const { data: { user } } = await db.auth.getUser();
+    const payload = {
+      user_id: userId,
+      gelombang: gelombang ? parseInt(gelombang) : null,
+      alasan,
+      ditahan_oleh: user?.id || null,
+      is_active: true
+    };
+
+    const { error } = await db.from('honorarium_hold').insert([payload]);
+    if (error) throw error;
+
+    showToast('Hold honorarium berhasil disimpan.', 'success');
+    document.getElementById('holdUserSearch').value = '';
+    document.getElementById('holdGelombang').value = '';
+    document.getElementById('holdAlasan').value = '';
+    await loadHoldList();
+  } catch (err) {
+    showToast('Gagal menyimpan hold: ' + err.message, 'error');
+  }
+}
+
+async function releaseHold(holdId) {
+  if (!confirm('Apakah Anda yakin ingin mencabut hold ini?')) return;
+  try {
+    const { error } = await db.from('honorarium_hold')
+      .update({ is_active: false })
+      .eq('id', holdId);
+    if (error) throw error;
+    showToast('Hold berhasil dicabut.', 'success');
+    await loadHoldList();
+  } catch (err) {
+    showToast('Gagal mencabut hold: ' + err.message, 'error');
+  }
+}
+
