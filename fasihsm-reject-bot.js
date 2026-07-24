@@ -95,6 +95,7 @@
                             // Deteksi jika respon adalah pesan error "Sudah Rejected" atau status assignment tidak mendukung/terlewati
                             const isAlreadyRejected = resJson.message && (
                                 resJson.message.toUpperCase().includes('REJECTED') ||
+                                resJson.message.toUpperCase().includes('DRAFT') ||
                                 resJson.message.toUpperCase().includes('REVOKED BY PENGAWAS') ||
                                 resJson.message.toUpperCase().includes('SUBMITTED BY PENCACAH')
                             );
