@@ -1307,7 +1307,7 @@ async function generateCapaianReportData(gelombang = 1) {
   let hasMoreCap = true;
   while (hasMoreCap) {
     const { data, error } = await db.from('capaian')
-      .select('kode_sls_gabungan, capaian1, capaian1_g2')
+      .select('*')
       .range(fromCap, fromCap + 999);
     if (error) throw error;
     if (!data || data.length === 0) {
@@ -1420,6 +1420,10 @@ async function generateCapaianReportData(gelombang = 1) {
     }
     return { ...base, onHold: false };
   };
+
+  const pmls = profiles.filter(p => p.role === 'pml');
+  const excelRows = [];
+  const rowTypes = [];
 
   const addPplRows = (pplId, pmlName, pmlEmail) => {
     const ppl = profileMap[pplId];
@@ -1744,72 +1748,31 @@ async function exportCapaianToExcel(gelombang = 1) {
   }
 }
 
+let previewLkAllRows = [];
+let previewLkRowTypes = [];
+let previewLkCurrentPage = 1;
+let previewLkPageSize = 25;
+let previewLkGelombang = 1;
+
 async function previewCapaian(gelombang = 1) {
   showToast(`Memproses data preview Gelombang ${gelombang}...`, 'info');
+  previewLkGelombang = gelombang;
+  previewLkCurrentPage = 1;
+  
+  // Set title in modal
+  const titleEl = document.getElementById('previewLkTitle');
+  if (titleEl) titleEl.textContent = `Preview LK Beban Kerja - Gelombang ${gelombang}`;
+
+  // Clear search input
+  const searchInput = document.getElementById('previewLkSearch');
+  if (searchInput) searchInput.value = '';
+
   try {
     const { excelRows, rowTypes } = await generateCapaianReportData(gelombang);
-    const tbody = document.getElementById('previewLkTableBody');
-    if (!tbody) return;
+    previewLkAllRows = excelRows;
+    previewLkRowTypes = rowTypes;
 
-    tbody.innerHTML = '';
-
-    // Slice to top 100 rows
-    const maxPreview = 100;
-    const previewRows = excelRows.slice(0, maxPreview);
-
-    previewRows.forEach((row, i) => {
-      const type = rowTypes[i];
-      const tr = document.createElement('tr');
-
-      // Styles matching the spreadsheet
-      if (type === 'not_eligible_g1') {
-        tr.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
-        tr.style.color = '#ef4444';
-        tr.style.fontWeight = 'bold';
-      } else if (type === 'subtotal_ppl') {
-        tr.style.backgroundColor = '#FFF2CC';
-        tr.style.fontWeight = 'bold';
-      } else if (type === 'subtotal_pml') {
-        tr.style.backgroundColor = '#D9E1F2';
-        tr.style.fontWeight = 'bold';
-        tr.style.color = '#1F4E78';
-      } else if (type === 'grand_total') {
-        tr.style.backgroundColor = '#C6E0B4';
-        tr.style.fontWeight = 'bold';
-        tr.style.color = '#375623';
-      }
-
-      tr.innerHTML = `
-        <td>${row['Nama PML'] || ''}</td>
-        <td>${row['Email PML'] || ''}</td>
-        <td>${row['Nama PPL'] || ''}</td>
-        <td>${row['Email PPL'] || ''}</td>
-        <td style="text-align:center">${row['Kode Kec'] || ''}</td>
-        <td style="text-align:center">${row['Kode Desa'] || ''}</td>
-        <td style="text-align:center">${row['Kode SLS+SubSLS'] || ''}</td>
-        <td style="text-align:right">${row['Target']}</td>
-        <td style="text-align:right">${row['Realisasi']}</td>
-        <td style="text-align:right">${row['Persentase']}</td>
-        <td style="text-align:center; font-weight: bold;">${row['Coverage'] || ''}</td>
-        <td style="text-align:center; font-weight: bold;">${row['Min Coverage'] || ''}</td>
-        <td style="text-align:center; font-weight: bold; color: ${row['Eligible'] === '✓' ? '#10b981' : row['Eligible'] === '✗' ? '#ef4444' : ''}">${row['Eligible'] || ''}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-
-    // Add info row if data is truncated
-    if (excelRows.length > maxPreview) {
-      const tr = document.createElement('tr');
-      tr.style.backgroundColor = '#f8f9fa';
-      tr.style.fontStyle = 'italic';
-      tr.style.color = '#6c757d';
-      tr.innerHTML = `
-        <td colspan="13" style="text-align:center;padding:1rem;font-weight:500;">
-          ... Menampilkan 100 dari total ${excelRows.length} baris. Silakan unduh file Excel untuk melihat data secara lengkap. ...
-        </td>
-      `;
-      tbody.appendChild(tr);
-    }
+    filterPreviewLk();
 
     const modal = document.getElementById('previewLkModal');
     if (modal) {
@@ -1817,8 +1780,134 @@ async function previewCapaian(gelombang = 1) {
     }
   } catch (err) {
     console.error('Preview error:', err);
+    showToast('Gagal menampilkan preview: ' + err.message, 'error');
   }
 }
+
+function filterPreviewLk() {
+  const search = document.getElementById('previewLkSearch')?.value.toLowerCase() || '';
+  const filtered = [];
+  const filteredTypes = [];
+
+  previewLkAllRows.forEach((row, i) => {
+    // Search fields
+    const match = !search ||
+      (row['Nama PML'] || '').toLowerCase().includes(search) ||
+      (row['Email PML'] || '').toLowerCase().includes(search) ||
+      (row['Nama PPL'] || '').toLowerCase().includes(search) ||
+      (row['Email PPL'] || '').toLowerCase().includes(search) ||
+      (row['Kode Kec'] || '').toLowerCase().includes(search) ||
+      (row['Kode Desa'] || '').toLowerCase().includes(search) ||
+      (row['Kode SLS+SubSLS'] || '').toLowerCase().includes(search);
+
+    if (match) {
+      filtered.push(row);
+      filteredTypes.push(previewLkRowTypes[i]);
+    }
+  });
+
+  const countEl = document.getElementById('previewLkCount');
+  if (countEl) countEl.textContent = `Total: ${filtered.length} baris`;
+
+  renderPreviewLkTable(filtered, filteredTypes);
+}
+
+function renderPreviewLkTable(data, types) {
+  const tbody = document.getElementById('previewLkTableBody');
+  const pag = document.getElementById('previewLkPagination');
+  if (!tbody) return;
+
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data ditemukan</td></tr>';
+    if (pag) pag.innerHTML = '';
+    return;
+  }
+
+  let displayData = data;
+  let displayTypes = types;
+  const pageSize = previewLkPageSize === 'all' ? data.length : parseInt(previewLkPageSize);
+  const totalPages = Math.ceil(data.length / pageSize);
+
+  if (previewLkPageSize !== 'all') {
+    if (previewLkCurrentPage > totalPages) previewLkCurrentPage = totalPages;
+    if (previewLkCurrentPage < 1) previewLkCurrentPage = 1;
+    const start = (previewLkCurrentPage - 1) * pageSize;
+    displayData = data.slice(start, start + pageSize);
+    displayTypes = types.slice(start, start + pageSize);
+  }
+
+  tbody.innerHTML = displayData.map((row, i) => {
+    const type = displayTypes[i];
+    let styleAttr = '';
+    
+    if (type === 'not_eligible_g1') {
+      styleAttr = 'background-color:rgba(239, 68, 68, 0.12); color:#ef4444; font-weight:bold;';
+    } else if (type === 'subtotal_ppl') {
+      styleAttr = 'background-color:#FFF2CC; font-weight:bold;';
+    } else if (type === 'subtotal_pml') {
+      styleAttr = 'background-color:#D9E1F2; font-weight:bold; color:#1F4E78;';
+    } else if (type === 'grand_total') {
+      styleAttr = 'background-color:#C6E0B4; font-weight:bold; color:#375623;';
+    }
+
+    return `
+      <tr style="${styleAttr}">
+        <td>${escHtml(row['Nama PML'] || '')}</td>
+        <td>${escHtml(row['Email PML'] || '')}</td>
+        <td>${escHtml(row['Nama PPL'] || '')}</td>
+        <td>${escHtml(row['Email PPL'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode Kec'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode Desa'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode SLS+SubSLS'] || '')}</td>
+        <td style="text-align:right">${row['Target'] !== undefined ? row['Target'] : ''}</td>
+        <td style="text-align:right">${row['Realisasi'] !== undefined ? row['Realisasi'] : ''}</td>
+        <td style="text-align:right">${escHtml(row['Persentase'] || '')}</td>
+        <td style="text-align:center; font-weight: bold;">${escHtml(row['Coverage'] || '')}</td>
+        <td style="text-align:center; font-weight: bold;">${escHtml(row['Min Coverage'] || '')}</td>
+        <td style="text-align:center; font-weight: bold; color: ${row['Eligible'] === '✓' ? '#10b981' : row['Eligible'] === '✗' ? '#ef4444' : ''}">${escHtml(row['Eligible'] || '')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Draw Pagination
+  if (!pag) return;
+  if (totalPages <= 1) {
+    pag.innerHTML = '';
+  } else {
+    let btnHtml = '';
+    btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewLkPage(${previewLkCurrentPage - 1})" ${previewLkCurrentPage === 1 ? 'disabled' : ''} style="padding:0.2rem 0.4rem;min-width:28px">←</button>`;
+    
+    let startPage = Math.max(1, previewLkCurrentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+    
+    if (startPage > 1) {
+      btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewLkPage(1)" style="padding:0.2rem 0.4rem;min-width:28px">1</button>`;
+      if (startPage > 2) btnHtml += `<span style="padding:0.2rem;color:var(--text-muted)">...</span>`;
+    }
+    for (let i = startPage; i <= endPage; i++) {
+      btnHtml += `<button class="btn btn-sm ${i === previewLkCurrentPage ? 'btn-primary' : 'btn-secondary'}" onclick="goToPreviewLkPage(${i})" style="padding:0.2rem 0.4rem;min-width:28px">${i}</button>`;
+    }
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) btnHtml += `<span style="padding:0.2rem;color:var(--text-muted)">...</span>`;
+      btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewLkPage(${totalPages})" style="padding:0.2rem 0.4rem;min-width:28px">${totalPages}</button>`;
+    }
+    btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewLkPage(${previewLkCurrentPage + 1})" ${previewLkCurrentPage === totalPages ? 'disabled' : ''} style="padding:0.2rem 0.4rem;min-width:28px">→</button>`;
+    pag.innerHTML = btnHtml;
+  }
+}
+
+function changePreviewLkPageSize() {
+  previewLkPageSize = document.getElementById('previewLkPageSizeSelect').value;
+  previewLkCurrentPage = 1;
+  filterPreviewLk();
+}
+
+function goToPreviewLkPage(page) {
+  previewLkCurrentPage = page;
+  filterPreviewLk();
+}
+
 function closePreviewLkModal() {
   const modal = document.getElementById('previewLkModal');
   if (modal) {
@@ -4660,7 +4749,7 @@ async function saveHold() {
   const alasan = document.getElementById('holdAlasan').value.trim();
 
   if (!searchVal) { showToast('Ketik dan pilih petugas terlebih dahulu.', 'error'); return; }
-  
+
   // Resolve userId from full label input value
   const matched = allProfilesForHold.find(p => {
     const kecName = p.kecamatan || '—';
@@ -4672,7 +4761,7 @@ async function saveHold() {
     showToast('Petugas tidak ditemukan. Pastikan Anda memilih dari daftar saran nama yang muncul.', 'error');
     return;
   }
-  
+
   const userId = matched.id;
   if (!alasan) { showToast('Masukkan alasan penahanan.', 'error'); return; }
 
@@ -4712,4 +4801,298 @@ async function releaseHold(holdId) {
     showToast('Gagal mencabut hold: ' + err.message, 'error');
   }
 }
+
+// =====================================================
+// LAMPIRAN SUPER KEPALA T1
+// =====================================================
+
+let previewSuperAllRows = [];
+let previewSuperRowTypes = [];
+let previewSuperCurrentPage = 1;
+let previewSuperPageSize = 25;
+let previewSuperGelombang = 1;
+
+async function generateLampiranSuperKepalaData(gelombang = 1) {
+  const rekapData = await fetchSuperEvaluasiT1Data(gelombang);
+  
+  const pplRows = rekapData.filter(r => r.jabatan === 'PPL');
+  const pmlRows = rekapData.filter(r => r.jabatan === 'PML');
+  
+  const excelRows = [];
+  const rowTypes = [];
+  
+  let globalIndex = 1;
+  
+  // 1. PPL Group
+  let pplTgt = 0, pplReal = 0;
+  pplRows.forEach(row => {
+    const tgt = parseInt(row.target) || 0;
+    const real = parseInt(row.realisasi) || 0;
+    pplTgt += tgt;
+    pplReal += real;
+    const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%';
+    
+    excelRows.push({
+      'No': globalIndex++,
+      'Nama Petugas Lapangan': (row.nama || '').toUpperCase(),
+      'Kode Kecamatan': row.kdkec || '',
+      'Jabatan': row.jabatan || '',
+      'Target Prelist': tgt,
+      'Realisasi Hasil Pendataan (Usaha+Keluarga)': real,
+      'Persentase (%)': pct
+    });
+    rowTypes.push('data_ppl');
+  });
+  
+  // PPL Subtotal
+  if (pplRows.length > 0) {
+    const pplPct = pplTgt > 0 ? ((pplReal / pplTgt) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'No': '',
+      'Nama Petugas Lapangan': 'SUB TOTAL PPL',
+      'Kode Kecamatan': '',
+      'Jabatan': '',
+      'Target Prelist': pplTgt,
+      'Realisasi Hasil Pendataan (Usaha+Keluarga)': pplReal,
+      'Persentase (%)': pplPct
+    });
+    rowTypes.push('subtotal_ppl');
+  }
+  
+  // 2. PML Group
+  let pmlTgt = 0, pmlReal = 0;
+  pmlRows.forEach(row => {
+    const tgt = parseInt(row.target) || 0;
+    const real = parseInt(row.realisasi) || 0;
+    pmlTgt += tgt;
+    pmlReal += real;
+    const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%';
+    
+    excelRows.push({
+      'No': globalIndex++,
+      'Nama Petugas Lapangan': (row.nama || '').toUpperCase(),
+      'Kode Kecamatan': row.kdkec || '',
+      'Jabatan': row.jabatan || '',
+      'Target Prelist': tgt,
+      'Realisasi Hasil Pendataan (Usaha+Keluarga)': real,
+      'Persentase (%)': pct
+    });
+    rowTypes.push('data_pml');
+  });
+  
+  // PML Subtotal
+  if (pmlRows.length > 0) {
+    const pmlPct = pmlTgt > 0 ? ((pmlReal / pmlTgt) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'No': '',
+      'Nama Petugas Lapangan': 'SUB TOTAL PML',
+      'Kode Kecamatan': '',
+      'Jabatan': '',
+      'Target Prelist': pmlTgt,
+      'Realisasi Hasil Pendataan (Usaha+Keluarga)': pmlReal,
+      'Persentase (%)': pmlPct
+    });
+    rowTypes.push('subtotal_pml');
+  }
+  
+  // Grand Total
+  if (rekapData.length > 0) {
+    const grandTgt = pplTgt + pmlTgt;
+    const grandReal = pplReal + pmlReal;
+    const grandPct = grandTgt > 0 ? ((grandReal / grandTgt) * 100).toFixed(2) + '%' : '0.00%';
+    excelRows.push({
+      'No': '',
+      'Nama Petugas Lapangan': 'JUMLAH (TOTAL)',
+      'Kode Kecamatan': '',
+      'Jabatan': '',
+      'Target Prelist': grandTgt,
+      'Realisasi Hasil Pendataan (Usaha+Keluarga)': grandReal,
+      'Persentase (%)': grandPct
+    });
+    rowTypes.push('grand_total');
+  }
+  
+  return { excelRows, rowTypes };
+}
+
+async function previewSuperKepalaLampiran(gelombang = 1) {
+  showToast(`Memproses data preview Lampiran G${gelombang}...`, 'info');
+  previewSuperGelombang = gelombang;
+  previewSuperCurrentPage = 1;
+  
+  const titleEl = document.getElementById('previewSuperTitle');
+  if (titleEl) titleEl.textContent = `Preview Lampiran Super Kepala T1 - Gelombang ${gelombang}`;
+
+  const searchInput = document.getElementById('previewSuperSearch');
+  if (searchInput) searchInput.value = '';
+
+  try {
+    const { excelRows, rowTypes } = await generateLampiranSuperKepalaData(gelombang);
+    previewSuperAllRows = excelRows;
+    previewSuperRowTypes = rowTypes;
+
+    filterPreviewSuper();
+
+    const modal = document.getElementById('previewSuperModal');
+    if (modal) {
+      modal.classList.add('open');
+    }
+  } catch (err) {
+    console.error('Lampiran preview error:', err);
+    showToast('Gagal menampilkan preview: ' + err.message, 'error');
+  }
+}
+
+function filterPreviewSuper() {
+  const search = document.getElementById('previewSuperSearch')?.value.toLowerCase() || '';
+  const filtered = [];
+  const filteredTypes = [];
+
+  previewSuperAllRows.forEach((row, i) => {
+    const match = !search ||
+      (row['Nama Petugas Lapangan'] || '').toLowerCase().includes(search) ||
+      (row['Kode Kecamatan'] || '').toLowerCase().includes(search) ||
+      (row['Jabatan'] || '').toLowerCase().includes(search);
+
+    if (match) {
+      filtered.push(row);
+      filteredTypes.push(previewSuperRowTypes[i]);
+    }
+  });
+
+  const countEl = document.getElementById('previewSuperCount');
+  if (countEl) countEl.textContent = `Total: ${filtered.length} baris`;
+
+  renderPreviewSuperTable(filtered, filteredTypes);
+}
+
+function renderPreviewSuperTable(data, types) {
+  const tbody = document.getElementById('previewSuperTableBody');
+  const pag = document.getElementById('previewSuperPagination');
+  if (!tbody) return;
+
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data ditemukan</td></tr>';
+    if (pag) pag.innerHTML = '';
+    return;
+  }
+
+  let displayData = data;
+  let displayTypes = types;
+  const pageSize = previewSuperPageSize === 'all' ? data.length : parseInt(previewSuperPageSize);
+  const totalPages = Math.ceil(data.length / pageSize);
+
+  if (previewSuperPageSize !== 'all') {
+    if (previewSuperCurrentPage > totalPages) previewSuperCurrentPage = totalPages;
+    if (previewSuperCurrentPage < 1) previewSuperCurrentPage = 1;
+    const start = (previewSuperCurrentPage - 1) * pageSize;
+    displayData = data.slice(start, start + pageSize);
+    displayTypes = types.slice(start, start + pageSize);
+  }
+
+  tbody.innerHTML = displayData.map((row, i) => {
+    const type = displayTypes[i];
+    let styleAttr = '';
+    
+    if (type === 'subtotal_ppl') {
+      styleAttr = 'background-color:#FFF2CC; font-weight:bold;';
+    } else if (type === 'subtotal_pml') {
+      styleAttr = 'background-color:#D9E1F2; font-weight:bold; color:#1F4E78;';
+    } else if (type === 'grand_total') {
+      styleAttr = 'background-color:#C6E0B4; font-weight:bold; color:#375623;';
+    }
+
+    return `
+      <tr style="${styleAttr}">
+        <td style="text-align:center">${row['No'] || ''}</td>
+        <td>${escHtml(row['Nama Petugas Lapangan'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode Kecamatan'] || '')}</td>
+        <td>${escHtml(row['Jabatan'] || '')}</td>
+        <td style="text-align:right">${row['Target Prelist'] !== undefined ? row['Target Prelist'] : ''}</td>
+        <td style="text-align:right">${row['Realisasi Hasil Pendataan (Usaha+Keluarga)'] !== undefined ? row['Realisasi Hasil Pendataan (Usaha+Keluarga)'] : ''}</td>
+        <td style="text-align:right; font-weight: bold;">${escHtml(row['Persentase (%)'] || '')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  if (!pag) return;
+  if (totalPages <= 1) {
+    pag.innerHTML = '';
+  } else {
+    let btnHtml = '';
+    btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewSuperPage(${previewSuperCurrentPage - 1})" ${previewSuperCurrentPage === 1 ? 'disabled' : ''} style="padding:0.2rem 0.4rem;min-width:28px">←</button>`;
+    
+    let startPage = Math.max(1, previewSuperCurrentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+    
+    if (startPage > 1) {
+      btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewSuperPage(1)" style="padding:0.2rem 0.4rem;min-width:28px">1</button>`;
+      if (startPage > 2) btnHtml += `<span style="padding:0.2rem;color:var(--text-muted)">...</span>`;
+    }
+    for (let i = startPage; i <= endPage; i++) {
+      btnHtml += `<button class="btn btn-sm ${i === previewSuperCurrentPage ? 'btn-primary' : 'btn-secondary'}" onclick="goToPreviewSuperPage(${i})" style="padding:0.2rem 0.4rem;min-width:28px">${i}</button>`;
+    }
+    if (endPage < totalPages) {
+      if (endPage < totalPages - 1) btnHtml += `<span style="padding:0.2rem;color:var(--text-muted)">...</span>`;
+      btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewSuperPage(${totalPages})" style="padding:0.2rem 0.4rem;min-width:28px">${totalPages}</button>`;
+    }
+    btnHtml += `<button class="btn btn-secondary btn-sm" onclick="goToPreviewSuperPage(${previewSuperCurrentPage + 1})" ${previewSuperCurrentPage === totalPages ? 'disabled' : ''} style="padding:0.2rem 0.4rem;min-width:28px">→</button>`;
+    pag.innerHTML = btnHtml;
+  }
+}
+
+function changePreviewSuperPageSize() {
+  previewSuperPageSize = document.getElementById('previewSuperPageSizeSelect').value;
+  previewSuperCurrentPage = 1;
+  filterPreviewSuper();
+}
+
+function goToPreviewSuperPage(page) {
+  previewSuperCurrentPage = page;
+  filterPreviewSuper();
+}
+
+function closePreviewSuperModal() {
+  const modal = document.getElementById('previewSuperModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function exportSuperKepalaLampiranToExcel(gelombang = 1) {
+  showToast(`Mengekspor Lampiran Gelombang ${gelombang} ke Excel...`, 'info');
+  try {
+    const { excelRows } = await generateLampiranSuperKepalaData(gelombang);
+    if (!excelRows || excelRows.length === 0) {
+      showToast('Tidak ada data untuk diekspor', 'warning');
+      return;
+    }
+    
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    const wb = XLSX.utils.book_new();
+    
+    // Auto-fit column widths
+    const cols = [];
+    const headers = Object.keys(excelRows[0] || {});
+    headers.forEach(h => {
+      cols.push({ wch: Math.max(h.length + 3, 10) });
+    });
+    excelRows.forEach(row => {
+      headers.forEach((h, colIndex) => {
+        const val = row[h] ? row[h].toString() : '';
+        if (val.length + 3 > cols[colIndex].wch) {
+          cols[colIndex].wch = val.length + 3;
+        }
+      });
+    });
+    ws['!cols'] = cols;
+
+    XLSX.utils.book_append_sheet(wb, ws, `Lampiran G${gelombang}`);
+    XLSX.writeFile(wb, `lampiran_super_kepala_t1_gelombang_${gelombang}.xlsx`);
+    showToast('Ekspor Excel Lampiran berhasil!', 'success');
+  } catch (err) {
+    console.error('Export Excel Lampiran error:', err);
+    showToast('Gagal ekspor Excel: ' + err.message, 'error');
+  }
+}
+
 

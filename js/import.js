@@ -19,7 +19,7 @@ function generateUserTemplate() {
   const ws = XLSX.utils.aoa_to_sheet([
     EXPECTED_USER_COLS,
     ['360212345678', '3602012808950002', 'AHMAD WAHYUDI', 'ppl', 'ahmad@email.com'],
-    ['360212345679', '3602012808950003', 'BUDI SANTOSO',  'pml', 'budi@email.com']
+    ['360212345679', '3602012808950003', 'BUDI SANTOSO', 'pml', 'budi@email.com']
   ]);
   ws['!cols'] = EXPECTED_USER_COLS.map(h => ({ wch: Math.max(h.length + 2, 20) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Daftar Pengguna');
@@ -58,7 +58,7 @@ async function processUserFile(file) {
 
     // Fetch existing profiles to check for changes
     const sobatids = parsedUsersData.map(u => u.sobatid);
-    
+
     // Chunk fetch existing profiles if count is large to prevent SQL expression limits
     let existing = [];
     const chunkSize = 500;
@@ -98,7 +98,7 @@ async function processUserFile(file) {
     detectedUserChanges = conflicts;
 
     setZoneFile('zoneUsers', 'usersImportLabel', file.name, true);
-    
+
     let validMsg = `<div class="chip success">Format file valid (${parsedUsersData.length} baris)</div>`;
     if (detectedUserChanges.length > 0) {
       validMsg += ` <div class="chip warning" style="margin-left:0.5rem">${detectedUserChanges.length} perubahan profil dideteksi</div>`;
@@ -150,17 +150,17 @@ function validateUserExcel(rows) {
   for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
     const row = dataRows[i];
     const sobatid = String(mapIdx.sobatid !== -1 ? row[mapIdx.sobatid] || '' : '').trim();
-    const nik     = String(mapIdx.nik !== -1 ? row[mapIdx.nik] || '' : '').trim();
-    const nama    = String(mapIdx.nama !== -1 ? row[mapIdx.nama] || '' : '').trim();
-    const role    = String(mapIdx.role !== -1 ? row[mapIdx.role] || '' : '').trim().toLowerCase();
-    const email   = String(mapIdx.email !== -1 ? row[mapIdx.email] || '' : '').trim();
-    const rowNum  = i + 2;
+    const nik = String(mapIdx.nik !== -1 ? row[mapIdx.nik] || '' : '').trim();
+    const nama = String(mapIdx.nama !== -1 ? row[mapIdx.nama] || '' : '').trim();
+    const role = String(mapIdx.role !== -1 ? row[mapIdx.role] || '' : '').trim().toLowerCase();
+    const email = String(mapIdx.email !== -1 ? row[mapIdx.email] || '' : '').trim();
+    const rowNum = i + 2;
 
     if (!sobatid || !/^\d+$/.test(sobatid)) rowErrors.push(`Baris ${rowNum}: Sobat ID wajib diisi dan harus berupa angka`);
     if (mapIdx.nik !== -1 && (!nik || !/^\d+$/.test(nik))) rowErrors.push(`Baris ${rowNum}: NIK wajib diisi dan harus berupa angka`);
     if (mapIdx.nama !== -1 && !nama) rowErrors.push(`Baris ${rowNum}: Nama Lengkap wajib diisi`);
     if (mapIdx.role !== -1 && !['ppl', 'pml', 'admin', 'superadmin'].includes(role))
-                                             rowErrors.push(`Baris ${rowNum}: Role "${role}" tidak dikenali (harus ppl/pml/admin/superadmin)`);
+      rowErrors.push(`Baris ${rowNum}: Role "${role}" tidak dikenali (harus ppl/pml/admin/superadmin)`);
 
     if (rowErrors.length === 0) validRows.push({ sobatid, nik, nama, role, email });
   }
@@ -199,8 +199,8 @@ async function processUserImport(confirm = false) {
   btn.textContent = 'Memproses...';
 
   let successCount = 0;
-  let failCount    = 0;
-  const chunkSize  = 40; // 40 users per request to fit within Supabase's statement timeout
+  let failCount = 0;
+  const chunkSize = 40; // 40 users per request to fit within Supabase's statement timeout
 
   try {
     for (let i = 0; i < parsedUsersData.length; i += chunkSize) {
@@ -225,7 +225,7 @@ async function processUserImport(confirm = false) {
       }
 
       successCount += data.success_count || 0;
-      failCount    += data.fail_count || 0;
+      failCount += data.fail_count || 0;
     }
 
     showToast(`Impor selesai. ${successCount} berhasil, ${failCount} gagal.`, successCount > 0 ? 'success' : 'error');
@@ -293,7 +293,7 @@ async function processSLSFile(file) {
   document.getElementById('slsValidation').innerHTML = '<div class="chip">Memvalidasi...</div>';
 
   try {
-    const rows  = await parseExcelFile(file);
+    const rows = await parseExcelFile(file);
     const result = validateSLSExcel(rows);
 
     renderValidationResult('slsValidation', result);
@@ -315,9 +315,9 @@ async function processSLSFile(file) {
         <td>${escHtml(s.email_ppl)}</td>
       </tr>
     `).join('') +
-    (parsedSLSData.length > 50
-      ? `<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">...dan ${parsedSLSData.length - 50} baris lainnya...</td></tr>`
-      : '');
+      (parsedSLSData.length > 50
+        ? `<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">...dan ${parsedSLSData.length - 50} baris lainnya...</td></tr>`
+        : '');
 
     document.getElementById('importSLSPreviewArea')?.classList.remove('hidden');
   } catch (err) {
@@ -341,10 +341,10 @@ function validateSLSExcel(rows) {
 
   for (let i = 0; i < dataRows.length && rowErrors.length < 10; i++) {
     const [slsRaw, pmlRaw, pplRaw] = dataRows[i];
-    const kode_sls  = String(slsRaw || '').trim();
+    const kode_sls = String(slsRaw || '').trim();
     const email_pml = String(pmlRaw || '').trim();
     const email_ppl = String(pplRaw || '').trim();
-    const rowNum    = i + 2;
+    const rowNum = i + 2;
 
     if (!kode_sls || !/^\d{16}$/.test(kode_sls))
       rowErrors.push(`Baris ${rowNum}: Kode SLS wajib 16 digit angka (contoh: 3602070001001900)`);
@@ -390,7 +390,7 @@ async function processSLSImport() {
 
       slsSuccess += data.sls_success || 0;
       relSuccess += data.rel_success || 0;
-      failCount  += data.fail_count || 0;
+      failCount += data.fail_count || 0;
     }
 
     showToast(
@@ -432,7 +432,7 @@ function generateWilayahTemplate() {
 
 // ============================================================
 // CAPAIAN & TARGET SLS IMPORT
-// ============================================================
+// =============================================
 const EXPECTED_CAPAIAN_COLS = [
   'Kode SLS', 'Target',
   'Capaian PPL T1 G1', 'Capaian PPL T1 G2', 'Capaian PPL T2 G1', 'Capaian PPL T2 G2',
@@ -440,6 +440,7 @@ const EXPECTED_CAPAIAN_COLS = [
 ];
 let parsedCapaianData = null;
 let missingCapaianSlsCount = 0;
+let detectedCapaianDecreases = [];
 
 function generateCapaianTemplate() {
   const wb = XLSX.utils.book_new();
@@ -467,6 +468,7 @@ function handleCapaianFileSelect(e) {
 async function processCapaianFile(file) {
   setZoneFile('zoneCapaian', 'capaianImportLabel', file.name, false);
   document.getElementById('capaianValidation').innerHTML = '<div class="chip">Memvalidasi...</div>';
+  detectedCapaianDecreases = [];
 
   try {
     const rows = await parseExcelFile(file);
@@ -487,7 +489,7 @@ async function processCapaianFile(file) {
     const slsCodes = rawData.map(c => c.kode_sls);
     const existingSls = new Set();
     const dbChunkSize = 500;
-    
+
     document.getElementById('capaianValidation').innerHTML = '<div class="chip">Mengecek keberadaan SLS di database...</div>';
 
     for (let i = 0; i < slsCodes.length; i += dbChunkSize) {
@@ -502,9 +504,65 @@ async function processCapaianFile(file) {
     parsedCapaianData = rawData.filter(c => existingSls.has(c.kode_sls));
     missingCapaianSlsCount = missingSls.length;
 
+    // Fetch existing old values to check for progress decreases
+    const slsCodesToCheck = parsedCapaianData.map(c => c.kode_sls);
+    let existingCapaian = [];
+    try {
+      for (let i = 0; i < slsCodesToCheck.length; i += dbChunkSize) {
+        const chunk = slsCodesToCheck.slice(i, i + dbChunkSize);
+        const { data, error } = await db.from('capaian')
+          .select('kode_sls_gabungan, capaian1, capaian1_g2, capaian2, capaian2_g2, capaian1_pml, capaian1_pml_g2, capaian2_pml, capaian2_pml_g2')
+          .in('kode_sls_gabungan', chunk);
+        if (error) throw error;
+        if (data) existingCapaian = existingCapaian.concat(data);
+      }
+    } catch (err) {
+      console.error('Gagal mengambil data capaian lama:', err);
+    }
+
+    const existingMap = {};
+    existingCapaian.forEach(c => {
+      existingMap[c.kode_sls_gabungan] = c;
+    });
+
+    parsedCapaianData.forEach(c => {
+      const dbVal = existingMap[c.kode_sls];
+      if (!dbVal) return; // SLS baru
+
+      const checks = [
+        { label: 'PPL T1 G1', key: 'ppl1_g1', dbKey: 'capaian1' },
+        { label: 'PPL T1 G2', key: 'ppl1_g2', dbKey: 'capaian1_g2' },
+        { label: 'PPL T2 G1', key: 'ppl2_g1', dbKey: 'capaian2' },
+        { label: 'PPL T2 G2', key: 'ppl2_g2', dbKey: 'capaian2_g2' },
+        { label: 'PML T1 G1', key: 'pml1_g1', dbKey: 'capaian1_pml' },
+        { label: 'PML T1 G2', key: 'pml1_g2', dbKey: 'capaian1_pml_g2' },
+        { label: 'PML T2 G1', key: 'pml2_g1', dbKey: 'capaian2_pml' },
+        { label: 'PML T2 G2', key: 'pml2_g2', dbKey: 'capaian2_pml_g2' }
+      ];
+
+      const diffs = [];
+      checks.forEach(check => {
+        const uploadVal = c[check.key];
+        const dbNumber = dbVal[check.dbKey] !== null ? parseInt(dbVal[check.dbKey]) : 0;
+        if (uploadVal !== undefined && uploadVal < dbNumber) {
+          diffs.push(`${check.label}: ${dbNumber} → ${uploadVal}`);
+        }
+      });
+
+      if (diffs.length > 0) {
+        detectedCapaianDecreases.push({
+          kode_sls: c.kode_sls,
+          diffs: diffs
+        });
+      }
+    });
+
     let validMsg = `<div class="chip success">Format file valid (${rawData.length} baris)</div>`;
     if (missingSls.length > 0) {
       validMsg += ` <div class="chip warning" style="margin-left:0.5rem">${missingSls.length} SLS tidak ditemukan di database wilayah (akan diabaikan)</div>`;
+    }
+    if (detectedCapaianDecreases.length > 0) {
+      validMsg += ` <div class="chip error" style="margin-left:0.5rem">${detectedCapaianDecreases.length} SLS mengalami penurunan progres!</div>`;
     }
     document.getElementById('capaianValidation').innerHTML = validMsg;
 
@@ -516,6 +574,22 @@ async function processCapaianFile(file) {
         <div style="margin-top:0.5rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:var(--warning);font-size:0.85rem">
           <strong>Peringatan:</strong> Beberapa SLS berikut tidak terdaftar di database wilayah dan target/capaiannya tidak akan diimpor:<br>
           <code style="word-break:break-all;color:inherit">${escHtml(missingList)}</code>${escHtml(extraInfo)}
+        </div>
+      `;
+    }
+
+    if (detectedCapaianDecreases.length > 0) {
+      const listHtml = detectedCapaianDecreases.slice(0, 10).map(d => {
+        return `• <code>${d.kode_sls}</code> (${d.diffs.join(', ')})`;
+      }).join('<br>');
+      const extraInfo = detectedCapaianDecreases.length > 10 ? `<br>...dan ${detectedCapaianDecreases.length - 10} SLS lainnya` : '';
+
+      const validationContainer = document.getElementById('capaianValidation');
+      validationContainer.innerHTML += `
+        <div style="margin-top:0.5rem;padding:0.75rem;border-radius:var(--radius-md);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:var(--error);font-size:0.85rem">
+          <strong>Peringatan Kebenaran Data (Progres Berkurang):</strong><br>
+          Terdapat ${detectedCapaianDecreases.length} SLS yang memiliki capaian lebih kecil dari database:<br>
+          <div style="margin-top:0.35rem;font-family:monospace;line-height:1.4">${listHtml}</div>${extraInfo}
         </div>
       `;
     }
@@ -537,14 +611,15 @@ async function processCapaianFile(file) {
         <td>${fmt(s.pml2_g2)}</td>
       </tr>
     `).join('') +
-    (parsedCapaianData.length > 50
-      ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
-      : '');
+      (parsedCapaianData.length > 50
+        ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
+        : '');
 
     document.getElementById('importCapaianPreviewArea')?.classList.remove('hidden');
   } catch (err) {
     document.getElementById('capaianValidation').innerHTML = `<div class="chip error">Error: ${escHtml(err.message)}</div>`;
     missingCapaianSlsCount = 0;
+    detectedCapaianDecreases = [];
   }
 }
 
@@ -554,17 +629,17 @@ function validateCapaianExcel(rows) {
   }
 
   const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
-  const mapIdx = { 
-    sls: -1, 
-    target: -1, 
-    ppl1_g1: -1, 
-    ppl1_g2: -1, 
-    ppl2_g1: -1, 
-    ppl2_g2: -1, 
-    pml1_g1: -1, 
-    pml1_g2: -1, 
-    pml2_g1: -1, 
-    pml2_g2: -1 
+  const mapIdx = {
+    sls: -1,
+    target: -1,
+    ppl1_g1: -1,
+    ppl1_g2: -1,
+    ppl2_g1: -1,
+    ppl2_g2: -1,
+    pml1_g1: -1,
+    pml1_g2: -1,
+    pml2_g1: -1,
+    pml2_g2: -1
   };
 
   headers.forEach((h, idx) => {
@@ -619,10 +694,18 @@ async function processCapaianImport() {
   if (!parsedCapaianData?.length) return;
 
   const btn = document.getElementById('processCapaianImportBtn');
-  
+
   if (missingCapaianSlsCount > 0) {
     const confirmImport = confirm(`Peringatan: Ada ${missingCapaianSlsCount} SLS yang tidak terdaftar di database wilayah dan akan diabaikan. Apakah Anda yakin ingin melanjutkan proses impor?`);
     if (!confirmImport) {
+      return;
+    }
+  }
+
+  if (detectedCapaianDecreases.length > 0) {
+    const listStr = detectedCapaianDecreases.slice(0, 5).map(d => d.kode_sls).join(', ') + (detectedCapaianDecreases.length > 5 ? '...' : '');
+    const confirmDecrease = confirm(`PERINGATAN KEBENARAN DATA:\nTerdapat ${detectedCapaianDecreases.length} SLS yang memiliki capaian lebih kecil dari capaian di database saat ini (contoh SLS: ${listStr}).\nCapaian tidak seharusnya berkurang. Apakah Anda yakin data ini benar dan ingin menimpanya?`);
+    if (!confirmDecrease) {
       return;
     }
   }
