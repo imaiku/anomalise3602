@@ -434,7 +434,9 @@ function generateWilayahTemplate() {
 // CAPAIAN & TARGET SLS IMPORT
 // ============================================================
 const EXPECTED_CAPAIAN_COLS = [
-  'Kode SLS', 'Target', 'Capaian PPL T1', 'Capaian PPL T2', 'Capaian PML T1', 'Capaian PML T2'
+  'Kode SLS', 'Target',
+  'Capaian PPL T1 G1', 'Capaian PPL T1 G2', 'Capaian PPL T2 G1', 'Capaian PPL T2 G2',
+  'Capaian PML T1 G1', 'Capaian PML T1 G2', 'Capaian PML T2 G1', 'Capaian PML T2 G2'
 ];
 let parsedCapaianData = null;
 let missingCapaianSlsCount = 0;
@@ -443,7 +445,7 @@ function generateCapaianTemplate() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
     EXPECTED_CAPAIAN_COLS,
-    ['3602070001001900', 50, 45, 0, 42, 0]
+    ['3602070001001900', 50, 45, 0, 0, 0, 42, 0, 0, 0]
   ]);
   ws['!cols'] = EXPECTED_CAPAIAN_COLS.map(h => ({ wch: Math.max(h.length + 2, 18) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Capaian SLS');
@@ -520,18 +522,23 @@ async function processCapaianFile(file) {
 
     document.getElementById('importCapaianCount').textContent = `${parsedCapaianData.length} baris data valid siap diimpor`;
     const tbody = document.getElementById('importCapaianTableBody');
+    const fmt = (v) => v !== undefined ? v : '—';
     tbody.innerHTML = parsedCapaianData.slice(0, 50).map(s => `
       <tr>
         <td class="mono">${escHtml(s.kode_sls)}</td>
-        <td>${s.target}</td>
-        <td>${s.ppl1}</td>
-        <td>${s.ppl2}</td>
-        <td>${s.pml1}</td>
-        <td>${s.pml2}</td>
+        <td>${fmt(s.target)}</td>
+        <td>${fmt(s.ppl1_g1)}</td>
+        <td>${fmt(s.ppl1_g2)}</td>
+        <td>${fmt(s.ppl2_g1)}</td>
+        <td>${fmt(s.ppl2_g2)}</td>
+        <td>${fmt(s.pml1_g1)}</td>
+        <td>${fmt(s.pml1_g2)}</td>
+        <td>${fmt(s.pml2_g1)}</td>
+        <td>${fmt(s.pml2_g2)}</td>
       </tr>
     `).join('') +
     (parsedCapaianData.length > 50
-      ? `<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
+      ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
       : '');
 
     document.getElementById('importCapaianPreviewArea')?.classList.remove('hidden');
@@ -547,15 +554,30 @@ function validateCapaianExcel(rows) {
   }
 
   const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
-  const mapIdx = { sls: -1, target: -1, ppl1: -1, ppl2: -1, pml1: -1, pml2: -1 };
+  const mapIdx = { 
+    sls: -1, 
+    target: -1, 
+    ppl1_g1: -1, 
+    ppl1_g2: -1, 
+    ppl2_g1: -1, 
+    ppl2_g2: -1, 
+    pml1_g1: -1, 
+    pml1_g2: -1, 
+    pml2_g1: -1, 
+    pml2_g2: -1 
+  };
 
   headers.forEach((h, idx) => {
     if (h.includes('sls') || h.includes('sls_gabungan')) mapIdx.sls = idx;
     else if (h.includes('target')) mapIdx.target = idx;
-    else if (h.includes('ppl t1') || h.includes('ppl 1') || h.includes('capaian1') || h.includes('ppl termin 1')) mapIdx.ppl1 = idx;
-    else if (h.includes('ppl t2') || h.includes('ppl 2') || h.includes('capaian2') || h.includes('ppl termin 2')) mapIdx.ppl2 = idx;
-    else if (h.includes('pml t1') || h.includes('pml 1') || h.includes('pml termin 1') || h.includes('capaian1_pml')) mapIdx.pml1 = idx;
-    else if (h.includes('pml t2') || h.includes('pml 2') || h.includes('pml termin 2') || h.includes('capaian2_pml')) mapIdx.pml2 = idx;
+    else if (h.includes('ppl t1 g2') || h.includes('ppl 1 g2') || h.includes('capaian1_g2') || h.includes('ppl g2') || h.includes('ppl gelombang 2')) mapIdx.ppl1_g2 = idx;
+    else if (h.includes('ppl t1 g1') || h.includes('ppl 1 g1') || h.includes('capaian1') || h.includes('ppl t1') || h.includes('ppl 1')) mapIdx.ppl1_g1 = idx;
+    else if (h.includes('ppl t2 g2') || h.includes('ppl 2 g2') || h.includes('capaian2_g2')) mapIdx.ppl2_g2 = idx;
+    else if (h.includes('ppl t2 g1') || h.includes('ppl 2 g1') || h.includes('capaian2') || h.includes('ppl t2') || h.includes('ppl 2')) mapIdx.ppl2_g1 = idx;
+    else if (h.includes('pml t1 g2') || h.includes('pml 1 g2') || h.includes('capaian1_pml_g2') || h.includes('pml g2') || h.includes('pml gelombang 2')) mapIdx.pml1_g2 = idx;
+    else if (h.includes('pml t1 g1') || h.includes('pml 1 g1') || h.includes('capaian1_pml') || h.includes('pml t1') || h.includes('pml 1')) mapIdx.pml1_g1 = idx;
+    else if (h.includes('pml t2 g2') || h.includes('pml 2 g2') || h.includes('capaian2_pml_g2')) mapIdx.pml2_g2 = idx;
+    else if (h.includes('pml t2 g1') || h.includes('pml 2 g1') || h.includes('capaian2_pml') || h.includes('pml t2') || h.includes('pml 2')) mapIdx.pml2_g1 = idx;
   });
 
   if (mapIdx.sls === -1) {
@@ -576,13 +598,17 @@ function validateCapaianExcel(rows) {
       continue;
     }
 
-    const target = mapIdx.target !== -1 ? parseInt(row[mapIdx.target]) || 0 : 0;
-    const ppl1   = mapIdx.ppl1 !== -1 ? parseInt(row[mapIdx.ppl1]) || 0 : 0;
-    const ppl2   = mapIdx.ppl2 !== -1 ? parseInt(row[mapIdx.ppl2]) || 0 : 0;
-    const pml1   = mapIdx.pml1 !== -1 ? parseInt(row[mapIdx.pml1]) || 0 : 0;
-    const pml2   = mapIdx.pml2 !== -1 ? parseInt(row[mapIdx.pml2]) || 0 : 0;
+    const target = mapIdx.target !== -1 ? parseInt(row[mapIdx.target]) || 0 : undefined;
+    const ppl1_g1 = mapIdx.ppl1_g1 !== -1 ? parseInt(row[mapIdx.ppl1_g1]) || 0 : undefined;
+    const ppl1_g2 = mapIdx.ppl1_g2 !== -1 ? parseInt(row[mapIdx.ppl1_g2]) || 0 : undefined;
+    const ppl2_g1 = mapIdx.ppl2_g1 !== -1 ? parseInt(row[mapIdx.ppl2_g1]) || 0 : undefined;
+    const ppl2_g2 = mapIdx.ppl2_g2 !== -1 ? parseInt(row[mapIdx.ppl2_g2]) || 0 : undefined;
+    const pml1_g1 = mapIdx.pml1_g1 !== -1 ? parseInt(row[mapIdx.pml1_g1]) || 0 : undefined;
+    const pml1_g2 = mapIdx.pml1_g2 !== -1 ? parseInt(row[mapIdx.pml1_g2]) || 0 : undefined;
+    const pml2_g1 = mapIdx.pml2_g1 !== -1 ? parseInt(row[mapIdx.pml2_g1]) || 0 : undefined;
+    const pml2_g2 = mapIdx.pml2_g2 !== -1 ? parseInt(row[mapIdx.pml2_g2]) || 0 : undefined;
 
-    uniqueRows.set(rawSls, { kode_sls: rawSls, target, ppl1, ppl2, pml1, pml2 });
+    uniqueRows.set(rawSls, { kode_sls: rawSls, target, ppl1_g1, ppl1_g2, ppl2_g1, ppl2_g2, pml1_g1, pml1_g2, pml2_g1, pml2_g2 });
   }
 
   if (rowErrors.length > 0) return { valid: false, errors: rowErrors };
@@ -612,31 +638,39 @@ async function processCapaianImport() {
       const chunk = parsedCapaianData.slice(i, i + chunkSize);
       btn.textContent = `Memproses (${i} / ${parsedCapaianData.length})...`;
 
-      // 1. Update targets in wilayah_subsls
-      const targetPayload = chunk.map(c => {
-        const full = c.kode_sls;
-        return {
-          kode_sls_gabungan: full,
-          kode_sls: full.substring(0, 14),
-          kdsls: full.substring(10, 14),
-          kdsubsls: full.substring(14, 16),
-          target: c.target
+      // 1. Update targets in wilayah_subsls (only if target column is provided)
+      const hasTarget = chunk.some(c => c.target !== undefined);
+      if (hasTarget) {
+        const targetPayload = chunk.map(c => {
+          const full = c.kode_sls;
+          return {
+            kode_sls_gabungan: full,
+            kode_sls: full.substring(0, 14),
+            kdsls: full.substring(10, 14),
+            kdsubsls: full.substring(14, 16),
+            target: c.target || 0
+          };
+        });
+        const { error: targetErr } = await db.from('wilayah_subsls').upsert(targetPayload, { onConflict: 'kode_sls_gabungan' });
+        if (targetErr) throw targetErr;
+      }
+
+      // 2. Upsert achievement numbers in capaian table (only including columns present in the Excel)
+      const capaianPayload = chunk.map(c => {
+        const item = {
+          kode_sls_gabungan: c.kode_sls,
+          updated_at: new Date().toISOString()
         };
+        if (c.ppl1_g1 !== undefined) item.capaian1 = c.ppl1_g1;
+        if (c.ppl1_g2 !== undefined) item.capaian1_g2 = c.ppl1_g2;
+        if (c.ppl2_g1 !== undefined) item.capaian2 = c.ppl2_g1;
+        if (c.ppl2_g2 !== undefined) item.capaian2_g2 = c.ppl2_g2;
+        if (c.pml1_g1 !== undefined) item.capaian1_pml = c.pml1_g1;
+        if (c.pml1_g2 !== undefined) item.capaian1_pml_g2 = c.pml1_g2;
+        if (c.pml2_g1 !== undefined) item.capaian2_pml = c.pml2_g1;
+        if (c.pml2_g2 !== undefined) item.capaian2_pml_g2 = c.pml2_g2;
+        return item;
       });
-
-      // In Supabase, upserting only partial columns when conflict occurs acts as an update
-      const { error: targetErr } = await db.from('wilayah_subsls').upsert(targetPayload, { onConflict: 'kode_sls_gabungan' });
-      if (targetErr) throw targetErr;
-
-      // 2. Upsert achievement numbers in capaian table
-      const capaianPayload = chunk.map(c => ({
-        kode_sls_gabungan: c.kode_sls,
-        capaian1: c.ppl1,
-        capaian2: c.ppl2,
-        capaian1_pml: c.pml1,
-        capaian2_pml: c.pml2,
-        updated_at: new Date().toISOString()
-      }));
 
       const { error: capaianErr } = await db.from('capaian').upsert(capaianPayload, { onConflict: 'kode_sls_gabungan' });
       if (capaianErr) throw capaianErr;
