@@ -37,16 +37,25 @@ ALTER TABLE public.wilayah_subsls
 -- 4. Tabel capaian
 CREATE TABLE IF NOT EXISTS public.capaian (
   kode_sls_gabungan  VARCHAR(16) PRIMARY KEY REFERENCES public.wilayah_subsls(kode_sls_gabungan) ON DELETE CASCADE,
-  capaian1           INTEGER DEFAULT 0,  -- capaian PPL/umum
-  capaian2           INTEGER DEFAULT 0,  -- capaian PPL/umum Termin 2
-  capaian1_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 1
-  capaian2_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 2
+  capaian1           INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 1
+  capaian1_g2        INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 2
+  capaian2           INTEGER DEFAULT 0,  -- capaian PPL Termin 2 Gelombang 1
+  capaian2_g2        INTEGER DEFAULT 0,  -- capaian PPL Termin 2 Gelombang 2
+  capaian1_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 1
+  capaian1_pml_g2    INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 2
+  capaian2_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 2 Gelombang 1
+  capaian2_pml_g2    INTEGER DEFAULT 0,  -- capaian PML Termin 2 Gelombang 2
   updated_at         TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Tambah kolom jika tabel sudah ada
 ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian1_pml INTEGER DEFAULT 0;
+ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian1_g2 INTEGER DEFAULT 0;
+ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian1_pml_g2 INTEGER DEFAULT 0;
+ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian2 INTEGER DEFAULT 0;
+ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian2_g2 INTEGER DEFAULT 0;
 ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian2_pml INTEGER DEFAULT 0;
+ALTER TABLE public.capaian ADD COLUMN IF NOT EXISTS capaian2_pml_g2 INTEGER DEFAULT 0;
 
 ALTER TABLE public.capaian ENABLE ROW LEVEL SECURITY;
 
@@ -67,6 +76,7 @@ CREATE TRIGGER trg_capaian_updated_at
 -- 5. Fungsi rekapitulasi PML
 -- Mengembalikan per PPL: target & capaian PPL
 -- Capaian PML dihitung dari SLS yang dibawahi PML langsung (capaian1_pml)
+DROP FUNCTION IF EXISTS public.get_rekapitulasi_pml(uuid) CASCADE;
 CREATE OR REPLACE FUNCTION public.get_rekapitulasi_pml(p_pml_id UUID)
 RETURNS TABLE(
   nama_ppl        VARCHAR,
@@ -74,7 +84,7 @@ RETURNS TABLE(
   total_target    BIGINT,
   total_capaian1  BIGINT,
   total_capaian1_pml BIGINT,
-  total_capaian2_pml BIGINT
+  total_capaian1_pml_g2 BIGINT
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
   SELECT
@@ -83,7 +93,7 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
     COALESCE(SUM(ws.target),       0)::BIGINT AS total_target,
     COALESCE(SUM(c.capaian1),      0)::BIGINT AS total_capaian1,
     COALESCE(SUM(c.capaian1_pml),  0)::BIGINT AS total_capaian1_pml,
-    COALESCE(SUM(c.capaian2_pml),  0)::BIGINT AS total_capaian2_pml
+    COALESCE(SUM(c.capaian1_pml_g2),  0)::BIGINT AS total_capaian1_pml_g2
   FROM public.pml_ppl mp
   JOIN public.profiles p  ON p.id = mp.ppl_id
   JOIN public.user_sls us ON us.user_id = mp.ppl_id AND us.status = 'aktif'
