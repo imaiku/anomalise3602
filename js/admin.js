@@ -3406,6 +3406,581 @@ async function printSelectedSPTermin1() {
 async function printSelectedTermin1() {
   await printSelectedSPTermin1();
 }
+
+async function fetchSuperEvaluasiT1Data(gelombang = 1) {
+  // 1. Fetch profiles (ppl, pml)
+  let profiles = [];
+  let fromProf = 0;
+  let hasMoreProf = true;
+  while (hasMoreProf) {
+    const { data, error } = await db.from('profiles')
+      .select('id, sobatid, nama, email_ref, role')
+      .in('role', ['ppl', 'pml'])
+      .eq('is_active', true)
+      .range(fromProf, fromProf + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreProf = false;
+    } else {
+      profiles = profiles.concat(data);
+      if (data.length < 1000) hasMoreProf = false;
+      else fromProf += 1000;
+    }
+  }
+
+  // 2. Fetch pml_ppl mapping
+  let relations = [];
+  let fromRel = 0;
+  let hasMoreRel = true;
+  while (hasMoreRel) {
+    const { data, error } = await db.from('pml_ppl')
+      .select('pml_id, ppl_id')
+      .range(fromRel, fromRel + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreRel = false;
+    } else {
+      relations = relations.concat(data);
+      if (data.length < 1000) hasMoreRel = false;
+      else fromRel += 1000;
+    }
+  }
+
+  // 3. Fetch active user_sls
+  let userSls = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data, error } = await db.from('user_sls')
+      .select('user_id, kode_sls')
+      .eq('status', 'aktif')
+      .range(fromSls, fromSls + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreSls = false;
+    } else {
+      userSls = userSls.concat(data);
+      if (data.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
+    }
+  }
+
+  // 4. Fetch wilayah_subsls targets
+  let subsls = [];
+  let fromSub = 0;
+  let hasMoreSub = true;
+  while (hasMoreSub) {
+    const { data, error } = await db.from('wilayah_subsls')
+      .select('kode_sls_gabungan, target')
+      .range(fromSub, fromSub + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreSub = false;
+    } else {
+      subsls = subsls.concat(data);
+      if (data.length < 1000) hasMoreSub = false;
+      else fromSub += 1000;
+    }
+  }
+
+  // 5. Fetch capaian (gelombang 1 vs gelombang 2)
+  const selectCols = gelombang === 2
+    ? 'kode_sls_gabungan, capaian1_g2, capaian1_pml_g2'
+    : 'kode_sls_gabungan, capaian1, capaian1_pml';
+
+  let achievements = [];
+  let fromCap = 0;
+  let hasMoreCap = true;
+  while (hasMoreCap) {
+    const { data, error } = await db.from('capaian')
+      .select(selectCols)
+      .range(fromCap, fromCap + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      hasMoreCap = false;
+    } else {
+      achievements = achievements.concat(data);
+      if (data.length < 1000) hasMoreCap = false;
+      else fromCap += 1000;
+    }
+  }
+
+  // Map targets & achievements by SLS
+  const targetMap = {};
+  subsls.forEach(s => {
+    targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
+  });
+
+  const capaianPplMap = {};
+  const capaianPmlMap = {};
+  achievements.forEach(a => {
+    capaianPplMap[a.kode_sls_gabungan] = parseInt(gelombang === 2 ? a.capaian1_g2 : a.capaian1) || 0;
+    capaianPmlMap[a.kode_sls_gabungan] = parseInt(gelombang === 2 ? a.capaian1_pml_g2 : a.capaian1_pml) || 0;
+  });
+
+  // Map user_sls by user_id
+  const userSlsMap = {};
+  userSls.forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+  });
+
+  // Group PPLs by PML for PML target/capaian sum
+  const pmlToPpl = {};
+  relations.forEach(r => {
+    if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
+    pmlToPpl[r.pml_id].push(r.ppl_id);
+  });
+
+  // Calculate target and realisasi for each profile
+  const reportData = [];
+
+  profiles.forEach(p => {
+    let target = 0;
+    let realisasi = 0;
+
+    if (p.role === 'ppl') {
+      const codes = userSlsMap[p.id] || [];
+      codes.forEach(code => {
+        target += targetMap[code] || 0;
+        realisasi += capaianPplMap[code] || 0;
+      });
+
+      reportData.push({
+        nama: p.nama,
+        jabatan: "PPL",
+        target,
+        realisasi
+      });
+    } else if (p.role === 'pml') {
+      const supervisedPpls = pmlToPpl[p.id] || [];
+      supervisedPpls.forEach(pplId => {
+        const codes = userSlsMap[pplId] || [];
+        codes.forEach(code => {
+          target += targetMap[code] || 0;
+          realisasi += capaianPmlMap[code] || 0;
+        });
+      });
+
+      reportData.push({
+        nama: p.nama,
+        jabatan: "PML",
+        target,
+        realisasi
+      });
+    }
+  });
+
+  // Sort by role (PML first, then PPL) and then by name
+  reportData.sort((a, b) => {
+    if (a.jabatan !== b.jabatan) {
+      return a.jabatan.localeCompare(b.jabatan);
+    }
+    return a.nama.localeCompare(b.nama);
+  });
+
+  return reportData;
+}
+
+function printSuperEvaluasiT1(isDownload = false, gelombang = 1) {
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `
+        position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8;
+        color: #f8fafc; padding: 14px 20px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;
+        font-family: system-ui, sans-serif; font-weight: 500; transition: all 0.3s ease;
+      `;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Mengambil data G${gelombang}...`;
+
+      // Data statis/identitas penandatangan
+      const dummyPml = {
+        nama: "YULIAN SARWO EDI",
+        nik: "1234567890123456",
+        kecamatan: "Rangkasbitung",
+        no_sp_pemeriksaan_t1: "001/SE2026/SP-PEM/01/2026",
+        no_spk: "001/SPK/BPS/2026"
+      };
+
+      // Mengambil data riil dari database berdasar Gelombang (1 atau 2)
+      const rekapData = await fetchSuperEvaluasiT1Data(gelombang);
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      buildSuperEvaluasiT1Pages(pdf, dummyPml, rekapData, false, ttdYulianBase64, gelombang);
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = `✓ Berhasil membuat PDF Super Evaluasi T1 G${gelombang}!`;
+
+      if (isDownload) {
+        pdf.save(`super_evaluasi_t1_g${gelombang}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+
+      setTimeout(() => { indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error(err);
+      indicator.style.background = 'rgba(239, 68, 68, 0.1)';
+      indicator.style.borderColor = 'rgba(239, 68, 68, 0.2)';
+      indicator.style.color = '#ef4444';
+      indicator.innerHTML = 'Gagal membuat PDF: ' + err.message;
+      setTimeout(() => { indicator.remove(); }, 4000);
+    }
+  });
+}
+
+function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, gelombang = 1) {
+  const tanggalText = gelombang === 2 ? "23 Juli 2026" : "16 Juli 2026";
+  pdf.setLineHeightFactor(1.0);
+  const M = 25;
+  const W = 160;
+  const MR = 185;
+  const lh = 5;
+
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN", 105, 30, { align: "center" });
+  pdf.text("EVALUASI PELAKSANAAN SENSUS EKONOMI 2026 TERMIN I", 105, 36, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: B-909/SPer-I-SE2026/3602/07/2026`, 105, 44, { align: "center" });
+
+  let y = 56;
+  pdf.text("Yang bertanda tangan di bawah ini:", M, y);
+  y += 8;
+
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+
+  const identitas = [
+    ["Nama", "Eka Yulyani S.Si., M.Geog."],
+    ["NIK", "196807261991012001"],
+    ["Jabatan", "Kepala Badan Pusat Statistik Kabupaten Lebak Provinsi Banten"]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], MR - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+
+  y += 3;
+  pdf.text("Dengan ini menyatakan:", M, y);
+  y += 6;
+
+  const poin = [
+    `bahwa telah melakukan monitoring dan evaluasi secara berjenjang, serta bertanggung jawab terhadap pelaksanaan hasil pekerjaan petugas lapangan dan pemeriksa lapangan Sensus Ekonomi 2026, sesuai dengan target pekerjaan termin I;`,
+    `bahwa hasil pekerjaan petugas lapangan dan pemeriksa lapangan Sensus Ekonomi 2026 sebagaimana dimaksud pada angka 1 tercantum dalam lampiran;`,
+    `bahwa berdasarkan hasil monitoring dan evaluasi sebagaimana dimaksud pada angka 1 dan angka 2, petugas lapangan dan pemeriksa lapangan Sensus Ekonomi 2026 dapat diberikan honorarium termin I sesuai Perjanjian Kerja Petugas.`
+  ];
+
+  const numX = M;
+  const textX = M + 8;
+  const textWidth = MR - textX;
+
+  poin.forEach((teks, i) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${i + 1}.`, numX, y);
+    drawJustifiedText(pdf, teks, textX, y, textWidth, 5);
+    y += lines.length * 5;
+  });
+
+  y += 2;
+  const penutup =
+    "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
+
+  const penutupLines = pdf.splitTextToSize(penutup, W);
+  drawJustifiedText(pdf, penutup, M, y, W, 5);
+  y += penutupLines.length * 5 + 10;
+
+  y += 20;
+  pdf.text(`Lebak, ${tanggalText}`, 152, y, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", 152, y + lh, { align: "center" });
+
+  pdf.text(`(Eka Yulyani S.Si., M.Geog.)`, 152, y + 30, { align: "center" });
+
+  //==================================================
+  // HALAMAN 2 — LAMPIRAN TABEL PETUGAS
+  //==================================================
+  pdf.addPage("a4", "landscape");
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  let pageNum = 2;
+  pdf.text(`-${pageNum}-`, 148.5, 12, { align: "center" });
+
+  const kopLamp = [
+    "Lampiran",
+    "Surat Pernyataan Evaluasi Pelaksanaan",
+    "Sensus Ekonomi 2026 Termin I",
+    "Nomor: B-909/SPer-I-SE2026/3602/07/2026"
+  ];
+
+  let kopY = 20;
+  kopLamp.forEach(line => {
+    pdf.text(line, 170, kopY, { align: "left" });
+    kopY += 5;
+  });
+
+  pdf.text("Daftar Hasil Evaluasi Pelaksanaan Pekerjaan Petugas Sensus Ekonomi 2026 Termin I", 148.5, kopY + 6, { align: "center" });
+
+  const rows = rekapData || [];
+
+  pdf.setFont('Bookman', 'normal');
+  pdf.setFontSize(10);
+
+  const headsText = [
+    'No',
+    'Nama Petugas Lapangan',
+    'Jabatan',
+    'Target\nPrelist',
+    'Realisasi Hasil Pendataan\n(Usaha+Keluarga)',
+    'Presentase (%)'
+  ];
+
+  let colW = headsText.map(h => {
+    const lines = h.split('\n');
+    let maxW = 0;
+    lines.forEach(l => {
+      maxW = Math.max(maxW, pdf.getTextWidth(l));
+    });
+    return Math.ceil(maxW) + 8;
+  });
+
+  rows.forEach((row, i) => {
+    const tgt = parseInt(row.target) || 0;
+    const real = parseInt(row.realisasi) || 0;
+    const pct = row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%');
+
+    const vals = [
+      String(i + 1),
+      (row.nama || "").toUpperCase(),
+      row.jabatan || "",
+      String(tgt),
+      String(real),
+      pct
+    ];
+
+    vals.forEach((v, idx) => {
+      const neededW = Math.ceil(pdf.getTextWidth(v)) + 8;
+      colW[idx] = Math.max(colW[idx], neededW);
+    });
+  });
+
+  colW[1] = Math.min(colW[1], 120);
+
+  const totalTableWidth = colW.reduce((sum, w) => sum + w, 0);
+  const tX = 148.5 - totalTableWidth / 2;
+  const rH = 8;
+  let tY = kopY + 14;
+
+  const drawTableHeader = (y) => {
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(11);
+    const heads = [
+      ['No', 1],
+      ['Nama Petugas Lapangan', 1],
+      ['Jabatan', 1],
+      ['Target\nPrelist', 1],
+      ['Realisasi Hasil Pendataan\n(Usaha+Keluarga)', 1],
+      ['Presentase (%)', 1]
+    ];
+    let cx = tX;
+    const hH = rH * 2;
+    colW.forEach((w, ci) => {
+      pdf.rect(cx, y, w, hH);
+      const lines = heads[ci][0].split('\n');
+      const textY = y + (hH - lines.length * 5) / 2 + 4;
+      lines.forEach((ln, li) => {
+        pdf.text(ln, cx + w / 2, textY + li * 5, { align: 'center' });
+      });
+      cx += w;
+    });
+
+    const colNumY = y + hH;
+    cx = tX;
+    colW.forEach((w, ci) => {
+      pdf.rect(cx, colNumY, w, rH * 0.8);
+      pdf.text(`(${ci + 1})`, cx + w / 2, colNumY + 4.5, { align: 'center' });
+      cx += w;
+    });
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(12);
+    return colNumY + rH * 0.8;
+  };
+
+  tY = drawTableHeader(tY);
+
+  // Helper to draw summary row (Jumlah PML, Jumlah PPL, etc.)
+  const drawSummaryRow = (label, targetVal, realisasiVal) => {
+    if (tY > 175) {
+      pdf.addPage("a4", "landscape");
+      pageNum++;
+      pdf.setFont("Bookman", "normal");
+      pdf.setFontSize(12);
+      pdf.text(`-${pageNum}-`, 148.5, 12, { align: "center" });
+      tY = 20;
+    }
+    let cx = tX;
+    const pct = targetVal > 0 ? ((realisasiVal / targetVal) * 100).toFixed(2) + '%' : '0.00%';
+    pdf.setFont('Bookman', 'bold');
+    pdf.setFontSize(10);
+    [
+      label,
+      "",
+      "",
+      String(targetVal),
+      String(realisasiVal),
+      pct
+    ].forEach((val, ci) => {
+      if (ci === 0) {
+        pdf.rect(cx, tY, colW[0] + colW[1] + colW[2], rH);
+        pdf.text(label, cx + 5, tY + 5);
+        cx += colW[0] + colW[1] + colW[2];
+      } else if (ci === 1 || ci === 2) {
+        // merged
+      } else {
+        pdf.rect(cx, tY, colW[ci], rH);
+        pdf.text(val, cx + colW[ci] / 2, tY + 5, { align: 'center' });
+        cx += colW[ci];
+      }
+    });
+    tY += rH;
+  };
+
+  const pplRows = rows.filter(r => r.jabatan === 'PPL');
+  const pmlRows = rows.filter(r => r.jabatan === 'PML');
+  let globalIndex = 1;
+
+  // 1. Render PPL Group
+  let pplTgt = 0, pplReal = 0;
+  pplRows.forEach(row => {
+    if (tY > 175) {
+      pdf.addPage("a4", "landscape");
+      pageNum++;
+      pdf.setFont("Bookman", "normal");
+      pdf.setFontSize(12);
+      pdf.text(`-${pageNum}-`, 148.5, 12, { align: "center" });
+      tY = 20;
+    }
+
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(10);
+
+    const tgt = parseInt(row.target) || 0;
+    const real = parseInt(row.realisasi) || 0;
+    const pct = row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%');
+    pplTgt += tgt;
+    pplReal += real;
+
+    let cx = tX;
+    [
+      String(globalIndex++),
+      (row.nama || "").toUpperCase(),
+      row.jabatan || "",
+      String(tgt),
+      String(real),
+      pct
+    ].forEach((val, ci) => {
+      pdf.rect(cx, tY, colW[ci], rH);
+      if (ci === 1) {
+        const textLines = pdf.splitTextToSize(val, colW[ci] - 4);
+        pdf.text(textLines[0] || val, cx + 2, tY + 5);
+      } else {
+        pdf.text(val, cx + colW[ci] / 2, tY + 5, { align: 'center' });
+      }
+      cx += colW[ci];
+    });
+    tY += rH;
+  });
+
+  if (pplRows.length > 0) {
+    drawSummaryRow("Jumlah Capaian PPL", pplTgt, pplReal);
+  }
+
+  // 2. Render PML Group
+  let pmlTgt = 0, pmlReal = 0;
+  pmlRows.forEach(row => {
+    if (tY > 175) {
+      pdf.addPage("a4", "landscape");
+      pageNum++;
+      pdf.setFont("Bookman", "normal");
+      pdf.setFontSize(12);
+      pdf.text(`-${pageNum}-`, 148.5, 12, { align: "center" });
+      tY = 20;
+    }
+
+    pdf.setFont('Bookman', 'normal');
+    pdf.setFontSize(10);
+
+    const tgt = parseInt(row.target) || 0;
+    const real = parseInt(row.realisasi) || 0;
+    const pct = row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%');
+    pmlTgt += tgt;
+    pmlReal += real;
+
+    let cx = tX;
+    [
+      String(globalIndex++),
+      (row.nama || "").toUpperCase(),
+      row.jabatan || "",
+      String(tgt),
+      String(real),
+      pct
+    ].forEach((val, ci) => {
+      pdf.rect(cx, tY, colW[ci], rH);
+      if (ci === 1) {
+        const textLines = pdf.splitTextToSize(val, colW[ci] - 4);
+        pdf.text(textLines[0] || val, cx + 2, tY + 5);
+      } else {
+        pdf.text(val, cx + colW[ci] / 2, tY + 5, { align: 'center' });
+      }
+      cx += colW[ci];
+    });
+    tY += rH;
+  });
+
+  if (pmlRows.length > 0) {
+    drawSummaryRow("Jumlah Capaian PML", pmlTgt, pmlReal);
+  }
+
+  tY += 10;
+
+  // Check page break for signature
+  if (tY > 165) {
+    pdf.addPage("a4", "landscape");
+    pageNum++;
+    pdf.setFont("Bookman", "normal");
+    pdf.setFontSize(12);
+    pdf.text(`-${pageNum}-`, 148.5, 12, { align: "center" });
+    tY = 20;
+  }
+
+  // Draw signature under table
+  const ttdX = 220;
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(11);
+  pdf.text("Yang membuat pernyataan,", ttdX, tY, { align: "center" });
+  tY += 22;
+  pdf.text("Eka Yulyani S.Si., M.Geog.", ttdX, tY, { align: "center" });
+}
+
 // ---------------------------------------------------------------
 // Helper: draw justified text manually in jsPDF (for custom fonts)
 // ---------------------------------------------------------------

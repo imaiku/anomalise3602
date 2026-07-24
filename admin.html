@@ -1419,14 +1419,44 @@
                 <td style="text-align:center">2</td>
                 <td style="font-weight:600">Super Evaluasi T1</td>
                 <td style="text-align:center">
-                  <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1()" style="display:inline-flex;align-items:center;gap:0.35rem;margin:0 auto">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                      <polyline points="7 10 12 15 17 10"></polyline>
-                      <line x1="12" y1="15" x2="12" y2="3"></line>
-                    </svg>
-                    Unduh PDF
-                  </button>
+                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
+                    <div style="display:flex;gap:0.35rem;justify-content:center">
+                      <span style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
+                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Lihat PDF
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Unduh
+                      </button>
+                    </div>
+                    <div style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
+                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Lihat PDF
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Unduh
+                      </button>
+                    </div>
+                  </div>
                 </td>
               </tr>
             </tbody>
