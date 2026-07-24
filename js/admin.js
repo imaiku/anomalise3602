@@ -1327,9 +1327,11 @@ async function generateCapaianReportData(gelombang = 1) {
 
   const realisasiMapG1 = {};
   const realisasiMapG2 = {};
+  const realisasiMapG3 = {};
   achievements.forEach(a => {
     realisasiMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
     realisasiMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
+    realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
   });
 
   // Map profile by id for quick lookup
@@ -1357,25 +1359,24 @@ async function generateCapaianReportData(gelombang = 1) {
     userSlsMap[us.user_id].push(us.kode_sls);
   });
 
+  // Helpers to get kecamatan code for sorting
+  const getProfileKec = (id) => {
+    const codes = userSlsMap[id] || [];
+    return (codes.length > 0 && codes[0].length >= 7) ? codes[0].substring(4, 7) : '';
+  };
+  const getPmlKec = (pmlId) => {
+    const pplIds = Array.from(pmlToPpl[pmlId] || []);
+    for (const pplId of pplIds) {
+      const kec = getProfileKec(pplId);
+      if (kec) return kec;
+    }
+    return '';
+  };
+
   const pmls = profiles.filter(p => p.role === 'pml');
 
   const excelRows = [];
   const rowTypes = [];
-
-  // Helper to determine if PPL is eligible for G1
-  const getPplStatus = (pplId) => {
-    const slsCodes = userSlsMap[pplId] || [];
-    let pplTargetSum = 0;
-    let pplRealisasiSum = 0;
-    let coverage = 0;
-    slsCodes.forEach(code => {
-      pplTargetSum += targetMap[code] || 0;
-      const real = realisasiMapG1[code] || 0;
-      pplRealisasiSum += real;
-      if (real > 0) coverage++;
-    });
-    return checkPPLEligibility(pplRealisasiSum, pplTargetSum, coverage, slsCodes.length);
-  };
 
   const addPplRows = (pplId, pmlName, pmlEmail) => {
     const ppl = profileMap[pplId];
@@ -1386,16 +1387,9 @@ async function generateCapaianReportData(gelombang = 1) {
     let pplRealisasiSum = 0;
     let pplCoverage = 0;
 
-    const currentRealisasiMap = gelombang === 1 ? realisasiMapG1 : realisasiMapG2;
-
-    // Filter G2 check
-    if (gelombang === 2) {
-      const g1Status = getPplStatus(pplId);
-      // Jika lolos G1, skip dari laporan G2
-      if (g1Status.eligible) {
-        return { targetSum: 0, realisasiSum: 0, skipped: true };
-      }
-    }
+    let currentRealisasiMap = realisasiMapG1;
+    if (gelombang === 2) currentRealisasiMap = realisasiMapG2;
+    if (gelombang === 3) currentRealisasiMap = realisasiMapG3;
 
     const sortedSls = [...slsCodes].sort();
 
@@ -1480,7 +1474,13 @@ async function generateCapaianReportData(gelombang = 1) {
   let grandTotalTarget = 0;
   let grandTotalRealisasi = 0;
 
-  pmls.sort((a, b) => a.nama.localeCompare(b.nama)).forEach(pml => {
+  // Sort PMLs by Kode Kecamatan (asc), then by Name (asc)
+  pmls.sort((a, b) => {
+    const kecA = getPmlKec(a.id);
+    const kecB = getPmlKec(b.id);
+    if (kecA !== kecB) return kecA.localeCompare(kecB);
+    return (a.nama || '').localeCompare(b.nama || '');
+  }).forEach(pml => {
     const pplIds = Array.from(pmlToPpl[pml.id] || []);
     if (pplIds.length === 0) return;
 
@@ -1488,9 +1488,15 @@ async function generateCapaianReportData(gelombang = 1) {
     let pmlRealisasiSum = 0;
     let hasVisiblePpl = false;
 
+    // Sort PPLs by Kode Kecamatan (asc), then by Name (asc)
     const sortedPplIds = pplIds
       .filter(id => profileMap[id])
-      .sort((a, b) => profileMap[a].nama.localeCompare(profileMap[b].nama));
+      .sort((a, b) => {
+        const kecA = getProfileKec(a);
+        const kecB = getProfileKec(b);
+        if (kecA !== kecB) return kecA.localeCompare(kecB);
+        return (profileMap[a].nama || '').localeCompare(profileMap[b].nama || '');
+      });
 
     sortedPplIds.forEach(id => {
       const { targetSum, realisasiSum, skipped } = addPplRows(id, pml.nama, pml.email_ref);
@@ -1532,7 +1538,12 @@ async function generateCapaianReportData(gelombang = 1) {
 
     const sortedUnmapped = unmappedPplIds
       .filter(id => profileMap[id])
-      .sort((a, b) => profileMap[a].nama.localeCompare(b.nama));
+      .sort((a, b) => {
+        const kecA = getProfileKec(a);
+        const kecB = getProfileKec(b);
+        if (kecA !== kecB) return kecA.localeCompare(kecB);
+        return (profileMap[a].nama || '').localeCompare(profileMap[b].nama || '');
+      });
 
     sortedUnmapped.forEach(id => {
       const { targetSum, realisasiSum, skipped } = addPplRows(id, 'TANPA PML', '');
@@ -3483,17 +3494,13 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     }
   }
 
-  // 5. Fetch capaian (gelombang 1 vs gelombang 2)
-  const selectCols = gelombang === 2
-    ? 'kode_sls_gabungan, capaian1_g2, capaian1_pml_g2'
-    : 'kode_sls_gabungan, capaian1, capaian1_pml';
-
+  // 5. Fetch all capaian columns (G1, G2, G3)
   let achievements = [];
   let fromCap = 0;
   let hasMoreCap = true;
   while (hasMoreCap) {
     const { data, error } = await db.from('capaian')
-      .select(selectCols)
+      .select('*')
       .range(fromCap, fromCap + 999);
     if (error) throw error;
     if (!data || data.length === 0) {
@@ -3511,11 +3518,20 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     targetMap[s.kode_sls_gabungan] = parseInt(s.target) || 0;
   });
 
-  const capaianPplMap = {};
-  const capaianPmlMap = {};
+  const capaianPplG1Map = {};
+  const capaianPmlG1Map = {};
+  const capaianPplG2Map = {};
+  const capaianPmlG2Map = {};
+  const capaianPplG3Map = {};
+  const capaianPmlG3Map = {};
+
   achievements.forEach(a => {
-    capaianPplMap[a.kode_sls_gabungan] = parseInt(gelombang === 2 ? a.capaian1_g2 : a.capaian1) || 0;
-    capaianPmlMap[a.kode_sls_gabungan] = parseInt(gelombang === 2 ? a.capaian1_pml_g2 : a.capaian1_pml) || 0;
+    capaianPplG1Map[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
+    capaianPmlG1Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml) || 0;
+    capaianPplG2Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
+    capaianPmlG2Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g2) || 0;
+    capaianPplG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
+    capaianPmlG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || a.capaian3_pml || 0) || 0;
   });
 
   // Map user_sls by user_id
@@ -3532,51 +3548,131 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     pmlToPpl[r.pml_id].push(r.ppl_id);
   });
 
-  // Calculate target and realisasi for each profile
-  const reportData = [];
+  // Calculate G1, G2, G3 target, realisasi, and coverage for each profile
+  let reportData = [];
 
   profiles.forEach(p => {
     let target = 0;
-    let realisasi = 0;
+    let realisasiG1 = 0;
+    let realisasiG2 = 0;
+    let realisasiG3 = 0;
 
     if (p.role === 'ppl') {
       const codes = userSlsMap[p.id] || [];
+      let kdkec = '';
+      if (codes.length > 0) {
+        kdkec = codes[0].substring(4, 7);
+      }
+
+      let visitedG1 = 0;
+      let visitedG2 = 0;
+      let visitedG3 = 0;
+
       codes.forEach(code => {
+        const cap1 = capaianPplG1Map[code] || 0;
+        const cap2 = capaianPplG2Map[code] || 0;
+        const cap3 = capaianPplG3Map[code] || 0;
+
         target += targetMap[code] || 0;
-        realisasi += capaianPplMap[code] || 0;
+        realisasiG1 += cap1;
+        realisasiG2 += cap2;
+        realisasiG3 += cap3;
+
+        if (cap1 > 0) visitedG1++;
+        if (cap2 > 0) visitedG2++;
+        if (cap3 > 0) visitedG3++;
       });
+
+      const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
+      const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
+      const pctG3 = target > 0 ? (realisasiG3 / target) : 0;
+
+      const coverageG1 = codes.length > 0 ? (visitedG1 / codes.length) : 0;
+      const coverageG2 = codes.length > 0 ? (visitedG2 / codes.length) : 0;
+      const coverageG3 = codes.length > 0 ? (visitedG3 / codes.length) : 0;
+
+      const isG1Eligible = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
+      const isG2Eligible = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
+      const isG3Eligible = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+
+      let chosenReal = realisasiG1;
+      if (gelombang === 2) chosenReal = realisasiG2;
+      if (gelombang === 3) chosenReal = realisasiG3;
 
       reportData.push({
         nama: p.nama,
+        kdkec,
         jabatan: "PPL",
         target,
-        realisasi
+        realisasi: chosenReal,
+        isG1Eligible,
+        isG2Eligible,
+        isG3Eligible
       });
     } else if (p.role === 'pml') {
       const supervisedPpls = pmlToPpl[p.id] || [];
+      let kdkec = '';
       supervisedPpls.forEach(pplId => {
         const codes = userSlsMap[pplId] || [];
+        if (codes.length > 0 && !kdkec) {
+          kdkec = codes[0].substring(4, 7);
+        }
         codes.forEach(code => {
           target += targetMap[code] || 0;
-          realisasi += capaianPmlMap[code] || 0;
+          realisasiG1 += capaianPmlG1Map[code] || 0;
+          realisasiG2 += capaianPmlG2Map[code] || 0;
+          realisasiG3 += capaianPmlG3Map[code] || 0;
         });
       });
 
+      const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
+      const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
+      const pctG3 = target > 0 ? (realisasiG3 / target) : 0;
+
+      const isG1Eligible = pctG1 >= 0.4;
+      const isG2Eligible = pctG2 >= 0.4;
+      const isG3Eligible = pctG3 >= 0.4;
+
+      let chosenReal = realisasiG1;
+      if (gelombang === 2) chosenReal = realisasiG2;
+      if (gelombang === 3) chosenReal = realisasiG3;
+
       reportData.push({
         nama: p.nama,
+        kdkec,
         jabatan: "PML",
         target,
-        realisasi
+        realisasi: chosenReal,
+        isG1Eligible,
+        isG2Eligible,
+        isG3Eligible
       });
     }
   });
 
-  // Sort by role (PML first, then PPL) and then by name
+  // Filtering rules:
+  // Gelombang 1: Must be G1 eligible
+  // Gelombang 2: Must NOT be G1 eligible AND must be G2 eligible
+  // Gelombang 3: Must NOT be G1 eligible AND Must NOT be G2 eligible AND must be G3 eligible
+  if (gelombang === 1) {
+    reportData = reportData.filter(item => item.isG1Eligible);
+  } else if (gelombang === 2) {
+    reportData = reportData.filter(item => !item.isG1Eligible && item.isG2Eligible);
+  } else if (gelombang === 3) {
+    reportData = reportData.filter(item => !item.isG1Eligible && !item.isG2Eligible && item.isG3Eligible);
+  }
+
+  // Sort by role (PPL first, then PML), then by kdkec, then by nama
   reportData.sort((a, b) => {
     if (a.jabatan !== b.jabatan) {
       return a.jabatan.localeCompare(b.jabatan);
     }
-    return a.nama.localeCompare(b.nama);
+    const kecA = (a.kdkec || '').toString();
+    const kecB = (b.kdkec || '').toString();
+    if (kecA !== kecB) {
+      return kecA.localeCompare(kecB);
+    }
+    return (a.nama || '').localeCompare(b.nama || '');
   });
 
   return reportData;
@@ -3613,7 +3709,7 @@ function printSuperEvaluasiT1(isDownload = false, gelombang = 1) {
         no_spk: "001/SPK/BPS/2026"
       };
 
-      // Mengambil data riil dari database berdasar Gelombang (1 atau 2)
+      // Mengambil data riil dari database berdasar Gelombang (1, 2, atau 3)
       const rekapData = await fetchSuperEvaluasiT1Data(gelombang);
 
       const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
@@ -3643,7 +3739,14 @@ function printSuperEvaluasiT1(isDownload = false, gelombang = 1) {
 }
 
 function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, gelombang = 1) {
-  const tanggalText = gelombang === 2 ? "23 Juli 2026" : "16 Juli 2026";
+  let tanggalText = "16 Juli 2026";
+  if (gelombang === 2) tanggalText = "24 Juli 2026";
+  if (gelombang === 3) tanggalText = "31 Juli 2026";
+
+  let nomorSuratStr = "B-909/SPer-I-SE2026/3602/07/2026";
+  if (gelombang === 2) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";
+  if (gelombang === 3) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";
+
   pdf.setLineHeightFactor(1.0);
   const M = 25;
   const W = 160;
@@ -3657,7 +3760,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
 
   pdf.setFont("Bookman", "normal");
   pdf.setFontSize(12);
-  pdf.text(`Nomor: B-909/SPer-I-SE2026/3602/07/2026`, 105, 44, { align: "center" });
+  pdf.text(`Nomor: ${nomorSuratStr}`, 105, 44, { align: "center" });
 
   let y = 56;
   pdf.text("Yang bertanda tangan di bawah ini:", M, y);
@@ -3729,7 +3832,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     "Lampiran",
     "Surat Pernyataan Evaluasi Pelaksanaan",
     "Sensus Ekonomi 2026 Termin I",
-    "Nomor: B-909/SPer-I-SE2026/3602/07/2026"
+    `Nomor: ${nomorSuratStr}`
   ];
 
   let kopY = 20;
@@ -3748,9 +3851,10 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
   const headsText = [
     'No',
     'Nama Petugas Lapangan',
+    'Kode\nKecamatan',
     'Jabatan',
     'Target\nPrelist',
-    'Realisasi Hasil Pendataan\n(Usaha+Keluarga)',
+    'Realisasi Hasil\nPendataan\n(Usaha+Keluarga)',
     'Presentase (%)'
   ];
 
@@ -3771,6 +3875,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     const vals = [
       String(i + 1),
       (row.nama || "").toUpperCase(),
+      row.kdkec || "",
       row.jabatan || "",
       String(tgt),
       String(real),
@@ -3783,7 +3888,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     });
   });
 
-  colW[1] = Math.min(colW[1], 120);
+  colW[1] = Math.min(colW[1], 100);
 
   const totalTableWidth = colW.reduce((sum, w) => sum + w, 0);
   const tX = 148.5 - totalTableWidth / 2;
@@ -3796,9 +3901,10 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     const heads = [
       ['No', 1],
       ['Nama Petugas Lapangan', 1],
+      ['Kode\nKecamatan', 1],
       ['Jabatan', 1],
       ['Target\nPrelist', 1],
-      ['Realisasi Hasil Pendataan\n(Usaha+Keluarga)', 1],
+      ['Realisasi Hasil\nPendataan\n(Usaha+Keluarga)', 1],
       ['Presentase (%)', 1]
     ];
     let cx = tX;
@@ -3827,7 +3933,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
 
   tY = drawTableHeader(tY);
 
-  // Helper to draw summary row (Jumlah PML, Jumlah PPL, etc.)
+  // Helper to draw summary row
   const drawSummaryRow = (label, targetVal, realisasiVal) => {
     if (tY > 175) {
       pdf.addPage("a4", "landscape");
@@ -3841,8 +3947,10 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     const pct = targetVal > 0 ? ((realisasiVal / targetVal) * 100).toFixed(2) + '%' : '0.00%';
     pdf.setFont('Bookman', 'bold');
     pdf.setFontSize(10);
+    const mergeW = colW[0] + colW[1] + colW[2] + colW[3];
     [
       label,
+      "",
       "",
       "",
       String(targetVal),
@@ -3850,10 +3958,10 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
       pct
     ].forEach((val, ci) => {
       if (ci === 0) {
-        pdf.rect(cx, tY, colW[0] + colW[1] + colW[2], rH);
+        pdf.rect(cx, tY, mergeW, rH);
         pdf.text(label, cx + 5, tY + 5);
-        cx += colW[0] + colW[1] + colW[2];
-      } else if (ci === 1 || ci === 2) {
+        cx += mergeW;
+      } else if (ci === 1 || ci === 2 || ci === 3) {
         // merged
       } else {
         pdf.rect(cx, tY, colW[ci], rH);
@@ -3893,6 +4001,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     [
       String(globalIndex++),
       (row.nama || "").toUpperCase(),
+      row.kdkec || "",
       row.jabatan || "",
       String(tgt),
       String(real),
@@ -3939,6 +4048,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     [
       String(globalIndex++),
       (row.nama || "").toUpperCase(),
+      row.kdkec || "",
       row.jabatan || "",
       String(tgt),
       String(real),
@@ -4210,7 +4320,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
     ];
     // Draw all cells with multi-line text
     cx = tX;
-    const hH = rH * 2; // header height (2 rows)
+    const hH = rH * 3; // header height (2 rows)
     colW.forEach((w, ci) => {
       pdf.rect(cx, y, w, hH);
       const lines = heads[ci][0].split('\n');

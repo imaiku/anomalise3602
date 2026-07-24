@@ -466,7 +466,8 @@
           BAPP (Cetak PDF)
         </button>
         <button class="sidebar-item" onclick="showSection('sp-termin1')" id="nav-sp-termin1">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
             <polyline points="14 2 14 8 20 8" />
             <line x1="16" x2="8" y1="13" y2="13" />
@@ -476,7 +477,8 @@
           SP Termin I (Cetak PDF)
         </button>
         <button class="sidebar-item" onclick="showSection('berkas-lainnya')" id="nav-berkas-lainnya">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
           </svg>
           Berkas Lainnya
@@ -1043,11 +1045,13 @@
       <!-- ============ IMPORT CAPAIAN SLS ============ -->
       <div class="section-panel" id="panel-import-capaian">
         <div class="section-title">Import Capaian & Target SLS</div>
-        <div class="section-sub">Upload file Excel berisi data target dan realisasi capaian SLS untuk di-update secara massal.</div>
+        <div class="section-sub">Upload file Excel berisi data target dan realisasi capaian SLS untuk di-update secara
+          massal.</div>
 
         <div class="card card-body mb-4" style="max-width:600px">
           <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Capaian SLS</div>
-          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar format kolom SLS, Target, dan Realisasi sesuai.</div>
+          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar
+            format kolom SLS, Target, dan Realisasi sesuai.</div>
           <button class="btn btn-secondary btn-sm" onclick="generateCapaianTemplate()">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1118,7 +1122,7 @@
           </div>
         </div>
       </div>
-      
+
       <!-- ============ SLS TANPA PPL ============ -->
       <div class="section-panel" id="panel-unassigned">
         <div class="section-title">Assignment Tanpa PPL</div>
@@ -1176,7 +1180,8 @@
         <div class="section-sub">Pantau, filter, dan cetak PDF BAPP termin I petugas.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
-          <input type="text" class="filter-select" id="bappSearchName" placeholder="Cari nama petugas..." oninput="filterBAPP()" style="max-width:200px">
+          <input type="text" class="filter-select" id="bappSearchName" placeholder="Cari nama petugas..."
+            oninput="filterBAPP()" style="max-width:200px">
           <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()" style="max-width:160px">
             <option value="">Semua Kecamatan</option>
           </select>
@@ -1187,9 +1192,11 @@
           </select>
 
           <div style="display:flex;align-items:center;gap:0.35rem">
-            <input type="date" class="filter-select" id="bappTimeStart" onchange="filterBAPP()" style="max-width:130px" placeholder="Tanggal Mulai">
+            <input type="date" class="filter-select" id="bappTimeStart" onchange="filterBAPP()" style="max-width:130px"
+              placeholder="Tanggal Mulai">
             <span style="font-size:0.75rem;color:var(--text-muted)">s.d</span>
-            <input type="date" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()" style="max-width:130px" placeholder="Tanggal Selesai">
+            <input type="date" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()" style="max-width:130px"
+              placeholder="Tanggal Selesai">
           </div>
 
           <button class="btn btn-secondary btn-sm" onclick="loadBAPPData()" style="height:38px;margin-bottom:0">
@@ -1211,12 +1218,13 @@
             </svg>
             Cetak Terpilih (<span id="selectedBappCount">0</span>)
           </button>
-          
+
           <button class="btn btn-secondary btn-sm btn-superadmin-only" id="btnOcrSelected" onclick="ocrSelectedBAPP()"
             style="height:38px;margin-bottom:0;display:none;margin-left:8px;background:#0ea5e9;border:none;color:#ffffff">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
               <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
               <line x1="12" y1="22.08" x2="12" y2="12" />
             </svg>
@@ -1273,30 +1281,38 @@
       <!-- ============ SP TERMIN I PANEL ============ -->
       <div class="section-panel" id="panel-sp-termin1">
         <div class="section-title">Surat Pernyataan Termin I</div>
-        <div class="section-sub">Pantau, isi nomor surat, dan cetak PDF Surat Pernyataan Pemeriksaan Lapangan Termin I untuk PML.</div>
+        <div class="section-sub">Pantau, isi nomor surat, dan cetak PDF Surat Pernyataan Pemeriksaan Lapangan Termin I
+          untuk PML.</div>
 
         <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
-          <input type="text" class="filter-select" id="spTerm1Search" placeholder="Cari nama atau Sobat ID PML..." oninput="filterSPTermin1()" style="max-width:260px">
-          
-          <select id="spTerm1KecamatanFilter" class="filter-select" onchange="filterSPTermin1()" style="max-width:200px">
+          <input type="text" class="filter-select" id="spTerm1Search" placeholder="Cari nama atau Sobat ID PML..."
+            oninput="filterSPTermin1()" style="max-width:260px">
+
+          <select id="spTerm1KecamatanFilter" class="filter-select" onchange="filterSPTermin1()"
+            style="max-width:200px">
             <option value="">Semua Kecamatan</option>
           </select>
 
-          <select id="spTerm1GelombangFilter" class="filter-select" onchange="loadSPTermin1Data()" style="max-width:150px; border: 1px solid var(--primary); font-weight: 600;">
+          <select id="spTerm1GelombangFilter" class="filter-select" onchange="loadSPTermin1Data()"
+            style="max-width:150px; border: 1px solid var(--primary); font-weight: 600;">
             <option value="1" selected>Gelombang 1</option>
             <option value="2">Gelombang 2</option>
           </select>
-          
+
           <button class="btn btn-secondary btn-sm" onclick="loadSPTermin1Data()" style="height:38px;margin-bottom:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
               <path d="M3 3v5h5" />
             </svg>
             Refresh
           </button>
 
-          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUploadNoSuratModal()" style="height:38px;margin-bottom:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px">
+          <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUploadNoSuratModal()"
+            style="height:38px;margin-bottom:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              style="margin-right:4px">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="17 8 12 3 7 8"></polyline>
               <line x1="12" y1="3" x2="12" y2="15"></line>
@@ -1304,8 +1320,10 @@
             Upload Nomor
           </button>
 
-          <button id="spTerm1PrintSelectedBtn" class="btn btn-primary btn-sm" onclick="printSelectedSPTermin1()" style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;margin-left:auto">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <button id="spTerm1PrintSelectedBtn" class="btn btn-primary btn-sm" onclick="printSelectedSPTermin1()"
+            style="height:38px;margin-bottom:0;display:none;align-items:center;gap:0.25rem;margin-left:auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="6 9 6 2 18 2 18 9"></polyline>
               <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
               <rect x="6" y="14" width="12" height="8"></rect>
@@ -1323,13 +1341,18 @@
             <thead>
               <tr>
                 <th style="width:36px;text-align:center">
-                  <input type="checkbox" id="spTerm1SelectAll" onchange="toggleSelectAllSPTermin1(this)" title="Pilih semua" style="cursor:pointer;width:15px;height:15px">
+                  <input type="checkbox" id="spTerm1SelectAll" onchange="toggleSelectAllSPTermin1(this)"
+                    title="Pilih semua" style="cursor:pointer;width:15px;height:15px">
                 </th>
-                <th onclick="sortSPTermin1('nama')" style="cursor:pointer;white-space:nowrap">Nama PML <span class="sp-sort-icon" id="sort-sp-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
-                <th onclick="sortSPTermin1('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span class="sp-sort-icon" id="sort-sp-kecamatan" style="opacity:0.1;font-size:0.7rem">▲</span></th>
+                <th onclick="sortSPTermin1('nama')" style="cursor:pointer;white-space:nowrap">Nama PML <span
+                    class="sp-sort-icon" id="sort-sp-nama" style="opacity:0.4;font-size:0.7rem">▲</span></th>
+                <th onclick="sortSPTermin1('kecamatan')" style="cursor:pointer;white-space:nowrap">Kecamatan <span
+                    class="sp-sort-icon" id="sort-sp-kecamatan" style="opacity:0.1;font-size:0.7rem">▲</span></th>
                 <th>No. SPK</th>
                 <th>No. SP</th>
-                <th onclick="sortSPTermin1('capaian_pct')" style="cursor:pointer;white-space:nowrap;text-align:center">Capaian <span class="sp-sort-icon" id="sort-sp-capaian_pct" style="opacity:0.1;font-size:0.7rem">⇅</span></th>
+                <th onclick="sortSPTermin1('capaian_pct')" style="cursor:pointer;white-space:nowrap;text-align:center">
+                  Capaian <span class="sp-sort-icon" id="sort-sp-capaian_pct"
+                    style="opacity:0.1;font-size:0.7rem">⇅</span></th>
                 <th style="text-align:center">Aksi</th>
               </tr>
             </thead>
@@ -1339,10 +1362,12 @@
               </tr>
             </tbody>
           </table>
-          <div class="table-footer" style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
             <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
               <span>Tampilkan</span>
-              <select id="spTerm1PageSizeSelect" class="filter-select" onchange="changeSPTermin1PageSize()" style="width:80px;padding:0.25rem">
+              <select id="spTerm1PageSizeSelect" class="filter-select" onchange="changeSPTermin1PageSize()"
+                style="width:80px;padding:0.25rem">
                 <option value="10">10</option>
                 <option value="25" selected>25</option>
                 <option value="50">50</option>
@@ -1377,16 +1402,21 @@
                 <td style="text-align:center">
                   <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
                     <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
+                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(1)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                         Preview
                       </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(1)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1394,17 +1424,47 @@
                         Excel
                       </button>
                     </div>
-                    <div style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <div
+                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
+                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(2)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
                         Preview
                       </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(2)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Excel
+                      </button>
+                    </div>
+                    <div
+                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
+                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(3)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Preview
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(3)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1421,16 +1481,21 @@
                 <td style="text-align:center">
                   <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
                     <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
+                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 1)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
-                        Lihat PDF
+                        Preview
                       </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 1)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 1)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1438,17 +1503,47 @@
                         Unduh
                       </button>
                     </div>
-                    <div style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <div
+                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
+                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 2)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
                           <circle cx="12" cy="12" r="3"></circle>
                         </svg>
-                        Lihat PDF
+                        Preview
                       </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 2)" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 2)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                          <polyline points="7 10 12 15 17 10"></polyline>
+                          <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        Unduh
+                      </button>
+                    </div>
+                    <div
+                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
+                      <span
+                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
+                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 3)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                          <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        Preview
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 3)"
+                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                           <polyline points="7 10 12 15 17 10"></polyline>
                           <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1642,7 +1737,8 @@
       </div>
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeImportWilayahModal()">Batal</button>
-        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master Wilayah</button>
+        <button class="btn btn-primary" onclick="uploadMasterWilayah()" id="uploadWilayahBtn" disabled>Upload Master
+          Wilayah</button>
       </div>
     </div>
   </div>
@@ -1653,15 +1749,18 @@
         <div class="bottom-sheet-title" id="screenshotModalTitle">Screenshot BAPP</div>
       </div>
       <div class="bottom-sheet-body" style="text-align:center;padding:1rem;">
-        <img id="screenshotPreviewImage" src="" alt="Screenshot BAPP" style="max-width:100%;max-height:70vh;border-radius:var(--radius-md);border:1px solid var(--border);box-shadow:var(--shadow-sm);object-fit:contain">
+        <img id="screenshotPreviewImage" src="" alt="Screenshot BAPP"
+          style="max-width:100%;max-height:70vh;border-radius:var(--radius-md);border:1px solid var(--border);box-shadow:var(--shadow-sm);object-fit:contain">
       </div>
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeScreenshotModal()">Tutup</button>
-        <a id="screenshotDownloadBtn" href="" download="screenshot-bapp.png" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:0.25rem;text-decoration:none">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-            <polyline points="7 10 12 15 17 10"/>
-            <line x1="12" x2="12" y1="15" y2="3"/>
+        <a id="screenshotDownloadBtn" href="" download="screenshot-bapp.png" class="btn btn-primary"
+          style="display:inline-flex;align-items:center;gap:0.25rem;text-decoration:none">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" x2="12" y1="15" y2="3" />
           </svg>
           Download Gambar
         </a>
@@ -1704,8 +1803,10 @@
       <div class="bottom-sheet-handle"></div>
       <div class="bottom-sheet-header" style="justify-content:space-between">
         <div class="bottom-sheet-title">Upload Nomor Surat & SPK</div>
-        <button class="btn btn-secondary btn-sm" onclick="downloadNoSuratTemplate()" style="display:flex;align-items:center;gap:0.25rem">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <button class="btn btn-secondary btn-sm" onclick="downloadNoSuratTemplate()"
+          style="display:flex;align-items:center;gap:0.25rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
@@ -1734,13 +1835,15 @@
       </div>
       <div class="bottom-sheet-footer">
         <button class="btn btn-secondary" onclick="closeUploadNoSuratModal()">Batal</button>
-        <button class="btn btn-primary" id="uploadNoSuratBtn" onclick="processNoSuratImport()" disabled>Mulai Upload</button>
+        <button class="btn btn-primary" id="uploadNoSuratBtn" onclick="processNoSuratImport()" disabled>Mulai
+          Upload</button>
       </div>
     </div>
   </div>
   <!-- Modal Preview LK Beban Kerja -->
   <div class="modal-overlay" id="previewLkModal" onclick="if(event.target===this)closePreviewLkModal()">
-    <div class="bottom-sheet" style="max-width:95%;width:1400px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
+    <div class="bottom-sheet"
+      style="max-width:95%;width:1400px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
       <div class="bottom-sheet-handle"></div>
       <div class="bottom-sheet-header" style="display:flex;justify-content:space-between;align-items:center">
         <div class="bottom-sheet-title">Preview LK Beban Kerja</div>
