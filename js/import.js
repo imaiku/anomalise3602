@@ -771,7 +771,7 @@ async function processCapaianImport() {
     parsedCapaianData = null;
     missingCapaianSlsCount = 0;
 
-    showSection('sp-termin1');
+    showSection('berkas-lainnya');
     await loadSPTermin1Data(); // Refresh SP Termin I table counts/capaian
   } catch (err) {
     console.error('Proses impor capaian gagal:', err);

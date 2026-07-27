@@ -2850,32 +2850,18 @@ async function editBappCrop(id) {
         <button id="btn-editor-cancel" style="
           background: transparent;
           border: 1px solid rgba(255,255,255,0.1);
-          color: #94a3b8;
           padding: 8px 16px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 0.875rem;
-        ">Batal</button>
-        <button id="btn-editor-auto" style="
-          background: #334155;
-          border: 1px solid rgba(56, 189, 248, 0.2);
-          color: #38bdf8;
-          padding: 8px 16px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 0.875rem;
-          font-weight: 600;
-        ">Potong Otomatis</button>
+          border-radius: 6px;
+          color: white;
+          cursor: pointer;">Batal</button>
         <button id="btn-editor-save" style="
-          background: #0ea5e9;
+          background: #38bdf8;
           border: none;
-          color: #ffffff;
           padding: 8px 16px;
-          border-radius: 8px;
-          cursor: pointer;
+          border-radius: 6px;
+          color: #0f172a;
           font-weight: 600;
-          font-size: 0.875rem;
-        ">Simpan</button>
+          cursor: pointer;">Simpan Perubahan</button>
       </div>
     </div>
   `;
@@ -2887,6 +2873,7 @@ async function editBappCrop(id) {
   const overlayTop = modal.querySelector('#crop-overlay-top');
   const overlayBottom = modal.querySelector('#crop-overlay-bottom');
   const ocrStatus = modal.querySelector('#ocr-status-bar');
+
   // Deteksi krop otomatis manual lewat tombol "Potong Otomatis"
   modal.querySelector('#btn-editor-auto').onclick = () => {
     ocrStatus.style.display = 'block';
@@ -2926,13 +2913,11 @@ async function editBappCrop(id) {
     saveBtn.disabled = true;
     saveBtn.innerHTML = 'Menyimpan...';
     try {
-      // Simpan parameter krop numerik langsung ke Supabase
       const { error } = await db
         .from('bapp_uploads')
         .update({ crop_top: t, crop_bottom: bValue })
         .eq('id', id);
       if (error) throw error;
-      // Update RAM local array
       b.crop_top = t;
       b.crop_bottom = bValue;
       showToast('Batas pemotongan berhasil disimpan!', 'success');
@@ -2946,7 +2931,7 @@ async function editBappCrop(id) {
     }
   };
 }
-// Fungsi helper untuk memuat jsPDF secara dinamis dari CDN jika belum termuat
+
 function loadJsPDF(callback) {
   if (window.jspdf) {
     callback();
@@ -2960,42 +2945,45 @@ function loadJsPDF(callback) {
   };
   document.head.appendChild(script);
 }
-// Generate PDF Page and trigger Print dialog via client-side jsPDF (100% Vercel & Static Host Compatible)
+
 function printBAPP(rows) {
   if (!rows || rows.length === 0) {
     showToast('Tidak ada BAPP yang dipilih', 'error');
     return;
   }
+  
+  // Sort rows by kode_kec, then by role, then by nama
+  const sortedRows = [...rows].sort((a, b) => {
+    const kecA = a.kode_kec || '';
+    const kecB = b.kode_kec || '';
+    const compKec = kecA.localeCompare(kecB);
+    if (compKec !== 0) return compKec;
+
+    const roleA = a.profiles?.role || '';
+    const roleB = b.profiles?.role || '';
+    const compRole = roleA.localeCompare(roleB);
+    if (compRole !== 0) return compRole;
+
+    const nameA = a.profiles?.nama || '';
+    const nameB = b.profiles?.nama || '';
+    return nameA.localeCompare(nameB);
+  });
+
   loadJsPDF(async () => {
     const { jsPDF } = window.jspdf;
-    // Tampilkan indikator status melayang
     let indicator = document.getElementById('auto-crop-bg-indicator');
     if (!indicator) {
       indicator = document.createElement('div');
       indicator.id = 'auto-crop-bg-indicator';
       indicator.style = `
-        position: fixed;
-        bottom: 24px;
-        right: 24px;
-        background: #1e293b;
-        border: 1px solid #38bdf8;
-        color: #f8fafc;
-        padding: 14px 20px;
-        border-radius: 12px;
-        box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
-        z-index: 99999;
-        font-size: 0.85rem;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        font-family: system-ui, sans-serif;
-        font-weight: 500;
-        transition: all 0.3s ease;
+        position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8;
+        color: #f8fafc; padding: 14px 20px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;
+        font-family: system-ui, sans-serif; font-weight: 500; transition: all 0.3s ease;
       `;
       document.body.appendChild(indicator);
     }
-    // Tarik screenshot yang belum di-load untuk baris terpilih sekaligus (batch query)
-    const missingIds = rows.filter(r => !r.screenshot).map(r => r.id);
+    const missingIds = sortedRows.filter(r => !r.screenshot).map(r => r.id);
     if (missingIds.length > 0) {
       indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Mengunduh gambar BAPP...`;
       try {
@@ -3007,7 +2995,7 @@ function printBAPP(rows) {
         data.forEach(item => {
           const found = allBappUploads.find(x => x.id === item.id);
           if (found) found.screenshot = item.screenshot;
-          const rowItem = rows.find(x => x.id === item.id);
+          const rowItem = sortedRows.find(x => x.id === item.id);
           if (rowItem) rowItem.screenshot = item.screenshot;
         });
       } catch (err) {
@@ -3017,13 +3005,11 @@ function printBAPP(rows) {
         return;
       }
     }
-    // Inisialisasi jsPDF (Landscape A4, unit: mm)
     const pdf = new jsPDF({
       orientation: 'landscape',
       unit: 'mm',
       format: 'a4'
     });
-    // Helper untuk load gambar digital signature local sebagai base64
     const loadImgAsBase64 = (url) => {
       return new Promise((resolve) => {
         const img = new Image();
@@ -3042,29 +3028,25 @@ function printBAPP(rows) {
         };
       });
     };
-    // Muat tanda tangan digital local
     const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
     const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
+    for (let i = 0; i < sortedRows.length; i++) {
+      const r = sortedRows[i];
       indicator.innerHTML = `
         <span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span>
-        Membuat Halaman PDF BAPP (${i + 1}/${rows.length})...
+        Membuat Halaman PDF BAPP (${i + 1}/${sortedRows.length})...
       `;
       if (i > 0) {
         pdf.addPage();
       }
       const nama = r.profiles?.nama || '.........................................';
       const kecamatan = r.wilayah_kec?.nmkec || '.........................................';
-      // 1. Nomor Halaman
       pdf.setFont('times', 'normal');
       pdf.setFontSize(11);
       pdf.text('-4-', 148.5, 12, { align: 'center' });
-      // 2. Judul Bagian
       pdf.setFont('times', 'bold');
       pdf.setFontSize(12);
       pdf.text('II. BUKTI PENCAPAIAN PEKERJAAN KECAMATAN ' + kecamatan.toUpperCase(), 20, 20);
-      // 3. Render Bukti Screenshot (Potong sisi klien menggunakan Canvas)
       if (r.screenshot) {
         await new Promise((resolve) => {
           const img = new Image();
@@ -3083,7 +3065,6 @@ function printBAPP(rows) {
             canvas.height = cropHeight;
             ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
             const croppedBase64 = canvas.toDataURL('image/png');
-            // Hitung lebar gambar agar rasio aspek tetap terjaga dengan tinggi fixed 60mm
             const cropRatio = (origH / origW) * (cropHeightPercent / 100);
             const imgHeight = 60.0;
             const imgWidth = imgHeight / cropRatio;
@@ -3098,7 +3079,6 @@ function printBAPP(rows) {
           };
         });
       } else {
-        // Fallback jika tidak ada gambar
         const imgHeight = 60.0;
         const imgWidth = 80.0;
         const imgX = (297 - imgWidth) / 2;
@@ -3108,36 +3088,27 @@ function printBAPP(rows) {
         pdf.setFontSize(10);
         pdf.text('[Bukti Screenshot Tidak Tersedia]', 148.5, imgY + 30, { align: 'center' });
       }
-      // 4. Area Tanda Tangan
       const sigY = 120.0;
       pdf.setFont('times', 'normal');
       pdf.setFontSize(11);
-      // Kolom Kiri: PIHAK KEDUA
       pdf.text('PIHAK KEDUA,', 70, sigY, { align: 'center' });
-      // Kolom Kanan: PIHAK PERTAMA
       pdf.text('PIHAK PERTAMA,', 227, sigY, { align: 'center' });
-      // Tanda Tangan Yulian (Pihak Pertama)
       if (ttdYulianBase64) {
         const ttdX = 177.5 + (100 - 20) / 2;
         pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 0, 20, 30);
       }
-      // Tanda Tangan PPK Ning Sri Lestari (Lebar 50mm, Tinggi 25mm sesuai instruksi terakhir)
       if (ttdNingBase64) {
         const ttdX = 87 + (100 - 32) / 2;
         pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 38, 50, 25);
       }
-      // Nama Terang Bold & Underlined
       pdf.setFont('times', 'bold');
-      // Kiri: Nama Petugas
       pdf.text(nama, 70, sigY + 25, { align: 'center' });
       const leftWidth = pdf.getTextWidth(nama);
       pdf.setLineWidth(0.3);
       pdf.line(70 - leftWidth / 2, sigY + 26, 70 + leftWidth / 2, sigY + 26);
-      // Kanan: YULIAN SARWO EDI
       pdf.text('YULIAN SARWO EDI', 227, sigY + 25, { align: 'center' });
       const rightWidth = pdf.getTextWidth('YULIAN SARWO EDI');
       pdf.line(227 - rightWidth / 2, sigY + 26, 227 + rightWidth / 2, sigY + 26);
-      // Menyetujui: PPK NING SRI LESTARI (Tengah Bawah)
       pdf.setFont('times', 'normal');
       pdf.text('Menyetujui,', 148.5, sigY + 33, { align: 'center' });
       pdf.text('Pejabat Pembuat Komitmen', 148.5, sigY + 38, { align: 'center' });
@@ -3149,7 +3120,6 @@ function printBAPP(rows) {
     indicator.style.borderColor = '#10b981';
     indicator.style.color = '#10b981';
     indicator.innerHTML = '✓ Berhasil membuat PDF!';
-    // Buka output PDF di tab baru
     const pdfBlobUrl = pdf.output('bloburl');
     window.open(pdfBlobUrl, '_blank');
     setTimeout(() => {
@@ -3182,15 +3152,17 @@ let spTermin1CurrentPage = 1;
 let spTermin1PageSize = 25;
 let spTermin1SortConfig = { key: 'nama', dir: 'asc' };
 let selectedSPTermin1Ids = new Set(); // menyimpan sobatid PML yang dipilih
+
 async function loadSPTermin1Data() {
   const tbody = document.getElementById('spTerm1TableBody');
+  if (!tbody) return;
   tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem"><span class="spinner" style="width:24px;height:24px;border-width:3px"></span><div style="margin-top:0.5rem;color:var(--text-muted)">Memuat data PML...</div></td></tr>';
   try {
     if (!allUsers || allUsers.length === 0) {
       await loadUsers();
     }
     // Fill Kecamatan dropdown
-    const filterSelect = document.getElementById('spTerm1KecamatanFilter');
+    const filterSelect = document.getElementById('spTermin1KecamatanFilter');
     if (filterSelect && filterSelect.options.length <= 1) {
       filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
       const uniqueKec = new Set();
@@ -3202,11 +3174,10 @@ async function loadSPTermin1Data() {
         filterSelect.innerHTML += `<option value="${escHtml(k)}">${escHtml(k)}</option>`;
       });
     }
+
     const pmls = allUsers.filter(u => u.role === 'pml' && u.is_active);
+    const activeGelombang = parseInt(document.getElementById('spTermin1GelombangFilter')?.value || '1');
 
-    const activeGelombang = parseInt(document.getElementById('spTerm1GelombangFilter')?.value || '1');
-
-    // Fetch all PML achievement totals via RPC (updated with total_capaian_g2 support)
     let pmlCapaianMap = {};
     try {
       const { data: capData, error: capErr } = await db.rpc('get_all_pml_capaian');
@@ -3315,7 +3286,8 @@ function filterSPTermin1() {
     if (valA > valB) return spTermin1SortConfig.dir === 'asc' ? 1 : -1;
     return 0;
   });
-  document.getElementById('spTerm1TableCount').textContent = `Total: ${filtered.length} PML`;
+  const countEl = document.getElementById('spTerm1TableCount');
+  if (countEl) countEl.textContent = `Total: ${filtered.length} PML`;
   renderSPTermin1Table(filtered);
 }
 function sortSPTermin1(key) {
@@ -3336,9 +3308,10 @@ function sortSPTermin1(key) {
 function renderSPTermin1Table(data) {
   const tbody = document.getElementById('spTerm1TableBody');
   const pag = document.getElementById('spTerm1Pagination');
+  if (!tbody) return;
   if (data.length === 0) {
     tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data PML</td></tr>';
-    pag.innerHTML = '';
+    if (pag) pag.innerHTML = '';
     return;
   }
   let displayData = data;
@@ -3473,7 +3446,12 @@ function openNoSuratModal(sobatid) {
 function closeNoSuratModal() {
   document.getElementById('noSuratModal').classList.remove('open');
 }
+
 async function saveNoSurat() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengedit nomor surat.', 'warning');
+    return;
+  }
   const sobatid = document.getElementById('noSuratSobatid').value;
   const noSpk = document.getElementById('inputNoSpk').value.trim();
   const noSpTerm1 = document.getElementById('inputNoSpTerm1').value.trim();
@@ -3608,6 +3586,10 @@ async function readNoSuratExcel(file) {
   }
 }
 async function processNoSuratImport() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengupload nomor surat.', 'warning');
+    return;
+  }
   if (!parsedNoSuratExcel || parsedNoSuratExcel.length < 2) return;
   const headers = parsedNoSuratExcel[0];
   const dataRows = parsedNoSuratExcel.slice(1).filter(r => r && r.some(c => c !== null && c !== ''));
@@ -5494,6 +5476,10 @@ function closePplNoSuratModal() {
 }
 
 async function savePplNoSuratAll() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengedit nomor surat.', 'warning');
+    return;
+  }
   const toUpsert = allEligiblePplNoSuratData
     .filter(p => p.is_edited)
     .map(p => ({
@@ -6136,6 +6122,10 @@ function updatePmlNoSuratInMemory(sobatid, field, value) {
 }
 
 async function savePmlNoSuratAll() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengedit nomor surat.', 'warning');
+    return;
+  }
   const editedItems = allEligiblePmlNoSuratData.filter(x => x.is_edited);
   if (editedItems.length === 0) {
     showToast('Tidak ada perubahan nomor surat yang disimpan.', 'info');
