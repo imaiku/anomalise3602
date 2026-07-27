@@ -130,8 +130,13 @@ async function renderSheetBody() {
     html += `<div class="alert alert-info mb-4"><svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg><span>Anda hanya dapat melihat data ini. Akses edit tidak tersedia untuk SLS ini.</span></div>`;
   }
 
-  const kkRows = rows.filter(r => r.tipe === 'keluarga');
-  const usahaRows = rows.filter(r => r.tipe === 'usaha');
+  // Sembunyikan anomali 'tidak_terdeteksi_lagi' di modal untuk non-superadmin
+  const visibleRows = (currentProfile?.role === 'superadmin')
+    ? rows
+    : rows.filter(r => r.status !== 'tidak_terdeteksi_lagi');
+
+  const kkRows = visibleRows.filter(r => r.tipe === 'keluarga');
+  const usahaRows = visibleRows.filter(r => r.tipe === 'usaha');
 
   if (kkRows.length > 0) {
     html += `<div class="anomali-section-title">Anomali Keluarga</div>`;

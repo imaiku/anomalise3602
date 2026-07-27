@@ -705,7 +705,9 @@ BEGIN
         v_target_status := COALESCE(NULLIF(v_rec.tindak_lanjut_status, ''), 'belum_ditindaklanjuti');
 
         IF v_existing_status IN ('sudah_diperbaiki', 'tidak_terdeteksi_lagi') AND v_target_status = 'belum_ditindaklanjuti' THEN
-          -- RE-OPEN
+          -- RE-OPEN: anomali muncul kembali setelah dianggap selesai/hilang.
+          -- Karena ini adalah kemunculan baru, reject lama tidak relevan —
+          -- admin harus mengevaluasi ulang dan me-reject secara eksplisit jika diperlukan.
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
@@ -727,13 +729,16 @@ BEGIN
           v_reopened_count := v_reopened_count + 1;
         ELSE
           -- UPDATE BIASA
+          -- is_rejected dan is_api_synced HANYA di-clear jika anomali benar-benar selesai.
+          -- Jika Excel masih kirim belum_ditindaklanjuti, artinya petugas belum mengerjakan,
+          -- sehingga reject yang sudah ditetapkan admin tetap dipertahankan.
           UPDATE public.assignment_anomali SET
             last_seen = p_tanggal_data,
             batch_id = p_batch_id,
             nama_entitas = COALESCE(NULLIF(v_rec.nama_entitas, ''), nama_entitas),
             status = CASE WHEN v_target_status != 'belum_ditindaklanjuti' THEN v_target_status ELSE status END,
-            is_rejected = CASE WHEN v_target_status = 'belum_ditindaklanjuti' THEN false ELSE is_rejected END,
-            is_api_synced = CASE WHEN v_target_status = 'belum_ditindaklanjuti' THEN false ELSE is_api_synced END,
+            is_rejected = CASE WHEN v_target_status IN ('sudah_diperbaiki', 'sesuai_kondisi') THEN false ELSE is_rejected END,
+            is_api_synced = CASE WHEN v_target_status IN ('sudah_diperbaiki', 'sesuai_kondisi') THEN false ELSE is_api_synced END,
             catatan = COALESCE(NULLIF(v_rec.catatan, ''), catatan),
             updated_at = now()
           WHERE id = v_existing_id;
@@ -787,10 +792,19 @@ BEGIN
     RAISE EXCEPTION 'Unauthorized';
   END IF;
 
-  -- 2. Hapus (DELETE) data lama yang tidak ada di batch upload terbaru
-  WITH deleted_rows AS (
-    DELETE FROM public.assignment_anomali
+  -- 2. Soft-resolve: tandai anomali lama yang tidak muncul di batch terbaru
+  --    sebagai 'tidak_terdeteksi_lagi' tanpa menghapus data secara permanen.
+  --    Hanya proses anomali yang belum dalam status 'tidak_terdeteksi_lagi'
+  --    untuk menghindari update duplikat dan menjaga is_rejected tidak terganggu.
+  WITH resolved_rows AS (
+    UPDATE public.assignment_anomali
+    SET
+      status     = 'tidak_terdeteksi_lagi',
+      batch_id   = p_batch_id,
+      last_seen  = p_tanggal_data,
+      updated_at = now()
     WHERE tipe = p_tipe
+      AND status != 'tidak_terdeteksi_lagi'
       AND (
         -- Kondisi A: Berada di desa yang diupload (pada tipe ini)
         kode_desa = ANY(p_desa_codes)
@@ -805,7 +819,7 @@ BEGIN
       AND batch_id != p_batch_id
     RETURNING id
   )
-  SELECT count(*) INTO v_resolved_count FROM deleted_rows;
+  SELECT count(*) INTO v_resolved_count FROM resolved_rows;
 
   RETURN v_resolved_count;
 END;

@@ -470,6 +470,12 @@ function applyLocalFiltersAndRender() {
     rows = rows.filter(r => r.show_anomaly !== false);
   }
 
+  // Sembunyikan anomali berstatus 'tidak_terdeteksi_lagi' untuk semua role kecuali superadmin.
+  // Superadmin perlu melihatnya untuk keperluan audit dan monitoring kelengkapan data.
+  if (!currentProfile || currentProfile.role !== 'superadmin') {
+    rows = rows.filter(r => r.status !== 'tidak_terdeteksi_lagi');
+  }
+
   // Local Search Filter
   if (search) {
     rows = rows.filter(r => 

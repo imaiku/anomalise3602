@@ -2951,7 +2951,7 @@ function printBAPP(rows) {
     showToast('Tidak ada BAPP yang dipilih', 'error');
     return;
   }
-  
+
   // Sort rows by kode_kec, then by role, then by nama
   const sortedRows = [...rows].sort((a, b) => {
     const kecA = a.kode_kec || '';
@@ -4575,7 +4575,7 @@ function drawJustifiedText(pdf, text, x, y, maxWidth, lineHeight) {
 // Helper: build 3-page SP Termin I for one PML onto existing pdf
 // addedBefore = true means caller already added a new page
 // ---------------------------------------------------------------
-function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) {
+function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, gelombang = 1) {
   const tanggal = new Date().toLocaleDateString("id-ID", {
     year: "numeric",
     month: "long",
@@ -4683,7 +4683,8 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
   // TTD
   //--------------------------------------------------
   const ttdX = 152;
-  pdf.text(`Lebak, 16 Juli 2026`, ttdX, y, { align: "center" });
+  const dateStr = gelombang === 3 ? "Lebak, 31 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
+  pdf.text(dateStr, ttdX, y, { align: "center" });
   pdf.text("Yang membuat pernyataan,", ttdX, y + lh, { align: "center" });
   y += 28;
   pdf.text(`(${(pml.nama || "").toUpperCase()})`, ttdX, y, { align: "center" });
@@ -4719,13 +4720,20 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
     "Presentase (%)"
   ];
 
+  // Helper to pick realisasi according to wave
+  const getRowReal = (row) => {
+    if (gelombang === 2) return parseInt(row.total_capaian1_pml_g2 ?? row.total_capaian1_pml) || 0;
+    if (gelombang === 3) return parseInt(row.total_capaian1_pml_g3 ?? row.total_capaian1_pml_g2 ?? row.total_capaian1_pml) || 0;
+    return parseInt(row.total_capaian1_pml) || 0;
+  };
+
   // Lebar awal berdasarkan judul
   let colW = headers.map(h => pdf.getTextWidth(h) + 8);
 
   // Cek seluruh isi
   rows.forEach((row, i) => {
     const tgt = parseInt(row.total_target) || 0;
-    const real = parseInt(row.total_capaian1_pml) || 0;
+    const real = getRowReal(row);
     const pct = tgt > 0
       ? ((real / tgt) * 100).toFixed(2) + "%"
       : "0.00%";
@@ -4801,7 +4809,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64) 
       tY = drawTableHeader(tY);
     }
     const tgt = parseInt(row.total_target) || 0;
-    const real = parseInt(row.total_capaian1_pml) || 0;
+    const real = getRowReal(row);
     const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) : '0.00';
     totalTgt += tgt;
     totalReal += real;
@@ -5767,7 +5775,7 @@ function buildSuperPPLDocument(pdf, ppl, ttdYulianBase64, gelombang = 1) {
   pdf.setFont("Bookman", "bold");
   pdf.setFontSize(12);
   pdf.text("SURAT PERNYATAAN PENYELESAIAN", 105, 25, { align: "center" });
-  pdf.text("PENDATAAN LAPANGAN SENSUS EKONOMI 2026 TERMIN I", 105, 31, { align: "center" });
+  pdf.text("PETUGAS LAPANGAN SENSUS EKONOMI 2026 TERMIN I", 105, 31, { align: "center" });
 
   pdf.setFont("Bookman", "normal");
   pdf.setFontSize(12);
@@ -5801,8 +5809,8 @@ function buildSuperPPLDocument(pdf, ppl, ttdYulianBase64, gelombang = 1) {
   y += 6;
 
   const poin = [
-    `bahwa telah melaksanakan pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${ppl.no_spk || "....................................."}, dengan target: ${ppl.target} SLS/SubSLS, realisasi: ${ppl.realisasi} SLS/SubSLS, persentase: ${ppl.capaian_pct.toFixed(2)}%, sesuai dengan target pekerjaan termin I;`,
-    `bahwa hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 termin I telah diselesaikan dan diketahui oleh Ketua Tim Pelaksana Sensus Ekonomi 2026 BPS Kabupaten Lebak;`,
+    `bahwa telah melaksanakan pekerjaan Petugas Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Petugas Nomor: ${ppl.no_spk || "....................................."}, sesuai dengan target pekerjaan termin I;`,
+    `bahwa hasil pekerjaan Petugas Lapangan Sensus Ekonomi 2026 termin I yang telah diselesaikan sebanyak ${ppl.realisasi} usaha dan keluarga dengan presentase sebesar ${ppl.capaian_pct.toFixed(2)} persen dari ${ppl.target} usaha dan keluarga target prelist;`,
     `bahwa seluruh hasil pekerjaan termin I adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
     `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
   ];
@@ -5819,31 +5827,32 @@ function buildSuperPPLDocument(pdf, ppl, ttdYulianBase64, gelombang = 1) {
   const penutup = "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
   const penutupLines = pdf.splitTextToSize(penutup, 160);
   drawJustifiedText(pdf, penutup, 25, y, 160, 5);
-  y += penutupLines.length * 5 + 6;
+  y += penutupLines.length + 6;
 
   // Tanda Tangan (di Halaman 1 sesuai permintaan)
-  const ttdY = Math.max(y, 195);
+  const ttdY = y + 15;
   pdf.setFont("Bookman", "normal");
-  pdf.setFontSize(11);
-
-  // Kiri: Ketua Tim Pelaksana
-  pdf.text("Mengetahui,", 25, ttdY);
-  pdf.text("Ketua Tim Pelaksana Sensus Ekonomi 2026", 25, ttdY + 5);
-  pdf.text("Kabupaten Lebak", 25, ttdY + 10);
-
-  if (ttdYulianBase64) {
-    pdf.addImage(ttdYulianBase64, 'PNG', 30, ttdY + 12, 18, 25);
-  }
-
-  pdf.text("YULIAN SARWO EDI", 25, ttdY + 41);
-  pdf.text("NIP. 197707101999121001", 25, ttdY + 46);
+  pdf.setFontSize(12);
 
   // Kanan: Yang membuat pernyataan (Petugas PPL)
-  const ttdX = 145;
-  pdf.text(`Lebak, 16 Juli 2026`, ttdX, ttdY); // default date matching termin 1
-  pdf.text("Yang membuat pernyataan,", ttdX, ttdY + 5);
+  const ttdX = 155;
+  const dateStr = gelombang === 3 ? "Lebak, 31 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
+  pdf.text(dateStr, ttdX, ttdY, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", ttdX, ttdY + 5, { align: "center" });
+  pdf.text((ppl.nama || "").toUpperCase(), ttdX, ttdY + 33, { align: "center" });
 
-  pdf.text((ppl.nama || "").toUpperCase(), ttdX, ttdY + 41);
+  // Kiri: Ketua Tim Pelaksana (digeser ke bawah agar tidak bersinggungan)
+  pdf.text("Mengetahui,", 25, ttdY + 40);
+  pdf.text("Ketua Tim Pelaksana Sensus Ekonomi", 25, ttdY + 45);
+  pdf.text("2026", 25, ttdY + 50);
+  pdf.text("Kabupaten Lebak", 25, ttdY + 55);
+
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', 30, ttdY + 56, 18, 25);
+  }
+
+  pdf.text("YULIAN SARWO EDI", 25, ttdY + 80);
+  pdf.text("NIP. 197707101999121001", 25, ttdY + 85);
 }
 
 // =====================================================
@@ -6284,7 +6293,7 @@ function previewSuperPML(gelombang = 1) {
         if (i > 0) {
           pdf.addPage("a4", "portrait");
         }
-        buildSPTermin1Pages(pdf, pmlList[i], pmlList[i].rekapData, i > 0, ttdYulianBase64);
+        buildSPTermin1Pages(pdf, pmlList[i], pmlList[i].rekapData, i > 0, ttdYulianBase64, gelombang);
       }
 
       indicator.style.borderColor = '#10b981';
@@ -6346,7 +6355,7 @@ function downloadSuperPML(gelombang = 1) {
           pdf.addPage("a4", "portrait");
         }
 
-        buildSPTermin1Pages(pdf, pml, pml.rekapData, i > 0, ttdYulianBase64);
+        buildSPTermin1Pages(pdf, pml, pml.rekapData, i > 0, ttdYulianBase64, gelombang);
       }
 
       indicator.style.borderColor = '#10b981';
