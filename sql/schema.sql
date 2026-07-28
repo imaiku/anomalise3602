@@ -1397,3 +1397,66 @@ END;
 $$ LANGUAGE plpgsql;
 
 GRANT EXECUTE ON FUNCTION public.rollback_upload_batch(uuid) TO anon, authenticated;
+
+-- ============================================================
+-- PETUGAS UB & DOKUMEN UB CONFIG SCHEMA
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.petugas_ub (
+  id          UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  nama        VARCHAR(255) NOT NULL,
+  sobat_id    VARCHAR(50),
+  nik         VARCHAR(20),
+  role        VARCHAR(20) NOT NULL CHECK (role IN ('pml_ub', 'ppl_ub')),
+  pml_id      UUID REFERENCES public.petugas_ub(id) ON DELETE SET NULL,
+  no_spk      VARCHAR(100),
+  no_bapp     VARCHAR(100),
+  no_super    VARCHAR(100),
+  target      INTEGER DEFAULT 0,
+  realisasi   INTEGER DEFAULT 0,
+  screenshot  TEXT,
+  created_at  TIMESTAMPTZ DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Ensure columns exist if table was previously created
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS no_spk VARCHAR(100);
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS no_bapp VARCHAR(100);
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS no_super VARCHAR(100);
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS target INTEGER DEFAULT 0;
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS realisasi INTEGER DEFAULT 0;
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS screenshot TEXT;
+
+ALTER TABLE public.petugas_ub ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "petugas_ub_select_all" ON public.petugas_ub;
+DROP POLICY IF EXISTS "petugas_ub_insert_public" ON public.petugas_ub;
+DROP POLICY IF EXISTS "petugas_ub_update_public" ON public.petugas_ub;
+DROP POLICY IF EXISTS "petugas_ub_delete_public" ON public.petugas_ub;
+
+CREATE POLICY "petugas_ub_select_all" ON public.petugas_ub FOR SELECT USING (true);
+CREATE POLICY "petugas_ub_insert_public" ON public.petugas_ub FOR INSERT WITH CHECK (true);
+CREATE POLICY "petugas_ub_update_public" ON public.petugas_ub FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "petugas_ub_delete_public" ON public.petugas_ub FOR DELETE USING (true);
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS crop_top NUMERIC DEFAULT 12.5;
+ALTER TABLE public.petugas_ub ADD COLUMN IF NOT EXISTS crop_bottom NUMERIC DEFAULT 46.5;
+
+CREATE TABLE IF NOT EXISTS public.dokumen_ub_config (
+  id            SERIAL PRIMARY KEY,
+  nomor_surat_kepala VARCHAR(100),
+  tanggal_surat VARCHAR(50) DEFAULT '31 Juli 2026',
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.dokumen_ub_config ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "dokumen_ub_config_select_all" ON public.dokumen_ub_config;
+DROP POLICY IF EXISTS "dokumen_ub_config_insert_public" ON public.dokumen_ub_config;
+DROP POLICY IF EXISTS "dokumen_ub_config_update_public" ON public.dokumen_ub_config;
+
+CREATE POLICY "dokumen_ub_config_select_all" ON public.dokumen_ub_config FOR SELECT USING (true);
+CREATE POLICY "dokumen_ub_config_insert_public" ON public.dokumen_ub_config FOR INSERT WITH CHECK (true);
+CREATE POLICY "dokumen_ub_config_update_public" ON public.dokumen_ub_config FOR UPDATE USING (true) WITH CHECK (true);
+
+
+

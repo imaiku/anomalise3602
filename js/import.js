@@ -435,8 +435,12 @@ function generateWilayahTemplate() {
 // =============================================
 const EXPECTED_CAPAIAN_COLS = [
   'Kode SLS', 'Target',
-  'Capaian PPL T1 G1', 'Capaian PPL T1 G2', 'Capaian PPL T2 G1', 'Capaian PPL T2 G2',
-  'Capaian PML T1 G1', 'Capaian PML T1 G2', 'Capaian PML T2 G1', 'Capaian PML T2 G2'
+  'PMLT1G1', 'PPLT1G1',
+  'PMLT1G2', 'PPLT1G2',
+  'PMLT1G3', 'PPLT1G3',
+  'PMLT1G4', 'PPLT1G4',
+  'PMLT2G1', 'PPLT2G1',
+  'PMLT2G2', 'PPLT2G2'
 ];
 let parsedCapaianData = null;
 let missingCapaianSlsCount = 0;
@@ -446,9 +450,9 @@ function generateCapaianTemplate() {
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.aoa_to_sheet([
     EXPECTED_CAPAIAN_COLS,
-    ['3602070001001900', 50, 45, 0, 0, 0, 42, 0, 0, 0]
+    ['3602070001001900', 50, 42, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
   ]);
-  ws['!cols'] = EXPECTED_CAPAIAN_COLS.map(h => ({ wch: Math.max(h.length + 2, 18) }));
+  ws['!cols'] = EXPECTED_CAPAIAN_COLS.map(h => ({ wch: Math.max(h.length + 2, 14) }));
   XLSX.utils.book_append_sheet(wb, ws, 'Capaian SLS');
   XLSX.writeFile(wb, 'template_capaian_sls.xlsx');
 }
@@ -511,7 +515,7 @@ async function processCapaianFile(file) {
       for (let i = 0; i < slsCodesToCheck.length; i += dbChunkSize) {
         const chunk = slsCodesToCheck.slice(i, i + dbChunkSize);
         const { data, error } = await db.from('capaian')
-          .select('kode_sls_gabungan, capaian1, capaian1_g2, capaian2, capaian2_g2, capaian1_pml, capaian1_pml_g2, capaian2_pml, capaian2_pml_g2')
+          .select('kode_sls_gabungan, capaian1, capaian1_g2, capaian1_g3, capaian1_g4, capaian2, capaian2_g2, capaian1_pml, capaian1_pml_g2, capaian1_pml_g3, capaian1_pml_g4, capaian2_pml, capaian2_pml_g2')
           .in('kode_sls_gabungan', chunk);
         if (error) throw error;
         if (data) existingCapaian = existingCapaian.concat(data);
@@ -532,20 +536,63 @@ async function processCapaianFile(file) {
       const checks = [
         { label: 'PPL T1 G1', key: 'ppl1_g1', dbKey: 'capaian1' },
         { label: 'PPL T1 G2', key: 'ppl1_g2', dbKey: 'capaian1_g2' },
+        { label: 'PPL T1 G3', key: 'ppl1_g3', dbKey: 'capaian1_g3' },
+        { label: 'PPL T1 G4', key: 'ppl1_g4', dbKey: 'capaian1_g4' },
         { label: 'PPL T2 G1', key: 'ppl2_g1', dbKey: 'capaian2' },
         { label: 'PPL T2 G2', key: 'ppl2_g2', dbKey: 'capaian2_g2' },
         { label: 'PML T1 G1', key: 'pml1_g1', dbKey: 'capaian1_pml' },
         { label: 'PML T1 G2', key: 'pml1_g2', dbKey: 'capaian1_pml_g2' },
+        { label: 'PML T1 G3', key: 'pml1_g3', dbKey: 'capaian1_pml_g3' },
+        { label: 'PML T1 G4', key: 'pml1_g4', dbKey: 'capaian1_pml_g4' },
         { label: 'PML T2 G1', key: 'pml2_g1', dbKey: 'capaian2_pml' },
         { label: 'PML T2 G2', key: 'pml2_g2', dbKey: 'capaian2_pml_g2' }
       ];
 
       const diffs = [];
+
+      // 1. Cek penurunan dibandingkan data di Database
       checks.forEach(check => {
         const uploadVal = c[check.key];
-        const dbNumber = dbVal[check.dbKey] !== null ? parseInt(dbVal[check.dbKey]) : 0;
+        const dbNumber = dbVal[check.dbKey] !== null && dbVal[check.dbKey] !== undefined ? parseInt(dbVal[check.dbKey]) : 0;
         if (uploadVal !== undefined && uploadVal < dbNumber) {
-          diffs.push(`${check.label}: ${dbNumber} → ${uploadVal}`);
+          diffs.push(`${check.label} (vs DB): ${dbNumber} → ${uploadVal}`);
+        }
+      });
+
+      // 2. Cek akumulasi progres antargelombang (hanya untuk gelombang yang ada di file Excel yang sedang diunggah)
+      const waveSequences = [
+        // PPL T1
+        [
+          { label: 'PPL T1 G1', key: 'ppl1_g1', dbKey: 'capaian1' },
+          { label: 'PPL T1 G2', key: 'ppl1_g2', dbKey: 'capaian1_g2' },
+          { label: 'PPL T1 G3', key: 'ppl1_g3', dbKey: 'capaian1_g3' },
+          { label: 'PPL T1 G4', key: 'ppl1_g4', dbKey: 'capaian1_g4' }
+        ],
+        // PML T1
+        [
+          { label: 'PML T1 G1', key: 'pml1_g1', dbKey: 'capaian1_pml' },
+          { label: 'PML T1 G2', key: 'pml1_g2', dbKey: 'capaian1_pml_g2' },
+          { label: 'PML T1 G3', key: 'pml1_g3', dbKey: 'capaian1_pml_g3' },
+          { label: 'PML T1 G4', key: 'pml1_g4', dbKey: 'capaian1_pml_g4' }
+        ]
+      ];
+
+      waveSequences.forEach(seq => {
+        for (let i = 1; i < seq.length; i++) {
+          const prevStep = seq[i - 1];
+          const currStep = seq[i];
+
+          // Hanya bandingkan akumulasi jika kolom gelombang saat ini (currStep) ada di file Excel yang diunggah
+          if (c[currStep.key] === undefined) continue;
+
+          const currVal = c[currStep.key];
+          const prevVal = c[prevStep.key] !== undefined 
+            ? c[prevStep.key] 
+            : (dbVal[prevStep.dbKey] !== null && dbVal[prevStep.dbKey] !== undefined ? parseInt(dbVal[prevStep.dbKey]) : 0);
+
+          if (currVal < prevVal) {
+            diffs.push(`${currStep.label} (${currVal}) < ${prevStep.label} (${prevVal})`);
+          }
         }
       });
 
@@ -595,24 +642,49 @@ async function processCapaianFile(file) {
     }
 
     document.getElementById('importCapaianCount').textContent = `${parsedCapaianData.length} baris data valid siap diimpor`;
+    
+    // Define all candidate columns
+    const candidateCols = [
+      { id: 'pml1_g1', label: 'PMLT1G1' },
+      { id: 'ppl1_g1', label: 'PPLT1G1' },
+      { id: 'pml1_g2', label: 'PMLT1G2' },
+      { id: 'ppl1_g2', label: 'PPLT1G2' },
+      { id: 'pml1_g3', label: 'PMLT1G3' },
+      { id: 'ppl1_g3', label: 'PPLT1G3' },
+      { id: 'pml1_g4', label: 'PMLT1G4' },
+      { id: 'ppl1_g4', label: 'PPLT1G4' },
+      { id: 'pml2_g1', label: 'PMLT2G1' },
+      { id: 'ppl2_g1', label: 'PPLT2G1' },
+      { id: 'pml2_g2', label: 'PMLT2G2' },
+      { id: 'ppl2_g2', label: 'PPLT2G2' }
+    ];
+
+    // Filter columns: include only if at least one row has non-undefined value
+    const activeCols = candidateCols.filter(col => 
+      parsedCapaianData.some(s => s[col.id] !== undefined)
+    );
+
+    // Update table header in HTML dynamically
+    const tableHeader = document.querySelector('#importCapaianPreviewArea table thead tr');
+    if (tableHeader) {
+      tableHeader.innerHTML = `
+        <th>Kode SLS</th>
+        <th>Target (Wilayah)</th>
+        ${activeCols.map(c => `<th>${c.label}</th>`).join('')}
+      `;
+    }
+
     const tbody = document.getElementById('importCapaianTableBody');
     const fmt = (v) => v !== undefined ? v : '—';
     tbody.innerHTML = parsedCapaianData.slice(0, 50).map(s => `
       <tr>
         <td class="mono">${escHtml(s.kode_sls)}</td>
         <td>${fmt(s.target)}</td>
-        <td>${fmt(s.ppl1_g1)}</td>
-        <td>${fmt(s.ppl1_g2)}</td>
-        <td>${fmt(s.ppl2_g1)}</td>
-        <td>${fmt(s.ppl2_g2)}</td>
-        <td>${fmt(s.pml1_g1)}</td>
-        <td>${fmt(s.pml1_g2)}</td>
-        <td>${fmt(s.pml2_g1)}</td>
-        <td>${fmt(s.pml2_g2)}</td>
+        ${activeCols.map(c => `<td>${fmt(s[c.id])}</td>`).join('')}
       </tr>
     `).join('') +
       (parsedCapaianData.length > 50
-        ? `<tr><td colspan="10" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
+        ? `<tr><td colspan="${2 + activeCols.length}" style="text-align:center;color:var(--text-muted)">...dan ${parsedCapaianData.length - 50} baris lainnya...</td></tr>`
         : '');
 
     document.getElementById('importCapaianPreviewArea')?.classList.remove('hidden');
@@ -634,10 +706,14 @@ function validateCapaianExcel(rows) {
     target: -1,
     ppl1_g1: -1,
     ppl1_g2: -1,
+    ppl1_g3: -1,
+    ppl1_g4: -1,
     ppl2_g1: -1,
     ppl2_g2: -1,
     pml1_g1: -1,
     pml1_g2: -1,
+    pml1_g3: -1,
+    pml1_g4: -1,
     pml2_g1: -1,
     pml2_g2: -1
   };
@@ -645,14 +721,18 @@ function validateCapaianExcel(rows) {
   headers.forEach((h, idx) => {
     if (h.includes('sls') || h.includes('sls_gabungan')) mapIdx.sls = idx;
     else if (h.includes('target')) mapIdx.target = idx;
-    else if (h.includes('ppl t1 g2') || h.includes('ppl 1 g2') || h.includes('capaian1_g2') || h.includes('ppl g2') || h.includes('ppl gelombang 2')) mapIdx.ppl1_g2 = idx;
-    else if (h.includes('ppl t1 g1') || h.includes('ppl 1 g1') || h.includes('capaian1') || h.includes('ppl t1') || h.includes('ppl 1')) mapIdx.ppl1_g1 = idx;
-    else if (h.includes('ppl t2 g2') || h.includes('ppl 2 g2') || h.includes('capaian2_g2')) mapIdx.ppl2_g2 = idx;
-    else if (h.includes('ppl t2 g1') || h.includes('ppl 2 g1') || h.includes('capaian2') || h.includes('ppl t2') || h.includes('ppl 2')) mapIdx.ppl2_g1 = idx;
-    else if (h.includes('pml t1 g2') || h.includes('pml 1 g2') || h.includes('capaian1_pml_g2') || h.includes('pml g2') || h.includes('pml gelombang 2')) mapIdx.pml1_g2 = idx;
-    else if (h.includes('pml t1 g1') || h.includes('pml 1 g1') || h.includes('capaian1_pml') || h.includes('pml t1') || h.includes('pml 1')) mapIdx.pml1_g1 = idx;
-    else if (h.includes('pml t2 g2') || h.includes('pml 2 g2') || h.includes('capaian2_pml_g2')) mapIdx.pml2_g2 = idx;
-    else if (h.includes('pml t2 g1') || h.includes('pml 2 g1') || h.includes('capaian2_pml') || h.includes('pml t2') || h.includes('pml 2')) mapIdx.pml2_g1 = idx;
+    else if (h.includes('pplt1g4') || h.includes('ppl t1 g4') || h.includes('ppl 1 g4') || h.includes('capaian1_g4') || h.includes('ppl gelombang 4') || h.includes('ppl g4') || h.includes('capaian 4') || h.includes('capaian4') || h.includes('capaian g4')) mapIdx.ppl1_g4 = idx;
+    else if (h.includes('pplt1g3') || h.includes('ppl t1 g3') || h.includes('ppl 1 g3') || h.includes('capaian1_g3') || h.includes('capaian3') || h.includes('ppl gelombang 3') || h.includes('ppl g3') || h.includes('capaian 3') || h.includes('capaian g3') || h.includes('ppl 3') || h.includes('capaian ppl 3')) mapIdx.ppl1_g3 = idx;
+    else if (h.includes('pplt1g2') || h.includes('ppl t1 g2') || h.includes('ppl 1 g2') || h.includes('capaian1_g2') || h.includes('ppl g2') || h.includes('ppl gelombang 2') || h.includes('capaian 2') || h.includes('capaian2') || h.includes('capaian g2')) mapIdx.ppl1_g2 = idx;
+    else if (h.includes('pplt1g1') || h.includes('ppl t1 g1') || h.includes('ppl 1 g1') || h.includes('capaian1') || h.includes('ppl t1') || h.includes('ppl 1') || h.includes('ppl g1') || h.includes('capaian 1') || h.includes('capaian g1')) mapIdx.ppl1_g1 = idx;
+    else if (h.includes('pplt2g2') || h.includes('ppl t2 g2') || h.includes('ppl 2 g2') || h.includes('capaian2_g2')) mapIdx.ppl2_g2 = idx;
+    else if (h.includes('pplt2g1') || h.includes('ppl t2 g1') || h.includes('ppl 2 g1') || h.includes('capaian2') || h.includes('ppl t2') || h.includes('ppl 2')) mapIdx.ppl2_g1 = idx;
+    else if (h.includes('pmlt1g4') || h.includes('pml t1 g4') || h.includes('pml 1 g4') || h.includes('capaian1_pml_g4') || h.includes('pml gelombang 4') || h.includes('pml g4') || h.includes('capaian pml g4')) mapIdx.pml1_g4 = idx;
+    else if (h.includes('pmlt1g3') || h.includes('pml t1 g3') || h.includes('pml 1 g3') || h.includes('capaian1_pml_g3') || h.includes('capaian3_pml') || h.includes('pml gelombang 3') || h.includes('pml g3') || h.includes('capaian 3 pml') || h.includes('capaian pml 3') || h.includes('capaian pml g3') || h.includes('pml 3')) mapIdx.pml1_g3 = idx;
+    else if (h.includes('pmlt1g2') || h.includes('pml t1 g2') || h.includes('pml 1 g2') || h.includes('capaian1_pml_g2') || h.includes('pml g2') || h.includes('pml gelombang 2') || h.includes('capaian pml g2')) mapIdx.pml1_g2 = idx;
+    else if (h.includes('pmlt1g1') || h.includes('pml t1 g1') || h.includes('pml 1 g1') || h.includes('capaian1_pml') || h.includes('pml t1') || h.includes('pml 1') || h.includes('pml g1') || h.includes('capaian pml g1')) mapIdx.pml1_g1 = idx;
+    else if (h.includes('pmlt2g2') || h.includes('pml t2 g2') || h.includes('pml 2 g2') || h.includes('capaian2_pml_g2')) mapIdx.pml2_g2 = idx;
+    else if (h.includes('pmlt2g1') || h.includes('pml t2 g1') || h.includes('pml 2 g1') || h.includes('capaian2_pml') || h.includes('pml t2') || h.includes('pml 2')) mapIdx.pml2_g1 = idx;
   });
 
   if (mapIdx.sls === -1) {
@@ -676,14 +756,18 @@ function validateCapaianExcel(rows) {
     const target = mapIdx.target !== -1 ? parseInt(row[mapIdx.target]) || 0 : undefined;
     const ppl1_g1 = mapIdx.ppl1_g1 !== -1 ? parseInt(row[mapIdx.ppl1_g1]) || 0 : undefined;
     const ppl1_g2 = mapIdx.ppl1_g2 !== -1 ? parseInt(row[mapIdx.ppl1_g2]) || 0 : undefined;
+    const ppl1_g3 = mapIdx.ppl1_g3 !== -1 ? parseInt(row[mapIdx.ppl1_g3]) || 0 : undefined;
+    const ppl1_g4 = mapIdx.ppl1_g4 !== -1 ? parseInt(row[mapIdx.ppl1_g4]) || 0 : undefined;
     const ppl2_g1 = mapIdx.ppl2_g1 !== -1 ? parseInt(row[mapIdx.ppl2_g1]) || 0 : undefined;
     const ppl2_g2 = mapIdx.ppl2_g2 !== -1 ? parseInt(row[mapIdx.ppl2_g2]) || 0 : undefined;
     const pml1_g1 = mapIdx.pml1_g1 !== -1 ? parseInt(row[mapIdx.pml1_g1]) || 0 : undefined;
     const pml1_g2 = mapIdx.pml1_g2 !== -1 ? parseInt(row[mapIdx.pml1_g2]) || 0 : undefined;
+    const pml1_g3 = mapIdx.pml1_g3 !== -1 ? parseInt(row[mapIdx.pml1_g3]) || 0 : undefined;
+    const pml1_g4 = mapIdx.pml1_g4 !== -1 ? parseInt(row[mapIdx.pml1_g4]) || 0 : undefined;
     const pml2_g1 = mapIdx.pml2_g1 !== -1 ? parseInt(row[mapIdx.pml2_g1]) || 0 : undefined;
     const pml2_g2 = mapIdx.pml2_g2 !== -1 ? parseInt(row[mapIdx.pml2_g2]) || 0 : undefined;
 
-    uniqueRows.set(rawSls, { kode_sls: rawSls, target, ppl1_g1, ppl1_g2, ppl2_g1, ppl2_g2, pml1_g1, pml1_g2, pml2_g1, pml2_g2 });
+    uniqueRows.set(rawSls, { kode_sls: rawSls, target, ppl1_g1, ppl1_g2, ppl1_g3, ppl1_g4, ppl2_g1, ppl2_g2, pml1_g1, pml1_g2, pml1_g3, pml1_g4, pml2_g1, pml2_g2 });
   }
 
   if (rowErrors.length > 0) return { valid: false, errors: rowErrors };
@@ -746,10 +830,14 @@ async function processCapaianImport() {
         };
         if (c.ppl1_g1 !== undefined) item.capaian1 = c.ppl1_g1;
         if (c.ppl1_g2 !== undefined) item.capaian1_g2 = c.ppl1_g2;
+        if (c.ppl1_g3 !== undefined) item.capaian1_g3 = c.ppl1_g3;
+        if (c.ppl1_g4 !== undefined) item.capaian1_g4 = c.ppl1_g4;
         if (c.ppl2_g1 !== undefined) item.capaian2 = c.ppl2_g1;
         if (c.ppl2_g2 !== undefined) item.capaian2_g2 = c.ppl2_g2;
         if (c.pml1_g1 !== undefined) item.capaian1_pml = c.pml1_g1;
         if (c.pml1_g2 !== undefined) item.capaian1_pml_g2 = c.pml1_g2;
+        if (c.pml1_g3 !== undefined) item.capaian1_pml_g3 = c.pml1_g3;
+        if (c.pml1_g4 !== undefined) item.capaian1_pml_g4 = c.pml1_g4;
         if (c.pml2_g1 !== undefined) item.capaian2_pml = c.pml2_g1;
         if (c.pml2_g2 !== undefined) item.capaian2_pml_g2 = c.pml2_g2;
         return item;
@@ -762,6 +850,11 @@ async function processCapaianImport() {
     }
 
     showToast(`Impor capaian selesai! Berhasil memperbarui ${successCount} data SLS.`, 'success');
+
+    // Reset BAPP & eligibility cache
+    if (typeof isBappEligibilityLoaded !== 'undefined') {
+      isBappEligibilityLoaded = false;
+    }
 
     // Reset UI
     setZoneFile('zoneCapaian', 'capaianImportLabel', null, false);

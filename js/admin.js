@@ -1335,6 +1335,7 @@ async function generateCapaianReportData(gelombang = 1) {
       holdSet.add(`${h.user_id}:1`);
       holdSet.add(`${h.user_id}:2`);
       holdSet.add(`${h.user_id}:3`);
+      holdSet.add(`${h.user_id}:4`);
     } else {
       holdSet.add(`${h.user_id}:${h.gelombang}`);
     }
@@ -1351,10 +1352,12 @@ async function generateCapaianReportData(gelombang = 1) {
   const realisasiMapG1 = {};
   const realisasiMapG2 = {};
   const realisasiMapG3 = {};
+  const realisasiMapG4 = {};
   achievements.forEach(a => {
     realisasiMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
     realisasiMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
-    realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
+    realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || 0) || 0;
+    realisasiMapG4[a.kode_sls_gabungan] = parseInt(a.capaian1_g4) || 0;
   });
 
   // Map profile by id for quick lookup
@@ -1404,6 +1407,7 @@ async function generateCapaianReportData(gelombang = 1) {
     let map = realisasiMapG1;
     if (gel === 2) map = realisasiMapG2;
     if (gel === 3) map = realisasiMapG3;
+    if (gel === 4) map = realisasiMapG4;
 
     slsCodes.forEach(code => {
       pplTargetSum += targetMap[code] || 0;
@@ -1429,18 +1433,25 @@ async function generateCapaianReportData(gelombang = 1) {
 
     const slsCodes = userSlsMap[pplId] || [];
     const gStatus = getPplStatus(pplId, gelombang);
+    const gStatusG1 = getPplStatus(pplId, 1);
+    const gStatusG2 = getPplStatus(pplId, 2);
+    const gStatusG3 = getPplStatus(pplId, 3);
 
     // Filtering rules for LK Beban Kerja:
-    // Gelombang 2: ONLY include if G2 eligible
-    if (gelombang === 2 && !gStatus.eligible) {
+    // Gelombang 2: ONLY include if G2 eligible and NOT G1 eligible
+    if (gelombang === 2 && (!gStatusG2.eligible || gStatusG1.eligible)) {
       return { targetSum: 0, realisasiSum: 0, skipped: true };
     }
-    // Gelombang 3: ONLY include if G3 eligible
-    if (gelombang === 3 && !gStatus.eligible) {
+    // Gelombang 3: ONLY include if G3 eligible and NOT G1/G2 eligible
+    if (gelombang === 3 && (!gStatusG3.eligible || gStatusG1.eligible || gStatusG2.eligible)) {
+      return { targetSum: 0, realisasiSum: 0, skipped: true };
+    }
+    // Gelombang 4: ONLY include if G4 eligible and NOT G1/G2/G3 eligible
+    if (gelombang === 4 && (!gStatus.eligible || gStatusG1.eligible || gStatusG2.eligible || gStatusG3.eligible)) {
       return { targetSum: 0, realisasiSum: 0, skipped: true };
     }
 
-    const isNotEligibleG1 = (gelombang === 1 && !gStatus.eligible);
+    const isNotEligibleG1 = (gelombang === 1 && !gStatusG1.eligible);
 
     let pplTargetSum = 0;
     let pplRealisasiSum = 0;
@@ -1449,6 +1460,7 @@ async function generateCapaianReportData(gelombang = 1) {
     let currentRealisasiMap = realisasiMapG1;
     if (gelombang === 2) currentRealisasiMap = realisasiMapG2;
     if (gelombang === 3) currentRealisasiMap = realisasiMapG3;
+    if (gelombang === 4) currentRealisasiMap = realisasiMapG4;
 
     const sortedSls = [...slsCodes].sort();
 
@@ -1927,13 +1939,14 @@ let bappSortDir = 'asc';
 let bappEligibilityMap = {
   1: new Set(),
   2: new Set(),
-  3: new Set()
+  3: new Set(),
+  4: new Set()
 };
 let isBappEligibilityLoaded = false;
 
 // Fungsi untuk memuat dan menghitung kelayakan (eligibility) PPL & PML untuk tiap gelombang
-async function loadBappEligibilityData() {
-  if (isBappEligibilityLoaded) return;
+async function loadBappEligibilityData(force = false) {
+  if (isBappEligibilityLoaded && !force) return;
   try {
     // 1. Ambil relasi pml_ppl
     let relations = [];
@@ -2018,9 +2031,11 @@ async function loadBappEligibilityData() {
     const holdSet = new Set();
     holdsRaw.forEach(h => {
       if (h.gelombang === null || h.gelombang === undefined) {
+        // Hold berlaku untuk semua gelombang
         holdSet.add(`${h.user_id}:1`);
         holdSet.add(`${h.user_id}:2`);
         holdSet.add(`${h.user_id}:3`);
+        holdSet.add(`${h.user_id}:4`);
       } else {
         holdSet.add(`${h.user_id}:${h.gelombang}`);
       }
@@ -2037,16 +2052,20 @@ async function loadBappEligibilityData() {
     const realisasiMapG1 = {};
     const realisasiMapG2 = {};
     const realisasiMapG3 = {};
+    const realisasiMapG4 = {};
     const realisasiPmlMapG1 = {};
     const realisasiPmlMapG2 = {};
     const realisasiPmlMapG3 = {};
+    const realisasiPmlMapG4 = {};
     achievements.forEach(a => {
       realisasiMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
       realisasiMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
-      realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
+      realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || 0) || 0;
+      realisasiMapG4[a.kode_sls_gabungan] = parseInt(a.capaian1_g4) || 0;
       realisasiPmlMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1_pml) || 0;
       realisasiPmlMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g2) || 0;
-      realisasiPmlMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || a.capaian3_pml || 0) || 0;
+      realisasiPmlMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || 0) || 0;
+      realisasiPmlMapG4[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g4) || 0;
     });
 
     // Map user_sls by user_id
@@ -2072,6 +2091,7 @@ async function loadBappEligibilityData() {
       let map = realisasiMapG1;
       if (gel === 2) map = realisasiMapG2;
       if (gel === 3) map = realisasiMapG3;
+      if (gel === 4) map = realisasiMapG4;
 
       slsCodes.forEach(code => {
         pplTargetSum += targetMap[code] || 0;
@@ -2086,16 +2106,44 @@ async function loadBappEligibilityData() {
       return { ...base, onHold: false };
     };
 
+    // Fetch active profiles if allUsers array is not yet loaded
+    let userProfiles = (allUsers && allUsers.length > 0) ? allUsers : [];
+    if (userProfiles.length === 0) {
+      let fromProf = 0;
+      let hasMoreProf = true;
+      while (hasMoreProf) {
+        const { data, error } = await db.from('profiles')
+          .select('id, sobatid, nama, email_ref, role')
+          .in('role', ['ppl', 'pml'])
+          .eq('is_active', true)
+          .range(fromProf, fromProf + 999);
+        if (error) throw error;
+        if (!data || data.length === 0) hasMoreProf = false;
+        else {
+          userProfiles = userProfiles.concat(data);
+          if (data.length < 1000) hasMoreProf = false;
+          else fromProf += 1000;
+        }
+      }
+    }
+
+    // Reset and clear existing bappEligibilityMap sets before re-calculating
+    [1, 2, 3, 4].forEach(g => {
+      if (!bappEligibilityMap[g]) bappEligibilityMap[g] = new Set();
+      else bappEligibilityMap[g].clear();
+    });
+
     // Calculate eligibility for PPLs and PMLs exclusively per wave
-    [1, 2, 3].forEach(gel => {
+    [1, 2, 3, 4].forEach(gel => {
       const eligibleSet = bappEligibilityMap[gel];
 
       // Calculate PPLs
-      allUsers.forEach(u => {
+      userProfiles.forEach(u => {
         if (u.role === 'ppl') {
           const status1 = getPplStatus(u.id, 1);
           const status2 = getPplStatus(u.id, 2);
           const status3 = getPplStatus(u.id, 3);
+          const status4 = getPplStatus(u.id, 4);
 
           if (gel === 1 && status1.eligible) {
             eligibleSet.add(u.id);
@@ -2103,12 +2151,14 @@ async function loadBappEligibilityData() {
             eligibleSet.add(u.id);
           } else if (gel === 3 && status3.eligible && !status1.eligible && !status2.eligible) {
             eligibleSet.add(u.id);
+          } else if (gel === 4 && status4.eligible && !status1.eligible && !status2.eligible && !status3.eligible) {
+            eligibleSet.add(u.id);
           }
         }
       });
 
       // Calculate PMLs
-      allUsers.forEach(u => {
+      userProfiles.forEach(u => {
         if (u.role === 'pml') {
           const supervised = pmlToPpl[u.id];
           const getPmlGelEligibility = (g) => {
@@ -2119,35 +2169,42 @@ async function loadBappEligibilityData() {
             let map = realisasiPmlMapG1;
             if (g === 2) map = realisasiPmlMapG2;
             if (g === 3) map = realisasiPmlMapG3;
+            if (g === 4) map = realisasiPmlMapG4;
 
+            const allSlsSet = new Set(userSlsMap[u.id] || []);
             if (supervised) {
               supervised.forEach(pplId => {
                 const slsCodes = userSlsMap[pplId] || [];
-                slsCodes.forEach(code => {
-                  totalPmlSls++;
-                  pmlTargetSum += targetMap[code] || 0;
-                  const real = map[code] || 0;
-                  pmlRealisasiSum += real;
-                  if (real > 0) visitedPml++;
-                });
+                slsCodes.forEach(code => allSlsSet.add(code));
               });
             }
 
+            allSlsSet.forEach(code => {
+              totalPmlSls++;
+              pmlTargetSum += targetMap[code] || 0;
+              const real = map[code] || 0;
+              pmlRealisasiSum += real;
+              if (real > 0) visitedPml++;
+            });
+
             const pct = pmlTargetSum > 0 ? (pmlRealisasiSum / pmlTargetSum) : 0;
-            const coverage = totalPmlSls > 0 ? (visitedPml / totalPmlSls) : 0;
-            const eligible = (pct >= 0.4) && (coverage >= 0.4);
+            const minCoverage = Math.ceil(totalPmlSls * 0.4);
+            const eligible = (pct >= 0.4) && (visitedPml >= minCoverage);
             return eligible && !isOnHold(u.id, g);
           };
 
           const pmlG1 = getPmlGelEligibility(1);
           const pmlG2 = getPmlGelEligibility(2);
           const pmlG3 = getPmlGelEligibility(3);
+          const pmlG4 = getPmlGelEligibility(4);
 
           if (gel === 1 && pmlG1) {
             eligibleSet.add(u.id);
           } else if (gel === 2 && pmlG2 && !pmlG1) {
             eligibleSet.add(u.id);
           } else if (gel === 3 && pmlG3 && !pmlG1 && !pmlG2) {
+            eligibleSet.add(u.id);
+          } else if (gel === 4 && pmlG4 && !pmlG1 && !pmlG2 && !pmlG3) {
             eligibleSet.add(u.id);
           }
         }
@@ -3187,7 +3244,9 @@ async function loadSPTermin1Data() {
             pmlCapaianMap[c.pml_id] = {
               target: parseInt(c.total_target) || 0,
               capaian: parseInt(c.total_capaian) || 0,
-              capaian_g2: parseInt(c.total_capaian_g2) || 0
+              capaian_g2: parseInt(c.total_capaian_g2) || 0,
+              capaian_g3: parseInt(c.total_capaian_g3) || 0,
+              capaian_g4: parseInt(c.total_capaian_g4) || 0
             };
           }
         });
@@ -3231,14 +3290,19 @@ async function loadSPTermin1Data() {
 
     allPMLData = pmls.map(p => {
       const key = String(p.sobatid || '').trim();
-      const capInfo = pmlCapaianMap[p.id] || { target: 0, capaian: 0, capaian_g2: 0 };
+      const capInfo = pmlCapaianMap[p.id] || { target: 0, capaian: 0, capaian_g2: 0, capaian_g3: 0, capaian_g4: 0 };
 
-      const realisasi = activeGelombang === 1 ? capInfo.capaian : capInfo.capaian_g2;
+      let realisasi = capInfo.capaian;
+      if (activeGelombang === 2) realisasi = capInfo.capaian_g2;
+      else if (activeGelombang === 3) realisasi = capInfo.capaian_g3;
+      else if (activeGelombang === 4) realisasi = capInfo.capaian_g4;
       const pctVal = capInfo.target > 0 ? (realisasi / capInfo.target) * 100 : 0;
       const pct = pctVal.toFixed(2) + '%';
 
-      // Check G1 status for filtering in G2
+      // Check eligibility per wave for proper filtering
       const g1Status = checkPMLEligibility(capInfo.capaian, capInfo.target);
+      const g2Status = checkPMLEligibility(capInfo.capaian_g2, capInfo.target);
+      const g3Status = checkPMLEligibility(capInfo.capaian_g3, capInfo.target);
 
       return {
         ...p,
@@ -3249,13 +3313,19 @@ async function loadSPTermin1Data() {
         total_capaian: realisasi,
         capaian_pct: pctVal,
         capaian_label: `${realisasi}/${capInfo.target} (${pct})`,
-        g1_eligible: g1Status.eligible
+        g1_eligible: g1Status.eligible,
+        g2_eligible: g2Status.eligible,
+        g3_eligible: g3Status.eligible
       };
     });
 
-    // If Gelombang 2 is active, filter only PMLs who failed G1 (did not reach 40%)
+    // Filter mutually exclusive per gelombang
     if (activeGelombang === 2) {
       allPMLData = allPMLData.filter(p => !p.g1_eligible);
+    } else if (activeGelombang === 3) {
+      allPMLData = allPMLData.filter(p => !p.g1_eligible && !p.g2_eligible);
+    } else if (activeGelombang === 4) {
+      allPMLData = allPMLData.filter(p => !p.g1_eligible && !p.g2_eligible && !p.g3_eligible);
     }
 
     filterSPTermin1();
@@ -3922,6 +3992,7 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       holdSetSE.add(`${h.user_id}:1`);
       holdSetSE.add(`${h.user_id}:2`);
       holdSetSE.add(`${h.user_id}:3`);
+      holdSetSE.add(`${h.user_id}:4`);
     } else {
       holdSetSE.add(`${h.user_id}:${h.gelombang}`);
     }
@@ -3940,14 +4011,18 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
   const capaianPmlG2Map = {};
   const capaianPplG3Map = {};
   const capaianPmlG3Map = {};
+  const capaianPplG4Map = {};
+  const capaianPmlG4Map = {};
 
   achievements.forEach(a => {
     capaianPplG1Map[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
     capaianPmlG1Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml) || 0;
     capaianPplG2Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
     capaianPmlG2Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g2) || 0;
-    capaianPplG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
-    capaianPmlG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || a.capaian3_pml || 0) || 0;
+    capaianPplG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || 0) || 0;
+    capaianPmlG3Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || 0) || 0;
+    capaianPplG4Map[a.kode_sls_gabungan] = parseInt(a.capaian1_g4) || 0;
+    capaianPmlG4Map[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g4) || 0;
   });
 
   // Map user_sls by user_id
@@ -3964,7 +4039,7 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     pmlToPpl[r.pml_id].push(r.ppl_id);
   });
 
-  // Calculate G1, G2, G3 target, realisasi, and coverage for each profile
+  // Calculate G1, G2, G3, G4 target, realisasi, and coverage for each profile
   let reportData = [];
 
   profiles.forEach(p => {
@@ -3972,6 +4047,7 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     let realisasiG1 = 0;
     let realisasiG2 = 0;
     let realisasiG3 = 0;
+    let realisasiG4 = 0;
 
     if (p.role === 'ppl') {
       const codes = userSlsMap[p.id] || [];
@@ -3983,41 +4059,50 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       let visitedG1 = 0;
       let visitedG2 = 0;
       let visitedG3 = 0;
+      let visitedG4 = 0;
 
       codes.forEach(code => {
         const cap1 = capaianPplG1Map[code] || 0;
         const cap2 = capaianPplG2Map[code] || 0;
         const cap3 = capaianPplG3Map[code] || 0;
+        const cap4 = capaianPplG4Map[code] || 0;
 
         target += targetMap[code] || 0;
         realisasiG1 += cap1;
         realisasiG2 += cap2;
         realisasiG3 += cap3;
+        realisasiG4 += cap4;
 
         if (cap1 > 0) visitedG1++;
         if (cap2 > 0) visitedG2++;
         if (cap3 > 0) visitedG3++;
+        if (cap4 > 0) visitedG4++;
       });
 
       const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
       const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
       const pctG3 = target > 0 ? (realisasiG3 / target) : 0;
+      const pctG4 = target > 0 ? (realisasiG4 / target) : 0;
 
       const coverageG1 = codes.length > 0 ? (visitedG1 / codes.length) : 0;
       const coverageG2 = codes.length > 0 ? (visitedG2 / codes.length) : 0;
       const coverageG3 = codes.length > 0 ? (visitedG3 / codes.length) : 0;
+      const coverageG4 = codes.length > 0 ? (visitedG4 / codes.length) : 0;
 
       const isG1EligibleNumeric = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
       const isG2EligibleNumeric = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
       const isG3EligibleNumeric = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+      const isG4EligibleNumeric = (pctG4 >= 0.4) && (coverageG4 >= 0.4);
       // Apply honorarium hold override
       const isG1Eligible = isG1EligibleNumeric && !isOnHoldSE(p.id, 1);
       const isG2Eligible = isG2EligibleNumeric && !isOnHoldSE(p.id, 2);
       const isG3Eligible = isG3EligibleNumeric && !isOnHoldSE(p.id, 3);
+      const isG4Eligible = isG4EligibleNumeric && !isOnHoldSE(p.id, 4);
 
       let chosenReal = realisasiG1;
       if (gelombang === 2) chosenReal = realisasiG2;
       if (gelombang === 3) chosenReal = realisasiG3;
+      if (gelombang === 4) chosenReal = realisasiG4;
 
       reportData.push({
         nama: p.nama,
@@ -4027,7 +4112,8 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         realisasi: chosenReal,
         isG1Eligible,
         isG2Eligible,
-        isG3Eligible
+        isG3Eligible,
+        isG4Eligible
       });
     } else if (p.role === 'pml') {
       const supervisedPpls = pmlToPpl[p.id] || [];
@@ -4036,49 +4122,58 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       let visitedPmlG1 = 0;
       let visitedPmlG2 = 0;
       let visitedPmlG3 = 0;
+      let visitedPmlG4 = 0;
 
+      const allSlsSet = new Set(userSlsMap[p.id] || []);
       supervisedPpls.forEach(pplId => {
         const codes = userSlsMap[pplId] || [];
-        if (codes.length > 0 && !kdkec) {
-          kdkec = codes[0].substring(4, 7);
+        codes.forEach(code => allSlsSet.add(code));
+      });
+
+      allSlsSet.forEach(code => {
+        if (code.length >= 7 && !kdkec) {
+          kdkec = code.substring(4, 7);
         }
-        codes.forEach(code => {
-          totalPmlSls++;
-          const cap1 = capaianPmlG1Map[code] || 0;
-          const cap2 = capaianPmlG2Map[code] || 0;
-          const cap3 = capaianPmlG3Map[code] || 0;
+        totalPmlSls++;
+        const cap1 = capaianPmlG1Map[code] || 0;
+        const cap2 = capaianPmlG2Map[code] || 0;
+        const cap3 = capaianPmlG3Map[code] || 0;
+        const cap4 = capaianPmlG4Map[code] || 0;
 
-          target += targetMap[code] || 0;
-          realisasiG1 += cap1;
-          realisasiG2 += cap2;
-          realisasiG3 += cap3;
+        target += targetMap[code] || 0;
+        realisasiG1 += cap1;
+        realisasiG2 += cap2;
+        realisasiG3 += cap3;
+        realisasiG4 += cap4;
 
-          if (cap1 > 0) visitedPmlG1++;
-          if (cap2 > 0) visitedPmlG2++;
-          if (cap3 > 0) visitedPmlG3++;
-        });
+        if (cap1 > 0) visitedPmlG1++;
+        if (cap2 > 0) visitedPmlG2++;
+        if (cap3 > 0) visitedPmlG3++;
+        if (cap4 > 0) visitedPmlG4++;
       });
 
       const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
       const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
       const pctG3 = target > 0 ? (realisasiG3 / target) : 0;
+      const pctG4 = target > 0 ? (realisasiG4 / target) : 0;
 
-      const coverageG1 = totalPmlSls > 0 ? (visitedPmlG1 / totalPmlSls) : 0;
-      const coverageG2 = totalPmlSls > 0 ? (visitedPmlG2 / totalPmlSls) : 0;
-      const coverageG3 = totalPmlSls > 0 ? (visitedPmlG3 / totalPmlSls) : 0;
+      const minCov = Math.ceil(totalPmlSls * 0.4);
 
-      // PML eligibility requires BOTH capaian_pml/target >= 40% AND PML coverage >= 40%
-      const isG1EligibleNumericPml = (pctG1 >= 0.4) && (coverageG1 >= 0.4);
-      const isG2EligibleNumericPml = (pctG2 >= 0.4) && (coverageG2 >= 0.4);
-      const isG3EligibleNumericPml = (pctG3 >= 0.4) && (coverageG3 >= 0.4);
+      // PML eligibility requires BOTH capaian_pml/target >= 40% AND PML coverage >= CEIL(total_sls * 0.4)
+      const isG1EligibleNumericPml = (pctG1 >= 0.4) && (visitedPmlG1 >= minCov);
+      const isG2EligibleNumericPml = (pctG2 >= 0.4) && (visitedPmlG2 >= minCov);
+      const isG3EligibleNumericPml = (pctG3 >= 0.4) && (visitedPmlG3 >= minCov);
+      const isG4EligibleNumericPml = (pctG4 >= 0.4) && (visitedPmlG4 >= minCov);
       // Apply honorarium hold override
       const isG1Eligible = isG1EligibleNumericPml && !isOnHoldSE(p.id, 1);
       const isG2Eligible = isG2EligibleNumericPml && !isOnHoldSE(p.id, 2);
       const isG3Eligible = isG3EligibleNumericPml && !isOnHoldSE(p.id, 3);
+      const isG4Eligible = isG4EligibleNumericPml && !isOnHoldSE(p.id, 4);
 
       let chosenReal = realisasiG1;
       if (gelombang === 2) chosenReal = realisasiG2;
       if (gelombang === 3) chosenReal = realisasiG3;
+      if (gelombang === 4) chosenReal = realisasiG4;
 
       reportData.push({
         nama: p.nama,
@@ -4088,7 +4183,8 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         realisasi: chosenReal,
         isG1Eligible,
         isG2Eligible,
-        isG3Eligible
+        isG3Eligible,
+        isG4Eligible
       });
     }
   });
@@ -4097,12 +4193,15 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
   // Gelombang 1: Must be G1 eligible
   // Gelombang 2: Must NOT be G1 eligible AND must be G2 eligible
   // Gelombang 3: Must NOT be G1 eligible AND Must NOT be G2 eligible AND must be G3 eligible
+  // Gelombang 4: Must NOT be G1, G2, G3 eligible AND must be G4 eligible
   if (gelombang === 1) {
     reportData = reportData.filter(item => item.isG1Eligible);
   } else if (gelombang === 2) {
     reportData = reportData.filter(item => !item.isG1Eligible && item.isG2Eligible);
   } else if (gelombang === 3) {
     reportData = reportData.filter(item => !item.isG1Eligible && !item.isG2Eligible && item.isG3Eligible);
+  } else if (gelombang === 4) {
+    reportData = reportData.filter(item => !item.isG1Eligible && !item.isG2Eligible && !item.isG3Eligible && item.isG4Eligible);
   }
 
   // Sort by role (PPL first, then PML), then by kdkec, then by nama
@@ -4183,12 +4282,14 @@ function printSuperEvaluasiT1(isDownload = false, gelombang = 1) {
 
 function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, gelombang = 1) {
   let tanggalText = "16 Juli 2026";
-  if (gelombang === 2) tanggalText = "24 Juli 2026";
-  if (gelombang === 3) tanggalText = "31 Juli 2026";
+  if (gelombang === 2) tanggalText = "23 Juli 2026";
+  if (gelombang === 3) tanggalText = "28 Juli 2026";
+  if (gelombang === 4) tanggalText = "31 Juli 2026";
 
   let nomorSuratStr = "B-909/SPer-I-SE2026/3602/07/2026";
   if (gelombang === 2) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";
   if (gelombang === 3) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";
+  if (gelombang === 4) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";
 
   pdf.setLineHeightFactor(1.0);
   const M = 25;
@@ -4683,7 +4784,7 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, 
   // TTD
   //--------------------------------------------------
   const ttdX = 152;
-  const dateStr = gelombang === 3 ? "Lebak, 31 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
+  const dateStr = gelombang === 3 ? "Lebak, 28 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
   pdf.text(dateStr, ttdX, y, { align: "center" });
   pdf.text("Yang membuat pernyataan,", ttdX, y + lh, { align: "center" });
   y += 28;
@@ -4722,9 +4823,10 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, 
 
   // Helper to pick realisasi according to wave
   const getRowReal = (row) => {
-    if (gelombang === 2) return parseInt(row.total_capaian1_pml_g2 ?? row.total_capaian1_pml) || 0;
-    if (gelombang === 3) return parseInt(row.total_capaian1_pml_g3 ?? row.total_capaian1_pml_g2 ?? row.total_capaian1_pml) || 0;
-    return parseInt(row.total_capaian1_pml) || 0;
+    if (gelombang === 2) return parseInt(row.total_capaian1_pml_g2 ?? row.total_capaian1_pml ?? 0) || 0;
+    if (gelombang === 3) return parseInt(row.total_capaian1_pml_g3 ?? 0) || 0;
+    if (gelombang === 4) return parseInt(row.total_capaian1_pml_g4 ?? 0) || 0;
+    return parseInt(row.total_capaian1_pml ?? 0) || 0;
   };
 
   // Lebar awal berdasarkan judul
@@ -5628,7 +5730,7 @@ async function fetchSuperPPLData(gelombang = 1) {
   achievements.forEach(a => {
     realisasiMapG1[a.kode_sls_gabungan] = parseInt(a.capaian1) || 0;
     realisasiMapG2[a.kode_sls_gabungan] = parseInt(a.capaian1_g2) || 0;
-    realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || a.capaian3 || 0) || 0;
+    realisasiMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_g3 || 0) || 0;
   });
 
   const userSlsMap = {};
@@ -5638,7 +5740,7 @@ async function fetchSuperPPLData(gelombang = 1) {
   });
 
   // Ambil kelayakan gelombang secara mutually exclusive
-  await loadBappEligibilityData();
+  await loadBappEligibilityData(true);
   const eligibleIds = bappEligibilityMap[gelombang];
 
   const pplList = [];
@@ -5836,7 +5938,7 @@ function buildSuperPPLDocument(pdf, ppl, ttdYulianBase64, gelombang = 1) {
 
   // Kanan: Yang membuat pernyataan (Petugas PPL)
   const ttdX = 155;
-  const dateStr = gelombang === 3 ? "Lebak, 31 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
+  const dateStr = gelombang === 3 ? "Lebak, 28 Juli 2026" : (gelombang === 2 ? "Lebak, 23 Juli 2026" : "Lebak, 16 Juli 2026");
   pdf.text(dateStr, ttdX, ttdY, { align: "center" });
   pdf.text("Yang membuat pernyataan,", ttdX, ttdY + 5, { align: "center" });
   pdf.text((ppl.nama || "").toUpperCase(), ttdX, ttdY + 33, { align: "center" });
@@ -6211,8 +6313,54 @@ async function fetchSuperPMLData(gelombang = 1) {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
   });
 
+  // Fetch active user_sls for mapping
+  let userSls = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data, error } = await db.from('user_sls')
+      .select('user_id, kode_sls, status')
+      .eq('status', 'aktif')
+      .range(fromSls, fromSls + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) hasMoreSls = false;
+    else {
+      userSls = userSls.concat(data);
+      if (data.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
+    }
+  }
+
+  const userSlsMap = {};
+  userSls.forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+  });
+
+  // Fetch achievements (capaian) to map G3 realisasi
+  let achievements = [];
+  let fromAch = 0;
+  let hasMoreAch = true;
+  while (hasMoreAch) {
+    const { data, error } = await db.from('capaian')
+      .select('kode_sls_gabungan, capaian1_pml_g3')
+      .range(fromAch, fromAch + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) hasMoreAch = false;
+    else {
+      achievements = achievements.concat(data);
+      if (data.length < 1000) hasMoreAch = false;
+      else fromAch += 1000;
+    }
+  }
+
+  const realisasiPmlMapG3 = {};
+  achievements.forEach(a => {
+    realisasiPmlMapG3[a.kode_sls_gabungan] = parseInt(a.capaian1_pml_g3 || 0) || 0;
+  });
+
   // Ambil kelayakan gelombang secara mutually exclusive
-  await loadBappEligibilityData();
+  await loadBappEligibilityData(true);
   const eligibleIds = bappEligibilityMap[gelombang];
 
   const pmlList = [];
@@ -6233,11 +6381,31 @@ async function fetchSuperPMLData(gelombang = 1) {
       console.warn('Gagal memuat rekap pml:', p.id, e);
     }
 
+    let kdkec = '';
+    // Enrich rekapData for Gelombang 3 & Gelombang 4 if total_capaian1_pml_g3 is not provided by RPC
+    rekapData.forEach(row => {
+      const pplProf = allUsers.find(u => u.role === 'ppl' && String(u.sobatid).trim() === String(row.sobatid_ppl).trim());
+      if (pplProf) {
+        const slsCodes = userSlsMap[pplProf.id] || [];
+        if (slsCodes.length > 0 && !kdkec) {
+          kdkec = slsCodes[0].substring(4, 7);
+        }
+        if (row.total_capaian1_pml_g3 === undefined || row.total_capaian1_pml_g3 === null) {
+          let sumG3 = 0;
+          slsCodes.forEach(code => {
+            sumG3 += realisasiPmlMapG3[code] || 0;
+          });
+          row.total_capaian1_pml_g3 = sumG3;
+        }
+      }
+    });
+
     pmlList.push({
       id: p.id,
       nama: p.nama,
       sobatid: p.sobatid,
       nik: p.nik || '',
+      kdkec: kdkec,
       kecamatan: kecName,
       no_spk: noSuratMap[key]?.no_spk || '',
       no_sp_pemeriksaan_t1: noSuratMap[key]?.no_sp_pemeriksaan_t1 || '',
@@ -6246,9 +6414,9 @@ async function fetchSuperPMLData(gelombang = 1) {
     });
   }
 
-  // Sort by kecamatan, then by name
+  // Sort by kdkec (kode kecamatan), then by name
   pmlList.sort((a, b) => {
-    const compKec = (a.kecamatan || '').localeCompare(b.kecamatan || '');
+    const compKec = (a.kdkec || '').localeCompare(b.kdkec || '');
     if (compKec !== 0) return compKec;
     return (a.nama || '').localeCompare(b.nama || '');
   });
@@ -6374,6 +6542,1106 @@ function downloadSuperPML(gelombang = 1) {
     }
   });
 }
+
+// ============================================================
+// DOKUMEN UB T1 & MANAGEMENT PETUGAS UB LOGIC
+// ============================================================
+
+let ubPmlList = [];
+let ubPplList = [];
+let ubConfig = {
+  nomor_surat_pml: '',
+  nomor_surat_ppl: '',
+  nomor_surat_kepala: '',
+  nomor_surat_bapp: '',
+  tanggal_surat: '31 Juli 2026'
+};
+
+function switchUBTab(tab) {
+  const btnPML = document.getElementById('ubTabBtnPML');
+  const btnPPL = document.getElementById('ubTabBtnPPL');
+  const contentPML = document.getElementById('ubTabContentPML');
+  const contentPPL = document.getElementById('ubTabContentPPL');
+
+  if (!btnPML || !btnPPL || !contentPML || !contentPPL) return;
+
+  if (tab === 'pml') {
+    btnPML.className = 'btn btn-sm btn-primary';
+    btnPPL.className = 'btn btn-sm btn-secondary';
+    contentPML.style.display = 'flex';
+    contentPPL.style.display = 'none';
+  } else {
+    btnPML.className = 'btn btn-sm btn-secondary';
+    btnPPL.className = 'btn btn-sm btn-primary';
+    contentPML.style.display = 'none';
+    contentPPL.style.display = 'flex';
+  }
+}
+
+async function openUBInputModal() {
+  const modal = document.getElementById('ubInputModal');
+  if (modal) modal.classList.add('open');
+  switchUBTab('pml');
+
+  try {
+    // 1. Load UB config
+    const { data: cfgData } = await db.from('dokumen_ub_config').select('*').limit(1);
+    if (cfgData && cfgData.length > 0) {
+      ubConfig = cfgData[0];
+      const kepEl = document.getElementById('ubNoSuratKepala');
+      const tglEl = document.getElementById('ubTanggalSurat');
+
+      if (kepEl) kepEl.value = ubConfig.nomor_surat_kepala || '';
+      if (tglEl) tglEl.value = ubConfig.tanggal_surat || '31 Juli 2026';
+    } else {
+      const tglEl = document.getElementById('ubTanggalSurat');
+      if (tglEl) tglEl.value = '31 Juli 2026';
+    }
+
+    // 2. Load UB officers
+    const { data: officers, error } = await db.from('petugas_ub').select('*').order('created_at', { ascending: true });
+    if (error) throw error;
+
+    if (officers && officers.length > 0) {
+      ubPmlList = officers.filter(o => o.role === 'pml_ub');
+      ubPplList = officers.filter(o => o.role === 'ppl_ub');
+    } else {
+      // Default initial templates (2 PML & 5 PPL if empty)
+      ubPmlList = [
+        { id: null, nama: '', sobat_id: '', nik: '', no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'pml_ub' },
+        { id: null, nama: '', sobat_id: '', nik: '', no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'pml_ub' }
+      ];
+      ubPplList = [
+        { id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' },
+        { id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' },
+        { id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' },
+        { id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' },
+        { id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' }
+      ];
+    }
+
+    renderPmlUBTable();
+    renderPplUBTable();
+  } catch (err) {
+    console.error('Error loading UB data:', err);
+    showToast('Gagal memuat data petugas UB: ' + err.message, 'error');
+  }
+}
+
+function closeUBInputModal() {
+  const modal = document.getElementById('ubInputModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function loadTesseractScript() {
+  return new Promise((resolve, reject) => {
+    if (window.Tesseract) {
+      resolve(window.Tesseract);
+      return;
+    }
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    script.onload = () => resolve(window.Tesseract);
+    script.onerror = () => reject(new Error('Gagal memuat Tesseract.js'));
+    document.head.appendChild(script);
+  });
+}
+
+async function detectCropBoundsUB(imageSrc) {
+  try {
+    const Tesseract = await loadTesseractScript();
+    const { data: { lines } } = await Tesseract.recognize(imageSrc, 'eng');
+    const img = new Image();
+    await new Promise((res) => {
+      img.onload = res;
+      img.onerror = res;
+      img.src = imageSrc;
+    });
+
+    const h = img.naturalHeight || 1000;
+    let topY = null;
+    let bottomY = null;
+
+    for (const line of lines) {
+      const text = line.text.toLowerCase();
+      if (topY === null && (text.includes('silakan') || text.includes('sensus') || text.includes('ekonomi') || text.includes('pilih') || text.includes('progres') || text.includes('fasih') || text.includes('badan'))) {
+        topY = line.bbox.y0;
+      }
+      if (text.includes('selesai') || text.includes('hari lagi') || text.includes('hari') || text.includes('capaian') || text.includes('total')) {
+        bottomY = line.bbox.y1;
+      }
+    }
+
+    const finalTop = topY !== null ? Math.max(0, topY - 15) / h * 100 : 12.5;
+    const finalBottom = bottomY !== null ? Math.min(h, bottomY + 25) / h * 100 : 46.5;
+
+    return { top: parseFloat(finalTop.toFixed(1)), bottom: parseFloat(finalBottom.toFixed(1)) };
+  } catch (err) {
+    console.warn('OCR Auto-detect UB warn:', err);
+    return { top: 12.5, bottom: 46.5 };
+  }
+}
+
+function handleUBScreenshotUpload(role, idx, input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    showToast('File harus berupa gambar (PNG/JPG)!', 'error');
+    return;
+  }
+
+  showToast(`Memproses & mengompresi screenshot ${role.toUpperCase()} #${idx + 1}...`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const img = new Image();
+    img.onload = async function () {
+      // Kompresi & Resizing menggunakan HTML5 Canvas (Max Width: 650px, JPEG Quality: 0.5)
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+
+      const MAX_WIDTH = 650;
+      let targetWidth = img.width;
+      let targetHeight = img.height;
+
+      if (img.width > MAX_WIDTH) {
+        targetWidth = MAX_WIDTH;
+        targetHeight = Math.round((img.height * MAX_WIDTH) / img.width);
+      }
+
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+      const base64 = canvas.toDataURL('image/jpeg', 0.5);
+
+      showToast(`Mendeteksi Teks & Batas Krop (OCR) ${role.toUpperCase()} #${idx + 1}...`, 'info');
+      const bounds = await detectCropBoundsUB(base64);
+
+      if (role === 'pml') {
+        ubPmlList[idx].screenshot = base64;
+        ubPmlList[idx].crop_top = bounds.top;
+        ubPmlList[idx].crop_bottom = bounds.bottom;
+        renderPmlUBTable();
+      } else {
+        ubPplList[idx].screenshot = base64;
+        ubPplList[idx].crop_top = bounds.top;
+        ubPplList[idx].crop_bottom = bounds.bottom;
+        renderPplUBTable();
+      }
+      showToast(`Bukti screenshot ${role.toUpperCase()} #${idx + 1} berhasil di-OCR & dikompresi! (Top: ${bounds.top}%, Bottom: ${bounds.bottom}%)`, 'success');
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function renderPmlUBTable() {
+  const container = document.getElementById('pmlUBContainer');
+  if (!container) return;
+
+  if (ubPmlList.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem">Belum ada data PML UB. Klik tombol "+ Tambah PML UB".</div>';
+    return;
+  }
+
+  container.innerHTML = ubPmlList.map((p, idx) => `
+    <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.85rem;display:flex;flex-direction:column;gap:0.6rem">
+      <!-- Baris 1: Header Petugas & Identitas (Nama, Sobat ID, NIK) -->
+      <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:0.5rem">
+        <span style="font-weight:600;font-size:0.85rem;color:var(--primary)">PML UB #${idx + 1}</span>
+        <button class="btn btn-danger btn-sm" style="padding:0.2rem 0.5rem;font-size:0.75rem" onclick="removePmlUBRow(${idx})">Hapus Petugas ✕</button>
+      </div>
+
+      <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:0.6rem">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">Nama PML UB</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.nama || '')}" placeholder="Nama Lengkap PML" oninput="ubPmlList[${idx}].nama = this.value; updatePmlDropdownOptions();">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">SOBAT ID</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.sobat_id || '')}" placeholder="Sobat ID" oninput="ubPmlList[${idx}].sobat_id = this.value">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">NIK</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.nik || '')}" placeholder="NIK" oninput="ubPmlList[${idx}].nik = this.value">
+        </div>
+      </div>
+
+      <!-- Baris 2: Nomor Surat & Kinerja -->
+      <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1.2fr 80px 80px 1.2fr;gap:0.6rem;align-items:end">
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. SPK</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.no_spk || '')}" placeholder="No. SPK" oninput="ubPmlList[${idx}].no_spk = this.value">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. BAPP</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.no_bapp || '')}" placeholder="No. BAPP" oninput="ubPmlList[${idx}].no_bapp = this.value">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. Super</label>
+          <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+            value="${escHtml(p.no_super || '')}" placeholder="No. Super" oninput="ubPmlList[${idx}].no_super = this.value">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block;text-align:center">Target</label>
+          <input type="number" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.85rem;margin:0;text-align:center"
+            value="${p.target ?? 0}" placeholder="Target" oninput="ubPmlList[${idx}].target = parseInt(this.value)|0">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block;text-align:center">Capaian</label>
+          <input type="number" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.85rem;margin:0;text-align:center"
+            value="${p.realisasi ?? 0}" placeholder="Capaian" oninput="ubPmlList[${idx}].realisasi = parseInt(this.value)|0">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">Bukti Screenshot</label>
+          <input type="file" id="pmlScreenshot_${idx}" accept="image/*" style="display:none" onchange="handleUBScreenshotUpload('pml', ${idx}, this)">
+          <button class="btn btn-secondary btn-sm" style="width:100%;height:34px;font-size:0.78rem" onclick="document.getElementById('pmlScreenshot_${idx}').click()">
+            ${p.screenshot ? '✓ Ada Gambar' : '📷 Upload Gambar'}
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderPplUBTable() {
+  const container = document.getElementById('pplUBContainer');
+  if (!container) return;
+
+  if (ubPplList.length === 0) {
+    container.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:1.5rem">Belum ada data PPL UB. Klik tombol "+ Tambah PPL UB".</div>';
+    return;
+  }
+
+  container.innerHTML = ubPplList.map((p, idx) => {
+    let pmlOptions = '<option value="">-- Pilih PML Penanggung Jawab --</option>';
+    ubPmlList.forEach((pml, pmlIdx) => {
+      const pmlName = pml.nama ? pml.nama : `PML UB ${pmlIdx + 1}`;
+      const selected = (p.pml_idx === pmlIdx || p.pml_id === pml.id) ? 'selected' : '';
+      pmlOptions += `<option value="${pmlIdx}" ${selected}>${escHtml(pmlName)}</option>`;
+    });
+
+    return `
+      <div style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.85rem;display:flex;flex-direction:column;gap:0.6rem">
+        <!-- Baris 1: Header Petugas & Identitas (Nama, Sobat ID, NIK, PML) -->
+        <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px dashed var(--border);padding-bottom:0.5rem">
+          <span style="font-weight:600;font-size:0.85rem;color:var(--primary)">PPL UB #${idx + 1}</span>
+          <button class="btn btn-danger btn-sm" style="padding:0.2rem 0.5rem;font-size:0.75rem" onclick="removePplUBRow(${idx})">Hapus Petugas ✕</button>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1.5fr 1fr 1fr 1.5fr;gap:0.6rem">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">Nama PPL UB</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.nama || '')}" placeholder="Nama Lengkap PPL" oninput="ubPplList[${idx}].nama = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">SOBAT ID</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.sobat_id || '')}" placeholder="Sobat ID" oninput="ubPplList[${idx}].sobat_id = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">NIK</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.nik || '')}" placeholder="NIK" oninput="ubPplList[${idx}].nik = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">PML Penanggung Jawab</label>
+            <select class="filter-select" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0;width:100%"
+              onchange="ubPplList[${idx}].pml_idx = parseInt(this.value);">
+              ${pmlOptions}
+            </select>
+          </div>
+        </div>
+
+        <!-- Baris 2: Nomor Surat & Kinerja -->
+        <div style="display:grid;grid-template-columns:1.2fr 1.2fr 1.2fr 80px 80px 1.2fr;gap:0.6rem;align-items:end">
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. SPK</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.no_spk || '')}" placeholder="No. SPK" oninput="ubPplList[${idx}].no_spk = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. BAPP</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.no_bapp || '')}" placeholder="No. BAPP" oninput="ubPplList[${idx}].no_bapp = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">No. Super</label>
+            <input type="text" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.82rem;margin:0"
+              value="${escHtml(p.no_super || '')}" placeholder="No. Super" oninput="ubPplList[${idx}].no_super = this.value">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block;text-align:center">Target</label>
+            <input type="number" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.85rem;margin:0;text-align:center"
+              value="${p.target ?? 0}" placeholder="Target" oninput="ubPplList[${idx}].target = parseInt(this.value)|0">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block;text-align:center">Capaian</label>
+            <input type="number" class="form-input" style="height:34px;padding:0.35rem 0.5rem;font-size:0.85rem;margin:0;text-align:center"
+              value="${p.realisasi ?? 0}" placeholder="Capaian" oninput="ubPplList[${idx}].realisasi = parseInt(this.value)|0">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label style="font-size:0.75rem;color:var(--text-muted);margin-bottom:2px;display:block">Bukti Screenshot</label>
+            <input type="file" id="pplScreenshot_${idx}" accept="image/*" style="display:none" onchange="handleUBScreenshotUpload('ppl', ${idx}, this)">
+            <button class="btn btn-secondary btn-sm" style="width:100%;height:34px;font-size:0.78rem" onclick="document.getElementById('pplScreenshot_${idx}').click()">
+              ${p.screenshot ? '✓ Ada Gambar' : '📷 Upload Gambar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+function updatePmlDropdownOptions() {
+  renderPplUBTable();
+}
+
+function addPmlUBRow() {
+  ubPmlList.push({ id: null, nama: '', sobat_id: '', nik: '', no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'pml_ub' });
+  renderPmlUBTable();
+  renderPplUBTable();
+}
+
+function removePmlUBRow(index) {
+  ubPmlList.splice(index, 1);
+  renderPmlUBTable();
+  renderPplUBTable();
+}
+
+function addPplUBRow() {
+  ubPplList.push({ id: null, nama: '', sobat_id: '', nik: '', pml_id: null, no_spk: '', no_bapp: '', no_super: '', target: 0, realisasi: 0, screenshot: null, role: 'ppl_ub' });
+  renderPplUBTable();
+}
+
+function removePplUBRow(index) {
+  ubPplList.splice(index, 1);
+  renderPplUBTable();
+}
+
+async function saveUBDataAll() {
+  showToast('Menyimpan data petugas & dokumen UB...', 'info');
+
+  try {
+    // 1. Clear existing petugas_ub and insert new ones
+    await db.from('petugas_ub').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+
+    // Insert PML UB first to get generated IDs
+    const pmlToInsert = ubPmlList.map(p => ({
+      nama: (p.nama || '').trim(),
+      sobat_id: (p.sobat_id || '').trim(),
+      nik: (p.nik || '').trim(),
+      no_spk: (p.no_spk || '').trim(),
+      no_bapp: (p.no_bapp || '').trim(),
+      no_super: (p.no_super || '').trim(),
+      target: parseInt(p.target) || 0,
+      realisasi: parseInt(p.realisasi) || 0,
+      screenshot: p.screenshot || null,
+      crop_top: p.crop_top !== undefined ? p.crop_top : 12.5,
+      crop_bottom: p.crop_bottom !== undefined ? p.crop_bottom : 46.5,
+      role: 'pml_ub'
+    })).filter(p => p.nama);
+
+    let savedPmls = [];
+    if (pmlToInsert.length > 0) {
+      const { data, error } = await db.from('petugas_ub').insert(pmlToInsert).select();
+      if (error) throw error;
+      savedPmls = data || [];
+    }
+
+    // Insert PPL UB linked to saved PMLs
+    const pplToInsert = ubPplList.map(p => {
+      let assignedPmlId = null;
+      if (p.pml_idx !== undefined && savedPmls[p.pml_idx]) {
+        assignedPmlId = savedPmls[p.pml_idx].id;
+      }
+      return {
+        nama: (p.nama || '').trim(),
+        sobat_id: (p.sobat_id || '').trim(),
+        nik: (p.nik || '').trim(),
+        no_spk: (p.no_spk || '').trim(),
+        no_bapp: (p.no_bapp || '').trim(),
+        no_super: (p.no_super || '').trim(),
+        target: parseInt(p.target) || 0,
+        realisasi: parseInt(p.realisasi) || 0,
+        screenshot: p.screenshot || null,
+        crop_top: p.crop_top !== undefined ? p.crop_top : 12.5,
+        crop_bottom: p.crop_bottom !== undefined ? p.crop_bottom : 46.5,
+        role: 'ppl_ub',
+        pml_id: assignedPmlId
+      };
+    }).filter(p => p.nama);
+
+    if (pplToInsert.length > 0) {
+      const { error } = await db.from('petugas_ub').insert(pplToInsert);
+      if (error) throw error;
+    }
+
+    // 2. Save UB config
+    const noSuratKepala = document.getElementById('ubNoSuratKepala')?.value.trim() || '';
+    const tanggalSurat = document.getElementById('ubTanggalSurat')?.value.trim() || '31 Juli 2026';
+
+    const configPayload = {
+      nomor_surat_kepala: noSuratKepala,
+      tanggal_surat: tanggalSurat,
+      updated_at: new Date().toISOString()
+    };
+
+    if (ubConfig && ubConfig.id) {
+      await db.from('dokumen_ub_config').update(configPayload).eq('id', ubConfig.id);
+    } else {
+      await db.from('dokumen_ub_config').insert([configPayload]);
+    }
+
+    showToast('Data Petugas & Konfigurasi Dokumen UB berhasil disimpan!', 'success');
+    closeUBInputModal();
+  } catch (err) {
+    console.error('Error saving UB data:', err);
+    showToast('Gagal menyimpan data UB: ' + err.message, 'error');
+  }
+}
+
+// ------------------------------------------------------------
+// UB DOCUMENT PREVIEW & DOWNLOAD FUNCTIONS
+// ------------------------------------------------------------
+
+// ------------------------------------------------------------
+// UB DOCUMENT BUILDERS & GENERATOR FUNCTIONS
+// ------------------------------------------------------------
+
+function buildSuperPML_UB_Document(pdf, pml, pplsUnderPml, ttdYulianBase64) {
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN PENYELESAIAN", 105, 25, { align: "center" });
+  pdf.text("PETUGAS PEMERIKSA LAPANGAN SENSUS EKONOMI 2026 TERMIN I", 105, 31, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${pml.no_super || "......./SE2026/.../.../2026"}`, 105, 38, { align: "center" });
+
+  let y = 48;
+  pdf.text("Yang bertanda tangan di bawah ini:", 25, y);
+
+  y += 7;
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+  const lh = 5;
+
+  const identitas = [
+    ["Nama", (pml.nama || "").toUpperCase()],
+    ["NIK", pml.nik || "....................................."],
+    ["Jabatan", "Petugas Pemeriksa Lapangan Sensus Ekonomi 2026"]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+
+  y += 2;
+  pdf.text("Dengan ini menyatakan:", 25, y);
+  y += 6;
+
+  const realisasi = pml.realisasi || 0;
+  const target = pml.target || 0;
+  const pct = target > 0 ? ((realisasi / target) * 100).toFixed(2) : '100.00';
+
+  const poin = [
+    `bahwa telah melaksanakan pekerjaan Petugas Pemeriksa Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Petugas Nomor: ${pml.no_spk || "....................................."}, sesuai dengan target pekerjaan termin I;`,
+    `bahwa hasil pekerjaan dan pemeriksaan Petugas Pemeriksa Lapangan Sensus Ekonomi 2026 termin I yang telah diselesaikan sebanyak ${realisasi} UB dengan persentase sebesar ${pct} persen dari ${target} UB target prelist;`,
+    `bahwa seluruh hasil pemeriksaan pekerjaan termin I adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
+    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
+  ];
+
+  const textWidth = 185 - 33;
+  poin.forEach((teks, idx) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${idx + 1}.`, 25, y);
+    drawJustifiedText(pdf, teks, 33, y, textWidth, 5);
+    y += lines.length * 5;
+  });
+
+  y += 2;
+  const penutup = "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
+  const penutupLines = pdf.splitTextToSize(penutup, 160);
+  drawJustifiedText(pdf, penutup, 25, y, 160, 5);
+  y += penutupLines.length + 6;
+
+  const ttdY = y + 15;
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+
+  const ttdX = 155;
+  pdf.text("Lebak, 23 Juli 2026", ttdX, ttdY, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", ttdX, ttdY + 5, { align: "center" });
+  pdf.text((pml.nama || "").toUpperCase(), ttdX, ttdY + 33, { align: "center" });
+
+  pdf.text("Mengetahui,", 25, ttdY + 40);
+  pdf.text("Ketua Tim Pelaksana Sensus Ekonomi", 25, ttdY + 45);
+  pdf.text("2026", 25, ttdY + 50);
+  pdf.text("Kabupaten Lebak", 25, ttdY + 55);
+
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', 30, ttdY + 56, 18, 25);
+  }
+
+  pdf.text("YULIAN SARWO EDI", 25, ttdY + 80);
+  pdf.text("NIP. 197707101999121001", 25, ttdY + 85);
+}
+
+function buildSuperKepala_UB_Document(pdf, config, ttdYulianBase64) {
+  pdf.setLineHeightFactor(1.0);
+  const M = 25;
+  const W = 160;
+
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN KEPALA BPS KABUPATEN LEBAK", 105, 30, { align: "center" });
+  pdf.text("PENYELESAIAN PELAKSANAAN SENSUS EKONOMI 2026 TERMIN I", 105, 36, { align: "center" });
+  pdf.text("(PETUGAS USAHA BESAR)", 105, 42, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${config.nomor_surat_kepala || "B-003/3602/BAPP/07/2026"}`, 105, 50, { align: "center" });
+
+  let y = 62;
+  pdf.text("Yang bertanda tangan di bawah ini:", M, y);
+  y += 8;
+
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+
+  const identitas = [
+    ["Nama", "Eka Yulyani S.Si., M.Geog."],
+    ["NIK", "196807261991012001"],
+    ["Jabatan", "Kepala Badan Pusat Statistik Kabupaten Lebak Provinsi Banten"]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * 5;
+  });
+
+  y += 4;
+  pdf.text("Dengan ini menyatakan bahwa:", M, y);
+  y += 6;
+
+  const poin = [
+    `Seluruh Petugas Pemeriksa Lapangan (PML) dan Petugas Lapangan (PPL) Usaha Besar Sensus Ekonomi 2026 Badan Pusat Statistik Kabupaten Lebak telah menyelesaikan 100% target pendataan Lapangan Termin I.`,
+    `Seluruh berkas dokumen hasil pendataan Usaha Besar telah diperiksa, disetujui, dan diunggah ke sistem database resmi BPS.`,
+    `Pencairan honorarium petugas Usaha Besar Termin I dapat dilaksanakan sesuai ketentuan peraturan yang berlaku.`
+  ];
+
+  poin.forEach((teks, idx) => {
+    const lines = pdf.splitTextToSize(teks, W - 8);
+    pdf.text(`${idx + 1}.`, M, y);
+    drawJustifiedText(pdf, teks, M + 8, y, W - 8, 5);
+    y += lines.length * 5 + 2;
+  });
+
+  y += 4;
+  const penutup = "Demikian Surat Pernyataan ini dibuat dengan sebenarnya untuk dipergunakan sebagaimana mestinya.";
+  drawJustifiedText(pdf, penutup, M, y, W, 5);
+  y += 18;
+
+  const dateStr = config.tanggal_surat ? (config.tanggal_surat.includes('Lebak') ? config.tanggal_surat : `Lebak, ${config.tanggal_surat}`) : "Lebak, 23 Juli 2026";
+  pdf.text(dateStr, 130, y);
+  y += 6;
+  pdf.text("Kepala Badan Pusat Statistik", 130, y);
+  y += 5;
+  pdf.text("Kabupaten Lebak", 130, y);
+  y += 30;
+
+  pdf.setFont("Bookman", "bold");
+  pdf.text("EKA YULYANI S.Si., M.Geog.", 130, y);
+  pdf.setFont("Bookman", "normal");
+  y += 5;
+  pdf.text("NIP. 196807261991012001", 130, y);
+}
+
+async function fetchUBOfficersData() {
+  const { data: officers, error } = await db.from('petugas_ub').select('*').order('created_at', { ascending: true });
+  if (error) throw error;
+  const { data: cfg } = await db.from('dokumen_ub_config').select('*').limit(1);
+  const config = (cfg && cfg.length > 0) ? cfg[0] : { tanggal_surat: '31 Juli 2026' };
+  return { officers: officers || [], config };
+}
+
+async function previewSuperPML_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+    const pmls = officers.filter(o => o.role === 'pml_ub');
+
+    if (pmls.length === 0) {
+      showToast('Belum ada data PML UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Membuat preview Super PML UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      pmls.forEach((pml, idx) => {
+        if (idx > 0) pdf.addPage('a4', 'portrait');
+        const pplsUnderPml = officers.filter(o => o.role === 'ppl_ub' && o.pml_id === pml.id);
+        buildSuperPML_UB_Document(pdf, pml, pplsUnderPml, ttdYulianBase64);
+      });
+
+      window.open(pdf.output('bloburl'), '_blank');
+    });
+  } catch (err) {
+    showToast('Gagal membuat preview Super PML UB: ' + err.message, 'error');
+  }
+}
+
+async function downloadSuperPML_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+    const pmls = officers.filter(o => o.role === 'pml_ub');
+
+    if (pmls.length === 0) {
+      showToast('Belum ada data PML UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Mengunduh Super PML UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      pmls.forEach((pml, idx) => {
+        if (idx > 0) pdf.addPage('a4', 'portrait');
+        const pplsUnderPml = officers.filter(o => o.role === 'ppl_ub' && o.pml_id === pml.id);
+        buildSuperPML_UB_Document(pdf, pml, pplsUnderPml, ttdYulianBase64);
+      });
+
+      pdf.save('super_pml_ub_termin1.pdf');
+    });
+  } catch (err) {
+    showToast('Gagal mengunduh Super PML UB: ' + err.message, 'error');
+  }
+}
+
+function buildSuperPPL_UB_Document(pdf, ppl, ttdYulianBase64) {
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN PENYELESAIAN", 105, 25, { align: "center" });
+  pdf.text("PETUGAS LAPANGAN SENSUS EKONOMI 2026 TERMIN I", 105, 31, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${ppl.no_super || "......./SE2026/.../.../2026"}`, 105, 38, { align: "center" });
+
+  let y = 48;
+  pdf.text("Yang bertanda tangan di bawah ini:", 25, y);
+
+  y += 7;
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+  const lh = 5;
+
+  const identitas = [
+    ["Nama", (ppl.nama || "").toUpperCase()],
+    ["NIK", ppl.nik || "....................................."],
+    ["Jabatan", "Petugas Lapangan Sensus Ekonomi 2026"]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+
+  y += 2;
+  pdf.text("Dengan ini menyatakan:", 25, y);
+  y += 6;
+
+  const realisasi = ppl.realisasi || 0;
+  const target = ppl.target || 0;
+  const pct = target > 0 ? ((realisasi / target) * 100).toFixed(2) : '100.00';
+
+  const poin = [
+    `bahwa telah melaksanakan pekerjaan Petugas Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Petugas Nomor: ${ppl.no_spk || "....................................."}, sesuai dengan target pekerjaan termin I;`,
+    `bahwa hasil pekerjaan Petugas Lapangan Sensus Ekonomi 2026 termin I yang telah diselesaikan sebanyak ${realisasi} UB dengan persentase sebesar ${pct} persen dari ${target} UB target prelist;`,
+    `bahwa seluruh hasil pekerjaan termin I adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
+    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
+  ];
+
+  const textWidth = 185 - 33;
+  poin.forEach((teks, idx) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${idx + 1}.`, 25, y);
+    drawJustifiedText(pdf, teks, 33, y, textWidth, 5);
+    y += lines.length * 5;
+  });
+
+  y += 2;
+  const penutup = "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
+  const penutupLines = pdf.splitTextToSize(penutup, 160);
+  drawJustifiedText(pdf, penutup, 25, y, 160, 5);
+  y += penutupLines.length + 6;
+
+  const ttdY = y + 15;
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+
+  const ttdX = 155;
+  pdf.text("Lebak, 23 Juli 2026", ttdX, ttdY, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", ttdX, ttdY + 5, { align: "center" });
+  pdf.text((ppl.nama || "").toUpperCase(), ttdX, ttdY + 33, { align: "center" });
+
+  pdf.text("Mengetahui,", 25, ttdY + 40);
+  pdf.text("Ketua Tim Pelaksana Sensus Ekonomi", 25, ttdY + 45);
+  pdf.text("2026", 25, ttdY + 50);
+  pdf.text("Kabupaten Lebak", 25, ttdY + 55);
+
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', 30, ttdY + 56, 18, 25);
+  }
+
+  pdf.text("YULIAN SARWO EDI", 25, ttdY + 80);
+  pdf.text("NIP. 197707101999121001", 25, ttdY + 85);
+}
+
+async function previewSuperPPL_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+    const ppls = officers.filter(o => o.role === 'ppl_ub');
+
+    if (ppls.length === 0) {
+      showToast('Belum ada data PPL UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Membuat preview Super PPL UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      ppls.forEach((ppl, idx) => {
+        if (idx > 0) pdf.addPage('a4', 'portrait');
+        buildSuperPPL_UB_Document(pdf, ppl, ttdYulianBase64);
+      });
+
+      window.open(pdf.output('bloburl'), '_blank');
+    });
+  } catch (err) {
+    showToast('Gagal membuat preview Super PPL UB: ' + err.message, 'error');
+  }
+}
+
+async function downloadSuperPPL_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+    const ppls = officers.filter(o => o.role === 'ppl_ub');
+
+    if (ppls.length === 0) {
+      showToast('Belum ada data PPL UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Mengunduh Super PPL UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      ppls.forEach((ppl, idx) => {
+        if (idx > 0) pdf.addPage('a4', 'portrait');
+        buildSuperPPL_UB_Document(pdf, ppl, ttdYulianBase64);
+      });
+
+      pdf.save('super_ppl_ub_termin1.pdf');
+    });
+  } catch (err) {
+    showToast('Gagal mengunduh Super PPL UB: ' + err.message, 'error');
+  }
+}
+
+async function previewSuperKepala_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+
+    if (officers.length === 0) {
+      showToast('Belum ada data Petugas UB.', 'warning');
+      return;
+    }
+
+    previewSuperAllRows = officers.map(o => ({
+      'Nama Petugas Lapangan': o.nama,
+      'Sobat ID': o.sobat_id,
+      'NIK': o.nik,
+      'No SPK': o.no_spk || '',
+      'No BAPP': o.no_bapp || '',
+      'No Super': o.no_super || '',
+      'Jabatan': o.role === 'pml_ub' ? 'PML UB' : 'PPL UB',
+      'Kode Kecamatan': 'UB'
+    }));
+    previewSuperRowTypes = officers.map(o => o.role === 'pml_ub' ? 'pml' : 'ppl');
+
+    const titleEl = document.getElementById('previewSuperTitle');
+    if (titleEl) titleEl.textContent = 'Preview Rekapitulasi Petugas UB T1';
+
+    filterPreviewSuper();
+
+    const modal = document.getElementById('previewSuperModal');
+    if (modal) modal.classList.add('open');
+  } catch (err) {
+    showToast('Gagal membuka preview Rekap UB: ' + err.message, 'error');
+  }
+}
+
+async function exportSuperKepalaLampiran_UB_ToExcel() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+
+    if (officers.length === 0) {
+      showToast('Belum ada data Petugas UB untuk di-export.', 'warning');
+      return;
+    }
+
+    const rows = officers.map((o, idx) => ({
+      'No': idx + 1,
+      'Nama Petugas Lapangan': o.nama,
+      'Sobat ID': o.sobat_id,
+      'NIK': o.nik,
+      'Jabatan': o.role === 'pml_ub' ? 'PML UB' : 'PPL UB',
+      'No SPK': o.no_spk || '',
+      'No BAPP': o.no_bapp || '',
+      'No Super': o.no_super || '',
+      'Status': 'Petugas Usaha Besar'
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rekap Petugas UB');
+    XLSX.writeFile(wb, 'rekapitulasi_petugas_ub_termin1.xlsx');
+    showToast('Export Excel Rekap Petugas UB berhasil!', 'success');
+  } catch (err) {
+    showToast('Gagal export Excel UB: ' + err.message, 'error');
+  }
+}
+
+async function generateBAPP_UB_LandscapePDF(pdf, officers) {
+  const loadImgAsBase64 = (url) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.src = url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => {
+        resolve(null);
+      };
+    });
+  };
+
+  const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+  const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
+
+  for (let i = 0; i < officers.length; i++) {
+    const r = officers[i];
+    if (i > 0) {
+      pdf.addPage();
+    }
+    const nama = (r.nama || '.........................................').toUpperCase();
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(11);
+    pdf.text('-4-', 148.5, 12, { align: 'center' });
+    pdf.setFont('times', 'bold');
+    pdf.setFontSize(12);
+    pdf.text('II. BUKTI PENCAPAIAN PEKERJAAN PETUGAS UB', 20, 20);
+
+    if (r.screenshot) {
+      if (r.crop_top === undefined || r.crop_top === null) {
+        showToast(`Memindai OCR BAPP UB (${i + 1}/${officers.length})...`, 'info');
+        const bounds = await detectCropBoundsUB(r.screenshot);
+        r.crop_top = bounds.top;
+        r.crop_bottom = bounds.bottom;
+      }
+
+      await new Promise((resolve) => {
+        const img = new Image();
+        img.src = r.screenshot;
+        img.onload = () => {
+          const topOffset = (r.crop_top !== undefined && r.crop_top !== null) ? parseFloat(r.crop_top) : 12.5;
+          const bottomOffset = (r.crop_bottom !== undefined && r.crop_bottom !== null) ? parseFloat(r.crop_bottom) : 46.5;
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          const origW = img.naturalWidth;
+          const origH = img.naturalHeight;
+          const cropHeightPercent = bottomOffset - topOffset;
+          const cropHeight = origH * (cropHeightPercent / 100);
+          const startY = origH * (topOffset / 100);
+          canvas.width = origW;
+          canvas.height = cropHeight;
+          ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
+          const croppedBase64 = canvas.toDataURL('image/png');
+          const cropRatio = (origH / origW) * (cropHeightPercent / 100);
+          const imgHeight = 60.0;
+          const imgWidth = imgHeight / cropRatio;
+          const imgX = (297 - imgWidth) / 2;
+          const imgY = 28.0;
+          pdf.addImage(croppedBase64, 'PNG', imgX, imgY, imgWidth, imgHeight);
+          pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
+          resolve();
+        };
+        img.onerror = () => {
+          resolve();
+        };
+      });
+    } else {
+      const imgHeight = 60.0;
+      const imgWidth = 80.0;
+      const imgX = (297 - imgWidth) / 2;
+      const imgY = 28.0;
+      pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
+      pdf.setFont('times', 'italic');
+      pdf.setFontSize(10);
+      pdf.text('[Bukti Screenshot Tidak Tersedia]', 148.5, imgY + 30, { align: 'center' });
+    }
+
+    const sigY = 120.0;
+    pdf.setFont('times', 'normal');
+    pdf.setFontSize(11);
+    pdf.text('PIHAK KEDUA,', 70, sigY, { align: 'center' });
+    pdf.text('PIHAK PERTAMA,', 227, sigY, { align: 'center' });
+    if (ttdYulianBase64) {
+      const ttdX = 177.5 + (100 - 20) / 2;
+      pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY + 0, 20, 30);
+    }
+    if (ttdNingBase64) {
+      const ttdX = 87 + (100 - 32) / 2;
+      pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY + 38, 50, 25);
+    }
+    pdf.setFont('times', 'bold');
+    pdf.text(nama, 70, sigY + 25, { align: 'center' });
+    const leftWidth = pdf.getTextWidth(nama);
+    pdf.setLineWidth(0.3);
+    pdf.line(70 - leftWidth / 2, sigY + 26, 70 + leftWidth / 2, sigY + 26);
+    pdf.text('YULIAN SARWO EDI', 227, sigY + 25, { align: 'center' });
+    const rightWidth = pdf.getTextWidth('YULIAN SARWO EDI');
+    pdf.line(227 - rightWidth / 2, sigY + 26, 227 + rightWidth / 2, sigY + 26);
+    pdf.setFont('times', 'normal');
+    pdf.text('Menyetujui,', 148.5, sigY + 33, { align: 'center' });
+    pdf.text('Pejabat Pembuat Komitmen', 148.5, sigY + 38, { align: 'center' });
+    pdf.setFont('times', 'bold');
+    pdf.text('NING SRI LESTARI', 148.5, sigY + 63, { align: 'center' });
+    const ppkWidth = pdf.getTextWidth('NING SRI LESTARI');
+    pdf.line(148.5 - ppkWidth / 2, sigY + 64, 148.5 + ppkWidth / 2, sigY + 64);
+  }
+}
+
+async function previewBAPP_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+
+    if (officers.length === 0) {
+      showToast('Belum ada data Petugas UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Membuat preview BAPP Seluruh Petugas UB...', 'info');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      await generateBAPP_UB_LandscapePDF(pdf, officers);
+      window.open(pdf.output('bloburl'), '_blank');
+    });
+  } catch (err) {
+    showToast('Gagal membuat preview BAPP UB: ' + err.message, 'error');
+  }
+}
+
+async function downloadBAPP_UB() {
+  try {
+    const { officers } = await fetchUBOfficersData();
+
+    if (officers.length === 0) {
+      showToast('Belum ada data Petugas UB. Silakan klik "Input Data Petugas UB".', 'warning');
+      return;
+    }
+
+    showToast('Mengunduh BAPP Seluruh Petugas UB...', 'info');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      await generateBAPP_UB_LandscapePDF(pdf, officers);
+      pdf.save('bapp_petugas_ub_termin1.pdf');
+    });
+  } catch (err) {
+    showToast('Gagal mengunduh BAPP UB: ' + err.message, 'error');
+  }
+}
+
+async function previewSuperKepalaDoc_UB() {
+  try {
+    const { config } = await fetchUBOfficersData();
+    showToast('Membuat preview Super Kepala UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+      buildSuperKepala_UB_Document(pdf, config, ttdYulianBase64);
+      window.open(pdf.output('bloburl'), '_blank');
+    });
+  } catch (err) {
+    showToast('Gagal membuat preview Super Kepala UB: ' + err.message, 'error');
+  }
+}
+
+async function downloadSuperKepalaDoc_UB() {
+  try {
+    const { config } = await fetchUBOfficersData();
+    showToast('Mengunduh Super Kepala UB...', 'info');
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+    loadJsPDF(async () => {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+      buildSuperKepala_UB_Document(pdf, config, ttdYulianBase64);
+      pdf.save('super_kepala_ub_termin1.pdf');
+    });
+  } catch (err) {
+    showToast('Gagal mengunduh Super Kepala UB: ' + err.message, 'error');
+  }
+}
+
+
 
 
 
