@@ -95,6 +95,121 @@
       margin-bottom: 1.5rem;
     }
 
+    /* Berkas SE Tab Nav & Cards */
+    .berkas-tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 1.5rem;
+      overflow-x: auto;
+    }
+
+    .berkas-tab-btn {
+      padding: 0.65rem 1.25rem;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      background: transparent;
+      border: none;
+      border-bottom: 3px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .berkas-tab-btn:hover {
+      color: var(--text);
+      background: var(--bg-card-2);
+    }
+
+    .berkas-tab-btn.active {
+      color: var(--primary);
+      border-bottom-color: var(--primary);
+    }
+
+    .berkas-tab-content {
+      display: none;
+    }
+
+    .berkas-tab-content.active {
+      display: block;
+    }
+
+    .berkas-card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 1.25rem;
+    }
+
+    .berkas-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.25rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.03);
+      transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+    }
+
+    .berkas-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+      border-color: var(--primary);
+    }
+
+    .berkas-card-header {
+      margin-bottom: 1rem;
+    }
+
+    .berkas-card-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .berkas-card-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+      line-height: 1.35;
+    }
+
+    .berkas-card-body {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+
+    .gelombang-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.4rem 0.6rem;
+      background: var(--bg-card-2);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--border);
+    }
+
+    .gelombang-badge {
+      font-size: 0.75rem;
+      font-weight: 700;
+      min-width: 36px;
+    }
+
+    .gelombang-actions {
+      display: flex;
+      gap: 0.35rem;
+      align-items: center;
+    }
+
     /* Upload section */
     .upload-grid {
       display: grid;
@@ -454,24 +569,12 @@
           </svg>
           Import Capaian SLS
         </button>
-        <button class="sidebar-item" onclick="showSection('bapp')" id="nav-bapp">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="16" x2="8" y1="13" y2="13" />
-            <line x1="16" x2="8" y1="17" y2="17" />
-            <polyline points="10 9 9 9 8 9" />
-          </svg>
-          BAPP (Cetak PDF)
-        </button>
-
         <button class="sidebar-item" onclick="showSection('berkas-lainnya')" id="nav-berkas-lainnya">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
           </svg>
-          Berkas Lainnya
+          Berkas SE
         </button>
       </div>
     </aside>
@@ -1164,865 +1267,751 @@
         </div>
       </div>
 
-      <!-- ============ BAPP (CETAK PDF) PANEL ============ -->
-      <div class="section-panel" id="panel-bapp">
-        <div class="section-title">BAPP</div>
-        <div class="section-sub">Pantau, filter, dan cetak PDF BAPP termin I petugas.</div>
-
-        <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
-          <input type="text" class="filter-select" id="bappSearchName" placeholder="Cari nama petugas..."
-            oninput="filterBAPP()" style="max-width:200px">
-          <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()" style="max-width:160px">
-            <option value="">Semua Kecamatan</option>
-          </select>
-          <select class="filter-select" id="bappRoleFilter" onchange="filterBAPP()" style="max-width:130px">
-            <option value="">Semua Role</option>
-            <option value="pml">PML</option>
-            <option value="ppl">PPL</option>
-          </select>
-          <select class="filter-select" id="bappGelombangFilter" onchange="filterBAPP()"
-            style="max-width:160px; border: 1px solid var(--primary); font-weight: 600;">
-            <option value="">Semua Gelombang</option>
-            <option value="1">Gelombang 1</option>
-            <option value="2">Gelombang 2</option>
-            <option value="3">Gelombang 3</option>
-            <option value="4">Gelombang 4</option>
-          </select>
-
-          <div style="display:flex;align-items:center;gap:0.35rem">
-            <input type="date" class="filter-select" id="bappTimeStart" onchange="filterBAPP()" style="max-width:130px"
-              placeholder="Tanggal Mulai">
-            <span style="font-size:0.75rem;color:var(--text-muted)">s.d</span>
-            <input type="date" class="filter-select" id="bappTimeEnd" onchange="filterBAPP()" style="max-width:130px"
-              placeholder="Tanggal Selesai">
-          </div>
-
-          <button class="btn btn-secondary btn-sm" onclick="loadBAPPData()" style="height:38px;margin-bottom:0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-            </svg>
-            Refresh
-          </button>
-
-          <button class="btn btn-primary btn-sm" id="btnPrintSelected" onclick="printSelectedBAPP()"
-            style="height:38px;margin-bottom:0;display:none;margin-left:auto">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
-            Cetak Terpilih (<span id="selectedBappCount">0</span>)
-          </button>
-
-          <button class="btn btn-secondary btn-sm btn-superadmin-only" id="btnOcrSelected" onclick="ocrSelectedBAPP()"
-            style="height:38px;margin-bottom:0;display:none;margin-left:8px;background:#0ea5e9;border:none;color:#ffffff">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path
-                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-              <line x1="12" y1="22.08" x2="12" y2="12" />
-            </svg>
-            Scan Ulang OCR (<span id="selectedOcrCount">0</span>)
-          </button>
-        </div>
-
-        <div class="table-wrapper">
-          <div class="table-header">
-            <div class="table-title">Daftar BAPP</div>
-            <div class="table-count" id="bappTableCount">Total: 0 petugas</div>
-          </div>
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th style="width:40px;text-align:center"><input type="checkbox" id="selectAllBapp"
-                    onchange="toggleSelectAllBapp(this.checked)"></th>
-                <th onclick="sortBapp('nama')" style="cursor:pointer;white-space:nowrap">Nama Petugas
-                  <span class="bapp-sort-icon" id="sort-bapp-nama" style="opacity:0.4;font-size:0.7rem">▲</span>
-                </th>
-                <th>Sobat ID</th>
-                <th>Role</th>
-                <th>Kecamatan</th>
-                <th onclick="sortBapp('created_at')" style="cursor:pointer;white-space:nowrap">Tanggal Upload
-                  <span class="bapp-sort-icon" id="sort-bapp-created_at" style="opacity:0.4;font-size:0.7rem">⇅</span>
-                </th>
-                <th style="text-align:center">Aksi</th>
-              </tr>
-            </thead>
-            <tbody id="bappTableBody">
-              <tr>
-                <td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="table-footer"
-            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
-            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
-              <span>Tampilkan</span>
-              <select id="bappPageSizeSelect" class="filter-select" onchange="changeBappPageSize()"
-                style="width:80px;padding:0.25rem">
-                <option value="10">10</option>
-                <option value="25" selected>25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-                <option value="all">Semua</option>
-              </select>
-            </div>
-            <div id="bappPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
-          </div>
-        </div>
-      </div>
-
-
-
-      <!-- ============ BERKAS LAINNYA PANEL ============ -->
+      <!-- ============ BERKAS SE PANEL ============ -->
       <div class="section-panel" id="panel-berkas-lainnya">
-        <div class="section-title">Berkas Lainnya</div>
-        <div class="section-sub">Daftar berkas pelaporan dan dokumen administratif lainnya yang dapat diunduh.</div>
+        <div class="section-title">Berkas SE</div>
+        <div class="section-sub">Daftar berkas pelaporan, BAPP, dan dokumen administratif Sensus Ekonomi yang dapat
+          diunduh.</div>
 
-        <div class="table-wrapper" style="max-width: 600px;">
-          <table class="admin-table">
-            <thead>
-              <tr>
-                <th style="width:60px;text-align:center">No</th>
-                <th>Nama Berkas</th>
-                <th style="text-align:center;width:250px">Aksi</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="text-align:center">1</td>
-                <td style="font-weight:600">LK Beban Kerja</td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
-                    <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#dc2626;display:flex;align-items:center;min-width:40px">G4:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewCapaian(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#b91c1c;border-color:#b91c1c">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
+        <!-- Tab Navigation -->
+        <div class="berkas-tab-nav">
+          <button class="berkas-tab-btn active" onclick="switchBerkasTab('termin1')" id="tab-btn-termin1">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            Termin I
+          </button>
+          <button class="berkas-tab-btn" onclick="switchBerkasTab('termin2')" id="tab-btn-termin2">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Termin II
+          </button>
+          <button class="berkas-tab-btn" onclick="switchBerkasTab('ub')" id="tab-btn-ub">
+            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+              <path d="M9 22v-4h6v4" />
+              <path d="M8 6h.01" />
+              <path d="M16 6h.01" />
+              <path d="M12 6h.01" />
+              <path d="M12 10h.01" />
+              <path d="M12 14h.01" />
+              <path d="M16 10h.01" />
+              <path d="M16 14h.01" />
+              <path d="M8 10h.01" />
+              <path d="M8 14h.01" />
+            </svg>
+            UB (Usaha Besar)
+          </button>
+        </div>
+
+        <!-- Tab 1: Termin I -->
+        <div class="berkas-tab-content active" id="berkas-tab-termin1">
+          <div class="berkas-card-grid">
+
+            <!-- BAPP Pencairan Card -->
+            <div class="berkas-card" style="border-top: 3px solid #0ea5e9;">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  BAPP Pencairan Termin I
+                </div>
+                <div class="berkas-card-sub">Berita Acara Pembayaran Petugas Door-to-Door Termin I. Filter, cari, dan
+                  cetak PDF.</div>
+              </div>
+              <div class="berkas-card-body" style="margin-top:auto">
+                <button class="btn btn-primary btn-sm" onclick="openBappModal()"
+                  style="width:100%; justify-content:center; gap:0.4rem; padding:0.5rem; background:#0ea5e9; border-color:#0ea5e9">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Lihat BAPP & Cetak PDF
+                </button>
+              </div>
+            </div>
+
+            <!-- LK Beban Kerja Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  LK Beban Kerja
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaian(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">2</td>
-                <td style="font-weight:600">Super Kepala T1</td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
-                    <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#dc2626;display:flex;align-items:center;min-width:40px">G4:</span>
-                      <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#b91c1c;border-color:#b91c1c">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaian(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">3</td>
-                <td style="font-weight:600">Lampiran Super Kepala T1
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Daftar
-                    rekapitulasi petugas yang dilampirkan</div>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
-                    <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#dc2626;display:flex;align-items:center;min-width:40px">G4:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#b91c1c;border-color:#b91c1c">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Excel
-                      </button>
-                    </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaian(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">4</td>
-                <td style="font-weight:600">Super PML
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Surat Pernyataan
-                    Penyelesaian Pemeriksaan Lapangan untuk PML</div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaian(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianToExcel(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Super Kepala T1 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                  Super Kepala T1
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT1(false, 4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT1(true, 4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Lampiran Super Kepala T1 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  Lampiran Super Kepala T1
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranToExcel(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Super PML Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="8.5" cy="7" r="4" />
+                      <polyline points="17 11 19 13 23 9" />
+                    </svg>
+                    Super PML
+                  </div>
                   <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPmlNoSuratModal(1)"
-                    style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.72rem;margin-top:0.35rem">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg>
-                    Kelola Nomor Surat PML
+                    </svg> Nomor Surat
                   </button>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
-                    <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPML(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPML(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPML(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#dc2626;display:flex;align-items:center;min-width:40px">G4:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPML(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#b91c1c;border-color:#b91c1c">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPML(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">5</td>
-                <td style="font-weight:600">Super PPL
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Surat Pernyataan
-                    Penyelesaian Pendataan Lapangan untuk PPL</div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPML(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPML(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPML(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Super PPL Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Super PPL
+                  </div>
                   <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPplNoSuratModal(1)"
-                    style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.72rem;margin-top:0.35rem">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
                       <path d="M12 20h9" />
                       <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg>
-                    Kelola Nomor Surat PPL
+                    </svg> Nomor Surat
                   </button>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.5rem;align-items:stretch">
-                    <div style="display:flex;gap:0.35rem;justify-content:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);display:flex;align-items:center;min-width:40px">G1:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(1)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);display:flex;align-items:center;min-width:40px">G2:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:var(--primary);border-color:var(--primary)">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(2)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#eab308;display:flex;align-items:center;min-width:40px">G3:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#ca8a04;border-color:#ca8a04">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(3)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:#dc2626;display:flex;align-items:center;min-width:40px">G4:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem;background:#b91c1c;border-color:#b91c1c">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg>
-                        Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(4)"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg>
-                        Unduh
-                      </button>
-                    </div>
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">6</td>
-                <td style="font-weight:600">Hold Honorarium
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Petugas yang
-                    ditahan meskipun eligible</div>
-                </td>
-                <td style="text-align:center">
-                  <button class="btn btn-danger btn-sm btn-superadmin-only" onclick="openHoldModal()"
-                    style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.75rem;font-size:0.8rem">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPL(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hold Honorarium Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Hold Honorarium
+                </div>
+                <div class="berkas-card-sub">Daftar petugas yang ditahan pencairannya meskipun status eligible.</div>
+              </div>
+              <div class="berkas-card-body" style="margin-top:auto">
+                <button class="btn btn-danger btn-sm btn-superadmin-only" onclick="openHoldModal()"
+                  style="width:100%; justify-content:center; gap:0.4rem; padding:0.5rem">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Kelola Hold Honorarium
+                </button>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Tab 2: Termin II -->
+        <div class="berkas-tab-content" id="berkas-tab-termin2">
+          <div
+            style="text-align:center; padding:3.5rem 1.5rem; background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius-lg); max-width:600px; margin:0 auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
+              stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
+              style="margin-bottom:1rem; opacity:0.6">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <h4 style="margin:0 0 0.5rem 0; font-size:1.1rem; color:var(--text-main)">Termin II Belum Dimulai</h4>
+            <p style="margin:0; font-size:0.85rem; color:var(--text-muted)">Seluruh berkas pelaporan, BAPP, dan surat
+              pernyataan untuk Termin II akan ditampilkan di halaman ini sesuai jadwal pelaksanaan.</p>
+          </div>
+        </div>
+
+        <!-- Tab 3: UB (Usaha Besar) -->
+        <div class="berkas-tab-content" id="berkas-tab-ub">
+          <div class="berkas-card-grid">
+
+            <!-- Super UB (PPL & PML) Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="4" y="2" width="16" height="20" rx="2" ry="2" />
+                    <path d="M9 22v-4h6v4" />
+                  </svg>
+                  Super UB (PPL & PML)
+                </div>
+                <div class="berkas-card-sub">Surat Pernyataan Penyelesaian Pendataan/Pemeriksaan Lapangan untuk Petugas
+                  UB.</div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted); min-width:48px">PPL UB</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPL_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary); min-width:48px">PML UB</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPML_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Super Kepala UB & Lampiran Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
                     </svg>
-                    Kelola Hold
+                    Super Kepala UB & Lampiran
+                  </div>
+                  <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUBInputModal()"
+                    style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg> Input Data UB
                   </button>
-                </td>
-              </tr>
-              <!-- Dokumen UB T1 Header & Compact Rows -->
-              <tr style="background: var(--bg-hover, rgba(255,255,255,0.03)); font-weight: bold;">
-                <td colspan="3" style="padding: 0.75rem 1rem; border-top: 2px solid var(--border)">
-                  <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div
-                      style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.92rem; color: var(--primary);">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                        <polyline points="14 2 14 8 20 8"></polyline>
-                        <line x1="16" y1="13" x2="8" y2="13"></line>
-                        <line x1="16" y1="17" x2="8" y2="17"></line>
-                        <polyline points="10 9 9 9 8 9"></polyline>
-                      </svg>
-                      Dokumen UB T1 (Petugas Usaha Besar)
-                    </div>
-                    <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openUBInputModal()"
-                      style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.3rem 0.65rem;font-size:0.78rem;">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                      </svg>
-                      Input Data Petugas UB
-                    </button>
+                </div>
+                <div class="berkas-card-sub">Surat Pernyataan Kepala BPS, Rekapitulasi Petugas UB, dan BAPP UB.</div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted); min-width:65px">Super Kepala</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaDoc_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperKepalaDoc_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">7</td>
-                <td style="font-weight:600">Super UB
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Surat Pernyataan
-                    Penyelesaian untuk PPL UB (5) & PML UB (2)</div>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:stretch">
-                    <!-- PPL UB -->
-                    <div style="display:flex;gap:0.35rem;justify-content:center;align-items:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);min-width:42px;text-align:right">PPL:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPPL_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg> Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPL_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg> Unduh
-                      </button>
-                    </div>
-                    <!-- PML UB -->
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;align-items:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);min-width:42px;text-align:right">PML:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperPML_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg> Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperPML_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg> Unduh
-                      </button>
-                    </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary); min-width:65px">Lampiran Excel</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiran_UB()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiran_UB_ToExcel()"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Excel</button>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">8</td>
-                <td style="font-weight:600">Super Kepala UB
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Surat Pernyataan
-                    Kepala BPS & Lampiran Rekapitulasi Petugas UB</div>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;flex-direction:column;gap:0.4rem;align-items:stretch">
-                    <!-- Super Kepala PDF -->
-                    <div style="display:flex;gap:0.35rem;justify-content:center;align-items:center">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--text-muted);min-width:65px;text-align:right">Super:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaDoc_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg> Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="downloadSuperKepalaDoc_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg> Unduh
-                      </button>
-                    </div>
-                    <!-- Lampiran Excel & Preview -->
-                    <div
-                      style="display:flex;gap:0.35rem;justify-content:center;align-items:center;border-top:1px dashed var(--border);padding-top:0.35rem">
-                      <span
-                        style="font-size:0.75rem;font-weight:bold;color:var(--primary);min-width:65px;text-align:right">Lampiran:</span>
-                      <button class="btn btn-primary btn-sm" onclick="previewSuperKepala_UB()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                          <circle cx="12" cy="12" r="3"></circle>
-                        </svg> Preview
-                      </button>
-                      <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiran_UB_ToExcel()"
-                        style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                          <polyline points="7 10 12 15 17 10"></polyline>
-                          <line x1="12" y1="15" x2="12" y2="3"></line>
-                        </svg> Excel
-                      </button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td style="text-align:center">9</td>
-                <td style="font-weight:600">BAPP UB
-                  <div style="font-size:0.72rem;color:var(--text-muted);font-weight:400;margin-top:2px">Berita Acara
-                    Pembayaran Petugas UB</div>
-                </td>
-                <td style="text-align:center">
-                  <div style="display:flex;gap:0.35rem;justify-content:center">
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#ca8a04; min-width:65px">BAPP UB</span>
+                  <div class="gelombang-actions">
                     <button class="btn btn-primary btn-sm" onclick="previewBAPP_UB()"
-                      style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                        <circle cx="12" cy="12" r="3"></circle>
-                      </svg> Preview
-                    </button>
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04"><svg
+                        xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg> Preview</button>
                     <button class="btn btn-secondary btn-sm" onclick="downloadBAPP_UB()"
-                      style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;font-size:0.75rem">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                        <polyline points="7 10 12 15 17 10"></polyline>
-                        <line x1="12" y1="15" x2="12" y2="3"></line>
-                      </svg> Unduh
-                    </button>
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem"><svg xmlns="http://www.w3.org/2000/svg"
+                        width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg> Unduh</button>
                   </div>
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                </div>
+              </div>
+            </div>
+
+          </div>
         </div>
       </div>
 
@@ -2631,12 +2620,16 @@
           <table class="admin-table" id="previewSuperTable" style="font-size: 0.85rem">
             <thead>
               <tr>
-                <th style="width:50px;text-align:center">No</th>
-                <th>Nama Petugas Lapangan</th>
-                <th style="text-align:center">Kode Kecamatan</th>
-                <th>Jabatan</th>
-                <th style="text-align:right">Target Prelist</th>
-                <th style="text-align:right">Realisasi Hasil Pendataan (Usaha+Keluarga)</th>
+                <th style="width:40px;text-align:center">No</th>
+                <th>Nama PML</th>
+                <th>Email PML</th>
+                <th>Nama PPL</th>
+                <th>Email PPL</th>
+                <th style="text-align:center">Kode Kec</th>
+                <th style="text-align:center">Kode Desa</th>
+                <th>KodeSLS+SubSLS</th>
+                <th style="text-align:right">Target</th>
+                <th style="text-align:right">Realisasi</th>
                 <th style="text-align:right">Persentase (%)</th>
               </tr>
             </thead>
@@ -2743,7 +2736,128 @@
           </div>
           <div id="previewLkPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
         </div>
+      </div>
+    </div>
+  </div>
 
+  <!-- BAPP Modal Overlay -->
+  <div class="modal-overlay" id="bappModal" onclick="if(event.target===this)closeBappModal()">
+    <div class="bottom-sheet"
+      style="max-width:1150px; width:95vw; border-radius:var(--radius-xl); max-height:92vh; display:flex; flex-direction:column; overflow:hidden">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header"
+        style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:0.75rem">
+        <div>
+          <div class="bottom-sheet-title" style="font-size:1.15rem; font-weight:700">Tabel BAPP Pencairan Termin I</div>
+          <div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px">Pantau, filter, dan cetak PDF BAPP
+            Termin I seluruh petugas.</div>
+        </div>
+      </div>
+      <div class="bottom-sheet-body" style="overflow-y:auto; flex:1; padding-top:1rem">
+
+        <div style="display:flex;gap:0.5rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center">
+          <input type="text" class="filter-select" id="bappSearchName" placeholder="Cari nama petugas..."
+            oninput="filterBAPP()" style="flex:1 1 150px; min-width:130px; max-width:220px; height:38px">
+          <select class="filter-select" id="bappKecamatanFilter" onchange="filterBAPP()"
+            style="flex:1 1 130px; min-width:120px; max-width:170px; height:38px">
+            <option value="">Semua Kecamatan</option>
+          </select>
+          <select class="filter-select" id="bappRoleFilter" onchange="filterBAPP()"
+            style="flex:1 1 100px; min-width:100px; max-width:130px; height:38px">
+            <option value="">Semua Role</option>
+            <option value="pml">PML</option>
+            <option value="ppl">PPL</option>
+          </select>
+          <select class="filter-select" id="bappGelombangFilter" onchange="filterBAPP()"
+            style="flex:1 1 140px; min-width:130px; max-width:180px; height:38px; border: 1.5px solid var(--primary); font-weight: 600;">
+            <option value="">Semua Gelombang</option>
+            <option value="1">Gelombang 1</option>
+            <option value="2">Gelombang 2</option>
+            <option value="3">Gelombang 3</option>
+            <option value="4">Gelombang 4</option>
+          </select>
+
+          <button class="btn btn-secondary btn-sm" onclick="loadBAPPData()" style="height:38px;margin-bottom:0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+            </svg>
+            Refresh
+          </button>
+
+          <button class="btn btn-primary btn-sm" id="btnPrintSelected" onclick="printSelectedBAPP()"
+            style="height:38px;margin-bottom:0;display:none;margin-left:auto">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Cetak Terpilih (<span id="selectedBappCount">0</span>)
+          </button>
+
+          <button class="btn btn-secondary btn-sm btn-superadmin-only" id="btnOcrSelected" onclick="ocrSelectedBAPP()"
+            style="height:38px;margin-bottom:0;display:none;margin-left:8px;background:#0ea5e9;border:none;color:#ffffff">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path
+                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+              <line x1="12" y1="22.08" x2="12" y2="12" />
+            </svg>
+            Scan Ulang OCR (<span id="selectedOcrCount">0</span>)
+          </button>
+        </div>
+
+        <div class="table-wrapper" style="overflow-x:auto; width:100%; -webkit-overflow-scrolling:touch">
+          <div class="table-header">
+            <div class="table-title">Daftar BAPP</div>
+            <div class="table-count" id="bappTableCount">Total: 0 petugas</div>
+          </div>
+          <table class="admin-table" style="min-width:680px; width:100%">
+            <thead>
+              <tr>
+                <th style="width:40px;text-align:center"><input type="checkbox" id="selectAllBapp"
+                    onchange="toggleSelectAllBapp(this.checked)"></th>
+                <th onclick="sortBapp('nama')" style="cursor:pointer;white-space:nowrap">Nama Petugas
+                  <span class="bapp-sort-icon" id="sort-bapp-nama" style="opacity:0.4;font-size:0.7rem">▲</span>
+                </th>
+                <th>Sobat ID</th>
+                <th>Role</th>
+                <th>Kecamatan</th>
+                <th onclick="sortBapp('created_at')" style="cursor:pointer;white-space:nowrap">Tanggal Upload
+                  <span class="bapp-sort-icon" id="sort-bapp-created_at" style="opacity:0.4;font-size:0.7rem">⇅</span>
+                </th>
+                <th style="text-align:center">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="bappTableBody">
+              <tr>
+                <td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Memuat data...</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display:flex;align-items:center;gap:0.5rem;font-size:0.875rem">
+              <span>Tampilkan</span>
+              <select id="bappPageSizeSelect" class="filter-select" onchange="changeBappPageSize()"
+                style="width:80px;padding:0.25rem">
+                <option value="10" selected>10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+            </div>
+            <div id="bappPagination" class="pagination" style="display:flex;gap:0.25rem"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="bottom-sheet-footer">
+        <button class="btn btn-secondary" onclick="closeBappModal()">Tutup</button>
       </div>
     </div>
   </div>

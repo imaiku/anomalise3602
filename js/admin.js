@@ -66,6 +66,16 @@ function showSection(sectionId, updateHash = true) {
       sectionId = 'history';
     }
   }
+
+  // Redirect legacy #bapp section to Berkas SE panel with BAPP modal
+  if (sectionId === 'bapp') {
+    showSection('berkas-lainnya', false);
+    switchBerkasTab('termin1');
+    openBappModal();
+    if (updateHash) window.location.hash = 'berkas-lainnya';
+    return;
+  }
+
   document.querySelectorAll('.section-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
   document.getElementById(`panel-${sectionId}`)?.classList.add('active');
@@ -73,12 +83,44 @@ function showSection(sectionId, updateHash = true) {
   if (sectionId === 'users') {
     loadUsers();
   }
-  if (sectionId === 'bapp') {
-    loadBAPPData();
-  }
 
   if (updateHash) {
     window.location.hash = sectionId;
+  }
+}
+
+// ============================================================
+// BERKAS SE TABS & BAPP MODAL HELPERS
+// ============================================================
+function switchBerkasTab(tabId) {
+  document.querySelectorAll('.berkas-tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.berkas-tab-content').forEach(content => content.classList.remove('active'));
+  
+  const selectedBtn = document.getElementById(`tab-btn-${tabId}`);
+  const selectedContent = document.getElementById(`berkas-tab-${tabId}`);
+  
+  if (selectedBtn) selectedBtn.classList.add('active');
+  if (selectedContent) selectedContent.classList.add('active');
+}
+
+function openBappModal() {
+  const modal = document.getElementById('bappModal');
+  if (modal) {
+    modal.classList.add('open');
+    const tbody = document.getElementById('bappTableBody');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto 0.5rem"></div>Memuat data BAPP...</td></tr>`;
+    }
+    setTimeout(() => {
+      loadBAPPData();
+    }, 50);
+  }
+}
+
+function closeBappModal() {
+  const modal = document.getElementById('bappModal');
+  if (modal) {
+    modal.classList.remove('open');
   }
 }
 // ============================================================
@@ -1931,7 +1973,7 @@ function closePreviewLkModal() {
 let allBappUploads = [];
 let filteredBappUploads = [];
 let currentBappPage = 1;
-let bappPageSize = 25;
+let bappPageSize = 10;
 let totalBappDbCount = 0;
 let bappSortField = 'nama';
 let bappSortDir = 'asc';
@@ -4032,9 +4074,14 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     userSlsMap[us.user_id].push(us.kode_sls);
   });
 
-  // Group PPLs by PML for PML target/capaian sum
+  // Profile map & relation lookup for PPL -> PML pairing
+  const profileMap = {};
+  profiles.forEach(p => { profileMap[p.id] = p; });
+
+  const pplToPml = {};
   const pmlToPpl = {};
   relations.forEach(r => {
+    pplToPml[r.ppl_id] = r.pml_id;
     if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
     pmlToPpl[r.pml_id].push(r.ppl_id);
   });
@@ -4050,18 +4097,29 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     let realisasiG4 = 0;
 
     if (p.role === 'ppl') {
+      const pmlId = pplToPml[p.id];
+      const pmlProf = pmlId ? profileMap[pmlId] : null;
+      const namaPml = pmlProf ? (pmlProf.nama || '').toUpperCase() : '';
+      const emailPml = pmlProf ? (pmlProf.email_ref || '') : '';
+      const namaPpl = (p.nama || '').toUpperCase();
+      const emailPpl = p.email_ref || '';
+
       const codes = userSlsMap[p.id] || [];
       let kdkec = '';
       if (codes.length > 0) {
         kdkec = codes[0].substring(4, 7);
       }
 
+      const desaSet = new Set();
       let visitedG1 = 0;
       let visitedG2 = 0;
       let visitedG3 = 0;
       let visitedG4 = 0;
 
       codes.forEach(code => {
+        if (code.length >= 10) {
+          desaSet.add(code.substring(7, 10));
+        }
         const cap1 = capaianPplG1Map[code] || 0;
         const cap2 = capaianPplG2Map[code] || 0;
         const cap3 = capaianPplG3Map[code] || 0;
@@ -4078,6 +4136,9 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         if (cap3 > 0) visitedG3++;
         if (cap4 > 0) visitedG4++;
       });
+
+      const kddesa = Array.from(desaSet).sort().join(',');
+      const kdsls = codes.map(c => c.length >= 6 ? c.slice(-6) : c).join(',');
 
       const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
       const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
@@ -4105,8 +4166,14 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       if (gelombang === 4) chosenReal = realisasiG4;
 
       reportData.push({
+        nama_pml: namaPml,
+        email_pml: emailPml,
+        nama_ppl: namaPpl,
+        email_ppl: emailPpl,
         nama: p.nama,
         kdkec,
+        kddesa,
+        kdsls,
         jabatan: "PPL",
         target,
         realisasi: chosenReal,
@@ -4116,6 +4183,11 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         isG4Eligible
       });
     } else if (p.role === 'pml') {
+      const namaPml = (p.nama || '').toUpperCase();
+      const emailPml = p.email_ref || '';
+      const namaPpl = (p.nama || '').toUpperCase();
+      const emailPpl = p.email_ref || '';
+
       const supervisedPpls = pmlToPpl[p.id] || [];
       let kdkec = '';
       let totalPmlSls = 0;
@@ -4130,9 +4202,15 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         codes.forEach(code => allSlsSet.add(code));
       });
 
-      allSlsSet.forEach(code => {
+      const pmlCodes = Array.from(allSlsSet);
+      const desaSet = new Set();
+
+      pmlCodes.forEach(code => {
         if (code.length >= 7 && !kdkec) {
           kdkec = code.substring(4, 7);
+        }
+        if (code.length >= 10) {
+          desaSet.add(code.substring(7, 10));
         }
         totalPmlSls++;
         const cap1 = capaianPmlG1Map[code] || 0;
@@ -4151,6 +4229,9 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
         if (cap3 > 0) visitedPmlG3++;
         if (cap4 > 0) visitedPmlG4++;
       });
+
+      const kddesa = Array.from(desaSet).sort().join(',');
+      const kdsls = pmlCodes.map(c => c.length >= 6 ? c.slice(-6) : c).join(',');
 
       const pctG1 = target > 0 ? (realisasiG1 / target) : 0;
       const pctG2 = target > 0 ? (realisasiG2 / target) : 0;
@@ -4176,8 +4257,14 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       if (gelombang === 4) chosenReal = realisasiG4;
 
       reportData.push({
+        nama_pml: namaPml,
+        email_pml: emailPml,
+        nama_ppl: namaPpl,
+        email_ppl: emailPpl,
         nama: p.nama,
         kdkec,
+        kddesa,
+        kdsls,
         jabatan: "PML",
         target,
         realisasi: chosenReal,
@@ -4207,14 +4294,14 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
   // Sort by role (PPL first, then PML), then by kdkec, then by nama
   reportData.sort((a, b) => {
     if (a.jabatan !== b.jabatan) {
-      return a.jabatan.localeCompare(b.jabatan);
+      return a.jabatan === 'PPL' ? -1 : 1;
     }
     const kecA = (a.kdkec || '').toString();
     const kecB = (b.kdkec || '').toString();
     if (kecA !== kecB) {
       return kecA.localeCompare(kecB);
     }
-    return (a.nama || '').localeCompare(b.nama || '');
+    return (a.nama_ppl || a.nama || '').localeCompare(b.nama_ppl || b.nama || '');
   });
 
   return reportData;
@@ -5149,8 +5236,6 @@ async function releaseHold(holdId) {
 
 // =====================================================
 // LAMPIRAN SUPER KEPALA T1
-// =====================================================
-
 let previewSuperAllRows = [];
 let previewSuperRowTypes = [];
 let previewSuperCurrentPage = 1;
@@ -5160,102 +5245,31 @@ let previewSuperGelombang = 1;
 async function generateLampiranSuperKepalaData(gelombang = 1) {
   const rekapData = await fetchSuperEvaluasiT1Data(gelombang);
 
-  const pplRows = rekapData.filter(r => r.jabatan === 'PPL');
-  const pmlRows = rekapData.filter(r => r.jabatan === 'PML');
-
   const excelRows = [];
   const rowTypes = [];
 
   let globalIndex = 1;
 
-  // 1. PPL Group
-  let pplTgt = 0, pplReal = 0;
-  pplRows.forEach(row => {
+  rekapData.forEach(row => {
     const tgt = parseInt(row.target) || 0;
     const real = parseInt(row.realisasi) || 0;
-    pplTgt += tgt;
-    pplReal += real;
     const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%';
 
     excelRows.push({
       'No': globalIndex++,
-      'Nama Petugas Lapangan': (row.nama || '').toUpperCase(),
-      'Kode Kecamatan': row.kdkec || '',
-      'Jabatan': row.jabatan || '',
-      'Target Prelist': tgt,
-      'Realisasi Hasil Pendataan (Usaha+Keluarga)': real,
+      'Nama PML': row.nama_pml || '',
+      'email PML': row.email_pml || '',
+      'Nama PPL': row.nama_ppl || '',
+      'email PPL': row.email_ppl || '',
+      'Kode Kec': row.kdkec || '',
+      'Kode Desa': row.kddesa || '',
+      'KodeSLS+SubSLS': row.kdsls || '',
+      'Target': tgt,
+      'Realisasi': real,
       'Persentase (%)': pct
     });
-    rowTypes.push('data_ppl');
+    rowTypes.push(row.jabatan === 'PPL' ? 'data_ppl' : 'data_pml');
   });
-
-  // PPL Subtotal
-  if (pplRows.length > 0) {
-    const pplPct = pplTgt > 0 ? ((pplReal / pplTgt) * 100).toFixed(2) + '%' : '0.00%';
-    excelRows.push({
-      'No': '',
-      'Nama Petugas Lapangan': 'SUB TOTAL PPL',
-      'Kode Kecamatan': '',
-      'Jabatan': '',
-      'Target Prelist': pplTgt,
-      'Realisasi Hasil Pendataan (Usaha+Keluarga)': pplReal,
-      'Persentase (%)': pplPct
-    });
-    rowTypes.push('subtotal_ppl');
-  }
-
-  // 2. PML Group
-  let pmlTgt = 0, pmlReal = 0;
-  pmlRows.forEach(row => {
-    const tgt = parseInt(row.target) || 0;
-    const real = parseInt(row.realisasi) || 0;
-    pmlTgt += tgt;
-    pmlReal += real;
-    const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%';
-
-    excelRows.push({
-      'No': globalIndex++,
-      'Nama Petugas Lapangan': (row.nama || '').toUpperCase(),
-      'Kode Kecamatan': row.kdkec || '',
-      'Jabatan': row.jabatan || '',
-      'Target Prelist': tgt,
-      'Realisasi Hasil Pendataan (Usaha+Keluarga)': real,
-      'Persentase (%)': pct
-    });
-    rowTypes.push('data_pml');
-  });
-
-  // PML Subtotal
-  if (pmlRows.length > 0) {
-    const pmlPct = pmlTgt > 0 ? ((pmlReal / pmlTgt) * 100).toFixed(2) + '%' : '0.00%';
-    excelRows.push({
-      'No': '',
-      'Nama Petugas Lapangan': 'SUB TOTAL PML',
-      'Kode Kecamatan': '',
-      'Jabatan': '',
-      'Target Prelist': pmlTgt,
-      'Realisasi Hasil Pendataan (Usaha+Keluarga)': pmlReal,
-      'Persentase (%)': pmlPct
-    });
-    rowTypes.push('subtotal_pml');
-  }
-
-  // Grand Total
-  if (rekapData.length > 0) {
-    const grandTgt = pplTgt + pmlTgt;
-    const grandReal = pplReal + pmlReal;
-    const grandPct = grandTgt > 0 ? ((grandReal / grandTgt) * 100).toFixed(2) + '%' : '0.00%';
-    excelRows.push({
-      'No': '',
-      'Nama Petugas Lapangan': 'JUMLAH (TOTAL)',
-      'Kode Kecamatan': '',
-      'Jabatan': '',
-      'Target Prelist': grandTgt,
-      'Realisasi Hasil Pendataan (Usaha+Keluarga)': grandReal,
-      'Persentase (%)': grandPct
-    });
-    rowTypes.push('grand_total');
-  }
 
   return { excelRows, rowTypes };
 }
@@ -5295,9 +5309,13 @@ function filterPreviewSuper() {
 
   previewSuperAllRows.forEach((row, i) => {
     const match = !search ||
-      (row['Nama Petugas Lapangan'] || '').toLowerCase().includes(search) ||
-      (row['Kode Kecamatan'] || '').toLowerCase().includes(search) ||
-      (row['Jabatan'] || '').toLowerCase().includes(search);
+      (row['Nama PML'] || '').toLowerCase().includes(search) ||
+      (row['email PML'] || '').toLowerCase().includes(search) ||
+      (row['Nama PPL'] || '').toLowerCase().includes(search) ||
+      (row['email PPL'] || '').toLowerCase().includes(search) ||
+      (row['Kode Kec'] || '').toLowerCase().includes(search) ||
+      (row['Kode Desa'] || '').toLowerCase().includes(search) ||
+      (row['KodeSLS+SubSLS'] || '').toLowerCase().includes(search);
 
     if (match) {
       filtered.push(row);
@@ -5317,7 +5335,7 @@ function renderPreviewSuperTable(data, types) {
   if (!tbody) return;
 
   if (data.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data ditemukan</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data ditemukan</td></tr>';
     if (pag) pag.innerHTML = '';
     return;
   }
@@ -5336,25 +5354,18 @@ function renderPreviewSuperTable(data, types) {
   }
 
   tbody.innerHTML = displayData.map((row, i) => {
-    const type = displayTypes[i];
-    let styleAttr = '';
-
-    if (type === 'subtotal_ppl') {
-      styleAttr = 'background-color:#FFF2CC; font-weight:bold;';
-    } else if (type === 'subtotal_pml') {
-      styleAttr = 'background-color:#D9E1F2; font-weight:bold; color:#1F4E78;';
-    } else if (type === 'grand_total') {
-      styleAttr = 'background-color:#C6E0B4; font-weight:bold; color:#375623;';
-    }
-
     return `
-      <tr style="${styleAttr}">
+      <tr>
         <td style="text-align:center">${row['No'] || ''}</td>
-        <td>${escHtml(row['Nama Petugas Lapangan'] || '')}</td>
-        <td style="text-align:center">${escHtml(row['Kode Kecamatan'] || '')}</td>
-        <td>${escHtml(row['Jabatan'] || '')}</td>
-        <td style="text-align:right">${row['Target Prelist'] !== undefined ? row['Target Prelist'] : ''}</td>
-        <td style="text-align:right">${row['Realisasi Hasil Pendataan (Usaha+Keluarga)'] !== undefined ? row['Realisasi Hasil Pendataan (Usaha+Keluarga)'] : ''}</td>
+        <td>${escHtml(row['Nama PML'] || '')}</td>
+        <td>${escHtml(row['email PML'] || '')}</td>
+        <td>${escHtml(row['Nama PPL'] || '')}</td>
+        <td>${escHtml(row['email PPL'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode Kec'] || '')}</td>
+        <td style="text-align:center">${escHtml(row['Kode Desa'] || '')}</td>
+        <td style="font-size:0.8rem; word-break:break-all">${escHtml(row['KodeSLS+SubSLS'] || '')}</td>
+        <td style="text-align:right">${row['Target'] !== undefined ? row['Target'] : ''}</td>
+        <td style="text-align:right">${row['Realisasi'] !== undefined ? row['Realisasi'] : ''}</td>
         <td style="text-align:right; font-weight: bold;">${escHtml(row['Persentase (%)'] || '')}</td>
       </tr>
     `;
