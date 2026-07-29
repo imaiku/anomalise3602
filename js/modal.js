@@ -170,10 +170,14 @@ function renderAnomaliItem(row, refMap, historyList) {
   const historyHtml = historyList.length > 0
     ? historyList.slice(0, 5).map(h => {
       const roleText = h.profiles?.role ? h.profiles.role.toUpperCase() : 'SISTEM';
-      return `<div class="history-item">
+      const isSnapshot = h.status_lama === h.status_baru; // entri "terdeteksi kembali" tanpa perubahan status
+      const changeHtml = isSnapshot
+        ? `<span style="color:var(--text-muted);font-size:0.75rem">↩ Terdeteksi kembali · ${escHtml(STATUS_CONFIG[h.status_baru]?.label || h.status_baru)}</span>`
+        : `${escHtml(STATUS_CONFIG[h.status_lama]?.label || h.status_lama || '\u2014')} \u2192 <strong style="color:var(--primary-light)">${escHtml(STATUS_CONFIG[h.status_baru]?.label || h.status_baru)}</strong>`;
+      return `<div class="history-item${isSnapshot ? ' history-item-snapshot' : ''}">
           <span class="${h.sumber === 'merge_otomatis' ? 'history-source-auto' : 'history-source-manual'}">[${h.sumber === 'merge_otomatis' ? 'Sistem' : 'Manual'}]</span>
-          ${formatDate(h.created_at, true)} \u00b7 ${escHtml(h.diubah_oleh_nama || 'Sistem')} - <strong style="font-size:0.7rem;color:var(--primary)">${escHtml(roleText)}</strong>
-          <br>${escHtml(STATUS_CONFIG[h.status_lama]?.label || h.status_lama || '\u2014')} \u2192 ${escHtml(STATUS_CONFIG[h.status_baru]?.label || h.status_baru)}
+          ${formatDate(h.created_at, true)} &middot; ${escHtml(h.diubah_oleh_nama || 'Sistem')} - <strong style="font-size:0.7rem;color:var(--primary)">${escHtml(roleText)}</strong>
+          <br>${changeHtml}
           ${h.catatan ? `<br><em style="font-size:0.75rem">${escHtml(h.catatan)}</em>` : ''}
         </div>`;
     }).join('')

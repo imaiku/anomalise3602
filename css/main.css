@@ -613,6 +613,7 @@ tbody td {
   color: var(--text-muted);
 }
 .history-item:last-child { border-bottom: none; }
+.history-item-snapshot { opacity: 0.65; font-size: 0.75rem; }
 .history-source-auto { color: var(--warning); }
 .history-source-manual { color: var(--info); }
 

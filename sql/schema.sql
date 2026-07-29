@@ -743,13 +743,19 @@ BEGIN
             updated_at = now()
           WHERE id = v_existing_id;
 
-          IF v_target_status != 'belum_ditindaklanjuti' AND v_existing_status != v_target_status THEN
-            INSERT INTO public.status_history (
-              assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
-            ) VALUES (
-              v_existing_id, v_existing_status, v_target_status, 'Sistem (Merge)', NULLIF(v_rec.catatan, ''), 'merge_otomatis'
-            );
-          END IF;
+          -- Selalu catat ke status_history di setiap upload (snapshot keadaan).
+          -- Jika status tidak berubah, status_lama = status_baru (penanda "terdeteksi kembali").
+          -- Jika status berubah, catat perubahannya seperti biasa.
+          INSERT INTO public.status_history (
+            assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
+          ) VALUES (
+            v_existing_id,
+            v_existing_status,
+            CASE WHEN v_target_status != 'belum_ditindaklanjuti' THEN v_target_status ELSE v_existing_status END,
+            'Sistem (Merge)',
+            NULLIF(v_rec.catatan, ''),
+            'merge_otomatis'
+          );
 
           v_updated_count := v_updated_count + 1;
         END IF;
