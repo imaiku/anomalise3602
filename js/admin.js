@@ -57,6 +57,166 @@ async function initAdmin() {
   await loadUnassigned();
   await loadWilayah();
   await loadBAPPKecamatanFilter();
+  if (adminProfile && adminProfile.role === 'superadmin') {
+    initPresence();
+  }
+}
+
+// ============================================================
+// REALTIME PRESENCE
+// ============================================================
+let presenceChannel = null;
+
+async function initPresence() {
+  const panel = document.getElementById('presencePanel');
+  if (panel) panel.style.display = '';
+
+  const displayName = getSessionName(adminProfile);
+
+  // Interval per role (ms)
+  const INTERVAL_MS = {
+    admin:      1 * 60 * 1000,
+    superadmin: 5 * 60 * 1000,
+    pml:       60 * 60 * 1000,
+    ppl:       60 * 60 * 1000,
+  };
+  const intervalMs = INTERVAL_MS[adminProfile.role] ?? (5 * 60 * 1000);
+
+  try {
+    await db.rpc('upsert_last_seen', {
+      p_display_name: displayName,
+      p_role: adminProfile.role
+    });
+  } catch (err) {
+    console.error('Error upserting last_seen:', err);
+  }
+
+  setInterval(async () => {
+    try {
+      await db.rpc('upsert_last_seen', {
+        p_display_name: displayName,
+        p_role: adminProfile.role
+      });
+    } catch (err) {
+      console.error('Error periodic upserting last_seen:', err);
+    }
+  }, intervalMs);
+
+  presenceChannel = db.channel('presence:anomali', {
+    config: { presence: { key: adminProfile.id } }
+  });
+
+  const updatePresenceUI = async () => {
+    const history = await loadLastSeenHistory();
+    renderUnifiedPresence(presenceChannel.presenceState(), history);
+  };
+
+  presenceChannel
+    .on('presence', { event: 'sync' }, () => {
+      updatePresenceUI();
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await presenceChannel.track({
+          nama: displayName,
+          role: adminProfile.role,
+          joined_at: new Date().toISOString()
+        });
+        updatePresenceUI();
+      }
+    });
+}
+
+async function loadLastSeenHistory() {
+  try {
+    const { data, error } = await db
+      .from('user_last_seen')
+      .select('display_name, role, last_seen')
+      .order('last_seen', { ascending: false })
+      .limit(10);
+    if (error) throw error;
+    return data || [];
+  } catch (err) {
+    console.error('Error fetching user_last_seen history:', err);
+    return [];
+  }
+}
+
+function renderUnifiedPresence(presenceState, historyRows) {
+  const list = document.getElementById('presenceList');
+  const countEl = document.getElementById('presenceCount');
+  if (!list) return;
+
+  const onlineUsers = Object.values(presenceState).flat();
+  const onlineKeys = new Set(onlineUsers.map(u => `${u.nama}|${u.role}`));
+  if (countEl) countEl.textContent = onlineUsers.length;
+
+  const unifiedMap = new Map();
+
+  // Masukkan data history terlebih dahulu (max 10)
+  historyRows.forEach(row => {
+    const key = `${row.display_name}|${row.role}`;
+    unifiedMap.set(key, {
+      nama: row.display_name,
+      role: row.role,
+      last_seen: row.last_seen,
+      isOnline: onlineKeys.has(key)
+    });
+  });
+
+  // Jika ada user online yang belum ada di history, tambahkan
+  onlineUsers.forEach(u => {
+    const key = `${u.nama}|${u.role}`;
+    if (!unifiedMap.has(key)) {
+      unifiedMap.set(key, {
+        nama: u.nama,
+        role: u.role,
+        last_seen: u.joined_at,
+        isOnline: true
+      });
+    } else {
+      unifiedMap.get(key).isOnline = true;
+    }
+  });
+
+  let unifiedList = Array.from(unifiedMap.values());
+  unifiedList.sort((a, b) => new Date(b.last_seen) - new Date(a.last_seen));
+  unifiedList = unifiedList.slice(0, 10);
+
+  const ROLE_COLORS = {
+    superadmin: { bg: '#7c3aed', text: '#fff' },
+    admin:      { bg: '#ea580c', text: '#fff' },
+    pml:        { bg: '#0284c7', text: '#fff' },
+    ppl:        { bg: '#16a34a', text: '#fff' },
+  };
+
+  const now = Date.now();
+  list.innerHTML = unifiedList.map(u => {
+    const color = ROLE_COLORS[u.role] || { bg: '#64748b', text: '#fff' };
+    const initials = (u.nama || '?').substring(0, 2).toUpperCase();
+    const diffMin = Math.floor((now - new Date(u.last_seen)) / 60000);
+    const timeLabel = u.isOnline ? 'online'
+      : diffMin < 1 ? 'baru saja'
+      : diffMin < 60 ? `${diffMin} mnt lalu`
+      : diffMin < 1440 ? `${Math.floor(diffMin/60)} jam lalu`
+      : `${Math.floor(diffMin/1440)} hari lalu`;
+
+    return `
+      <div class="presence-user-item" style="opacity:${u.isOnline ? 1 : 0.65}">
+        <div class="presence-avatar" style="background:${color.bg};color:${color.text}">
+          ${initials}
+          ${u.isOnline ? '<span style="position:absolute;bottom:-1px;right:-1px;width:7px;height:7px;background:#22c55e;border-radius:50%;border:1px solid var(--bg-card)"></span>' : ''}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${u.nama || 'Unknown'}</div>
+          <div style="display:flex;align-items:center;gap:0.3rem;margin-top:1px">
+            <span class="presence-role-badge" style="background:${color.bg};color:${color.text}">${u.role}</span>
+            <span style="color:${u.isOnline ? '#22c55e' : 'var(--text-muted)'};font-size:0.62rem">${timeLabel}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 function showSection(sectionId, updateHash = true) {
   // Prevent admin from visiting forbidden sections

@@ -57,6 +57,8 @@ async function initDashboard() {
     if (container) {
       container.classList.toggle('hidden', !showPetugasFilter);
     }
+
+    joinPresenceTracking(currentProfile);
   } else {
     if (userDisplayName) userDisplayName.textContent = 'Guest';
     if (userRoleBadge)   userRoleBadge.style.display = 'none';
@@ -77,6 +79,56 @@ async function initDashboard() {
 
   // Run stats + dropdown options in parallel with the main table data
   await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
+}
+
+// Join presence channel agar terdeteksi dari admin panel & update last_seen
+async function joinPresenceTracking(profile) {
+  if (!profile) return;
+  const displayName = getSessionName(profile);
+
+  // Interval per role (ms)
+  const INTERVAL_MS = {
+    admin:      1 * 60 * 1000,   // 1 menit
+    superadmin: 5 * 60 * 1000,   // 5 menit
+    pml:       60 * 60 * 1000,   // 1 jam
+    ppl:       60 * 60 * 1000,   // 1 jam
+  };
+  const intervalMs = INTERVAL_MS[profile.role] ?? (60 * 60 * 1000);
+
+  // Upsert saat pertama kali
+  try {
+    await db.rpc('upsert_last_seen', {
+      p_display_name: displayName,
+      p_role: profile.role
+    });
+  } catch (err) {
+    console.error('Error upserting last_seen:', err);
+  }
+
+  // Interval periodic upsert
+  setInterval(async () => {
+    try {
+      await db.rpc('upsert_last_seen', {
+        p_display_name: displayName,
+        p_role: profile.role
+      });
+    } catch (err) {
+      console.error('Error periodic upserting last_seen:', err);
+    }
+  }, intervalMs);
+
+  const ch = db.channel('presence:anomali', {
+    config: { presence: { key: profile.id } }
+  });
+  ch.subscribe(async (status) => {
+    if (status === 'SUBSCRIBED') {
+      await ch.track({
+        nama: displayName,
+        role: profile.role,
+        joined_at: new Date().toISOString()
+      });
+    }
+  });
 }
 
 // ============================================================
@@ -335,7 +387,7 @@ async function loadAnomalinomorOptions() {
     return;
   }
 
-  const checkedSet = new Set(getSelectedNomorFilters());
+  const excludedSet = new Set(getExcludedNomorFilters());
   const seen = new Set();
   let html = '';
 
@@ -344,7 +396,7 @@ async function loadAnomalinomorOptions() {
     if (seen.has(val)) return;
     seen.add(val);
     const label = `Anomali ${item.tipe === 'keluarga' ? 'KK' : 'Usaha'} ${item.nomor}`;
-    const isChecked = checkedSet.has(val);
+    const isChecked = !excludedSet.has(val); // default semua checked; unchecked = dikecualikan
     
     html += `
       <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; padding:0.25rem 0.5rem; cursor:pointer; color:var(--text); margin:0; hover:background-color:var(--border)">
@@ -371,23 +423,32 @@ function getSelectedNomorFilters() {
   return vals;
 }
 
+function getExcludedNomorFilters() {
+  const cbs = document.querySelectorAll('.nomor-filter-cb');
+  const vals = [];
+  cbs.forEach(cb => {
+    if (!cb.checked) vals.push(cb.value);
+  });
+  return vals;
+}
+
 function onNomorFilterChange() {
   updateNomorLabel();
   applyFilters();
 }
 
 function updateNomorLabel() {
-  const selected = getSelectedNomorFilters();
+  const excluded = getExcludedNomorFilters();
   const label = document.getElementById('nomorChecklistLabel');
   if (!label) return;
   
-  if (selected.length === 0) {
+  if (excluded.length === 0) {
     label.textContent = 'Nomor: Semua';
-  } else if (selected.length === 1) {
-    const [tipe, nomor] = selected[0].split(':');
-    label.textContent = `${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`;
+  } else if (excluded.length === 1) {
+    const [tipe, nomor] = excluded[0].split(':');
+    label.textContent = `Kecuali ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`;
   } else {
-    label.textContent = `${selected.length} Terpilih`;
+    label.textContent = `${excluded.length} Dikecualikan`;
   }
 }
 
@@ -458,7 +519,7 @@ async function loadRemainingRowsInBackground(loadId, buildScopeQuery, applyRoleF
 function applyLocalFiltersAndRender() {
   const status = document.getElementById('filterStatus')?.value;
   const jenis  = document.getElementById('filterJenis')?.value;
-  const selectedNomorList = getSelectedNomorFilters();
+  const excludedNomorList = getExcludedNomorFilters();
   const ket    = document.getElementById('filterKeterangan')?.value;
   const search = document.getElementById('filterSearch')?.value.trim().toLowerCase();
   const reject = document.getElementById('filterReject')?.value;
@@ -492,13 +553,14 @@ function applyLocalFiltersAndRender() {
     // 1. Status Filter
     if (status && !group.rows.some(r => r.status === status)) return false;
     
-    // 2. Nomor Filter (Match if group contains any of the selected anomaly numbers)
-    if (selectedNomorList && selectedNomorList.length > 0) {
-      const hasMatchingNomor = group.rows.some(r => {
+    // 2. Nomor Filter (Exclusion mode: semua terpilih by default.
+    //    Jika ada nomor yang di-uncheck, sembunyikan group yang PUNYA anomali tersebut.)
+    if (excludedNomorList && excludedNomorList.length > 0) {
+      const hasExcludedNomor = group.rows.some(r => {
         const val = `${r.tipe}:${r.nomor_anomali}`;
-        return selectedNomorList.includes(val);
+        return excludedNomorList.includes(val);
       });
-      if (!hasMatchingNomor) return false;
+      if (hasExcludedNomor) return false;
     }
     
     // 3. Keterangan (ket) Filter
@@ -762,9 +824,9 @@ function resetFilters() {
       if (el) el.value = '';
     });
 
-  // Clear all Nomor checklist checkboxes
+  // Reset Nomor checklist: kembalikan semua ke checked (default = semua)
   const cbs = document.querySelectorAll('.nomor-filter-cb');
-  cbs.forEach(cb => { cb.checked = false; });
+  cbs.forEach(cb => { cb.checked = true; });
   updateNomorLabel();
 
   selectedPetugas = null;
@@ -1058,7 +1120,7 @@ function updateFilterChips() {
   const bar    = document.getElementById('filterActiveBar');
   const status = document.getElementById('filterStatus').value;
   const jenis  = document.getElementById('filterJenis').value;
-  const selectedNomorList = getSelectedNomorFilters();
+  const excludedNomorList = getExcludedNomorFilters();
   const ket    = document.getElementById('filterKeterangan').value;
   const search = document.getElementById('filterSearch').value.trim();
   const reject = document.getElementById('filterReject')?.value;
@@ -1072,14 +1134,15 @@ function updateFilterChips() {
   const chips = [
     status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
     jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
-    ...selectedNomorList.map(val => {
+    ...excludedNomorList.map(val => {
       const [tipe, nomor] = val.split(':');
       return {
-        label: `Nomor: ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`,
+        label: `Kecuali: ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`,
         clear: () => {
+          // Re-check (include kembali) nomor yang sebelumnya di-exclude
           const cbs = document.querySelectorAll('.nomor-filter-cb');
           cbs.forEach(cb => {
-            if (cb.value === val) cb.checked = false;
+            if (cb.value === val) cb.checked = true;
           });
           updateNomorLabel();
           applyFilters();
@@ -1414,6 +1477,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const s = await getSession();
     if (s?.profile?.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
       document.getElementById('adminNameModal')?.classList.add('open');
+      setTimeout(() => { document.getElementById('adminNameInput')?.focus(); }, 50);
     } else {
       initDashboard();
     }

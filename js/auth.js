@@ -83,7 +83,12 @@ async function requireAuth(allowedRoles = null) {
 // Show name prompt modal for shared admin account
 function showAdminNameModal(profile) {
   const modal = document.getElementById('adminNameModal');
-  if (modal) modal.classList.add('open');
+  if (modal) {
+    modal.classList.add('open');
+    setTimeout(() => {
+      document.getElementById('adminNameInput')?.focus();
+    }, 50);
+  }
 }
 
 // Submit admin name

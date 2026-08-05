@@ -547,7 +547,7 @@
       <div class="bottom-sheet-body">
         <div class="form-group">
           <label class="form-label" for="adminNameInput">Nama Anda</label>
-          <input type="text" id="adminNameInput" class="form-input" placeholder="Masukkan nama lengkap">
+          <input type="text" id="adminNameInput" class="form-input" placeholder="Masukkan nama lengkap" onkeydown="if(event.key==='Enter') handleNameSubmitDash()">
         </div>
       </div>
       <div class="bottom-sheet-footer">
