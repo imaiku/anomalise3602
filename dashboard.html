@@ -112,6 +112,10 @@
         Dashboard <span>Anomali</span>
         <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab.
           Lebak</span>
+        <span id="lastDataBadge"
+          style="display:none;align-items:center;gap:0.25rem;font-size:0.65rem;font-weight:500;color:var(--text-subtle);background:var(--bg-card-2);border:1px solid var(--border);border-radius:9999px;padding:0.1rem 0.5rem;margin-left:0.5rem">
+          <span id="lastDataDateText">—</span>
+        </span>
       </div>
       <div class="navbar-actions">
         <!-- Profile Dropdown (combines userinfo, night mode, and logout) -->
@@ -190,25 +194,36 @@
     <!-- Stats Header -->
     <div class="stat-grid" id="statsGrid">
       <div class="stat-card">
-        <div class="stat-label">Total Assignment Anomali</div>
+        <div class="stat-label">Total Assignment</div>
         <div class="stat-value" id="statTotal">—</div>
         <div class="stat-sub" id="statTotalSub">assignment unik</div>
       </div>
       <div class="stat-card warning">
         <div class="stat-label">Belum Selesai</div>
         <div class="stat-value" id="statBelum" style="color:var(--error)">—</div>
-        <div class="stat-sub" id="statBelumSub">ada anomali belum ditangani</div>
+        <div class="stat-sub" id="statBelumSub">assignment belum selesai</div>
       </div>
       <div class="stat-card success">
-        <div class="stat-label">Selesai</div>
+        <div class="stat-label">Sudah Selesai</div>
         <div class="stat-value" id="statSelesai" style="color:var(--success)">—</div>
-        <div class="stat-sub" id="statSelesaiSub">semua anomali telah ditangani</div>
+        <div class="stat-sub" id="statSelesaiSub">assignment sudah selesai</div>
       </div>
       <div class="stat-card clear">
-        <div class="stat-label">Progress</div>
+        <div class="stat-label">Progress Assignment</div>
         <div class="stat-value" id="statProgress">—%</div>
-        <div class="progress-bar">
+        <div class="progress-bar mb-1">
           <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <div id="statProgressSub" style="margin-top:0.35rem">
+          <span id="anomaliBadge"
+            style="display:inline-flex;align-items:center;gap:0.25rem;background:var(--info-bg);color:var(--info);font-size:0.68rem;font-weight:600;padding:0.15rem 0.45rem;border-radius:9999px;border:1px solid rgba(59,130,246,0.25)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <path d="m9 11 3 3L22 4" />
+            </svg>
+            Anomali ditindaklanjuti: —%
+          </span>
         </div>
       </div>
     </div>
@@ -547,7 +562,8 @@
       <div class="bottom-sheet-body">
         <div class="form-group">
           <label class="form-label" for="adminNameInput">Nama Anda</label>
-          <input type="text" id="adminNameInput" class="form-input" placeholder="Masukkan nama lengkap" onkeydown="if(event.key==='Enter') handleNameSubmitDash()">
+          <input type="text" id="adminNameInput" class="form-input" placeholder="Masukkan nama lengkap"
+            onkeydown="if(event.key==='Enter') handleNameSubmitDash()">
         </div>
       </div>
       <div class="bottom-sheet-footer">

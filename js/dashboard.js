@@ -3,16 +3,16 @@
 // Depends on: config.js, utils.js, auth.js
 // ============================================================
 
-let currentProfile  = null;
-let allData         = [];   // grouped by assignment_id
-let filteredData    = [];
-let selectedIds     = new Set();
-let currentPage     = 1;
-let pageSize        = 10;
-let sortField       = 'first_seen';
-let sortDir         = 'desc';
+let currentProfile = null;
+let allData = [];   // grouped by assignment_id
+let filteredData = [];
+let selectedIds = new Set();
+let currentPage = 1;
+let pageSize = 10;
+let sortField = 'first_seen';
+let sortDir = 'desc';
 let showReopenHighlight = false;
-let debounceTimer   = null;
+let debounceTimer = null;
 let kecProgressData = [];
 
 // ============================================================
@@ -23,25 +23,24 @@ async function initDashboard() {
   currentProfile = session?.profile || null;
 
   const userDisplayName = document.getElementById('userDisplayName');
-  const userRoleBadge   = document.getElementById('userRoleBadge');
-  const loginNavBtn     = document.getElementById('loginNavBtn');
-  const adminNavBtn     = document.getElementById('adminNavBtn');
+  const userRoleBadge = document.getElementById('userRoleBadge');
+  const loginNavBtn = document.getElementById('loginNavBtn');
+  const adminNavBtn = document.getElementById('adminNavBtn');
   const profileDropdown = document.getElementById('profileDropdown');
-  const reopenToggle    = document.getElementById('reopenToggle');
+  const reopenToggle = document.getElementById('reopenToggle');
 
   if (currentProfile) {
     const name = getSessionName(currentProfile);
     if (userDisplayName) userDisplayName.textContent = name;
     if (userRoleBadge) {
       userRoleBadge.textContent = currentProfile.role.toUpperCase();
-      userRoleBadge.className = `type-badge type-${
-        currentProfile.role === 'ppl' ? 'keluarga' :
-        currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+      userRoleBadge.className = `type-badge type-${currentProfile.role === 'ppl' ? 'keluarga' :
+          currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
       userRoleBadge.style.display = 'inline-block';
     }
     loginNavBtn?.classList.add('hidden');
     profileDropdown?.classList.remove('hidden');
-    
+
     const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role.toLowerCase());
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
     document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
@@ -61,12 +60,12 @@ async function initDashboard() {
     joinPresenceTracking(currentProfile);
   } else {
     if (userDisplayName) userDisplayName.textContent = 'Guest';
-    if (userRoleBadge)   userRoleBadge.style.display = 'none';
+    if (userRoleBadge) userRoleBadge.style.display = 'none';
     loginNavBtn?.classList.remove('hidden');
     profileDropdown?.classList.add('hidden');
     adminNavBtn?.classList.add('hidden');
     reopenToggle?.classList.add('hidden');
-    
+
     const rejectFilter = document.getElementById('filterReject');
     if (rejectFilter) rejectFilter.classList.add('hidden');
 
@@ -78,7 +77,31 @@ async function initDashboard() {
   }
 
   // Run stats + dropdown options in parallel with the main table data
-  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData()]);
+  await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData(), loadLastDataDate()]);
+}
+
+
+// Ambil & tampilkan tanggal data terakhir (MAX last_seen dari assignment_anomali)
+async function loadLastDataDate() {
+  try {
+    const { data, error } = await db
+      .from('assignment_anomali')
+      .select('last_seen')
+      .order('last_seen', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error || !data?.last_seen) return;
+    const d = new Date(data.last_seen);
+    const label = d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    const badge = document.getElementById('lastDataBadge');
+    const text = document.getElementById('lastDataDateText');
+    if (badge && text) {
+      text.textContent = `Data per ${label}`;
+      badge.style.display = 'inline-flex';
+    }
+  } catch (e) {
+    console.warn('loadLastDataDate error:', e);
+  }
 }
 
 // Join presence channel agar terdeteksi dari admin panel & update last_seen
@@ -88,10 +111,10 @@ async function joinPresenceTracking(profile) {
 
   // Interval per role (ms)
   const INTERVAL_MS = {
-    admin:      1 * 60 * 1000,   // 1 menit
+    admin: 1 * 60 * 1000,   // 1 menit
     superadmin: 5 * 60 * 1000,   // 5 menit
-    pml:       60 * 60 * 1000,   // 1 jam
-    ppl:       60 * 60 * 1000,   // 1 jam
+    pml: 60 * 60 * 1000,   // 1 jam
+    ppl: 60 * 60 * 1000,   // 1 jam
   };
   const intervalMs = INTERVAL_MS[profile.role] ?? (60 * 60 * 1000);
 
@@ -156,7 +179,7 @@ async function onPetugasSearchInput(val) {
     try {
       let data = [];
       let dbError = null;
-      
+
       // Coba panggil RPC search_petugas (aman untuk guest)
       const rpcRes = await db.rpc('search_petugas', { p_query: val.trim() });
       if (!rpcRes.error) {
@@ -220,33 +243,33 @@ async function onPetugasSearchInput(val) {
 
 function selectPetugas(id, role, nama, email) {
   selectedPetugas = { id, role, nama, email };
-  
+
   const input = document.getElementById('filterPetugasInput');
   if (input) {
     input.value = `${nama} (${role.toUpperCase()})`;
   }
-  
+
   const suggestionsDiv = document.getElementById('petugasSuggestions');
   if (suggestionsDiv) suggestionsDiv.style.display = 'none';
-  
+
   const btnClear = document.getElementById('btnClearPetugas');
   if (btnClear) btnClear.style.display = 'flex';
-  
+
   applyFilters();
 }
 
 function clearSelectedPetugas() {
   selectedPetugas = null;
-  
+
   const input = document.getElementById('filterPetugasInput');
   if (input) input.value = '';
-  
+
   const btnClear = document.getElementById('btnClearPetugas');
   if (btnClear) btnClear.style.display = 'none';
-  
+
   const suggestionsDiv = document.getElementById('petugasSuggestions');
   if (suggestionsDiv) suggestionsDiv.style.display = 'none';
-  
+
   applyFilters();
 }
 
@@ -327,33 +350,46 @@ async function loadStats() {
       map[r.assignment_id].push(r.status);
     });
 
-    const total    = Object.keys(map).length;
-    const selesai  = Object.values(map).filter(ss => ss.every(s => DONE.has(s))).length;
-    const belum    = total - selesai;
+    const total = Object.keys(map).length;
+    const selesai = Object.values(map).filter(ss => ss.every(s => DONE.has(s))).length;
+    const belum = total - selesai;
     const progress = total > 0 ? Math.round((selesai / total) * 100) : 0;
-    
+
     renderStats(total, belum, selesai, progress, anomaliTotal, anomaliBelum, anomaliSelesai);
   } catch (e) {
     console.error('loadStats error:', e);
   }
 }
 
-function renderStats(total, belum, selesai, progress, anomTotal = 0, anomBelum = 0, anomSelesai = 0) {
+function renderStats(total, belum, selesai, progressAssignment, anomTotal = 0, anomBelum = 0, anomSelesai = 0) {
   const safe = v => (v ?? 0);
-  
+
+  const anomProgress = anomTotal > 0 ? Math.round((anomSelesai / anomTotal) * 100) : 0;
+  const assgnProgress = safe(progressAssignment);
+
   // Render Nilai Utama (Assignment)
-  document.getElementById('statTotal').textContent    = safe(total).toLocaleString('id');
-  document.getElementById('statBelum').textContent    = safe(belum).toLocaleString('id');
-  document.getElementById('statSelesai').textContent  = safe(selesai).toLocaleString('id');
-  document.getElementById('statProgress').textContent = `${safe(progress)}%`;
-  
-  // Render Sub-Label (Detail Kasus Anomali) - Inline and Shortened
-  document.getElementById('statTotalSub').innerHTML    = `assignment unik <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomTotal).toLocaleString('id')} kasus)</span>`;
-  document.getElementById('statBelumSub').innerHTML    = `ada pending <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomBelum).toLocaleString('id')} kasus)</span>`;
-  document.getElementById('statSelesaiSub').innerHTML  = `selesai <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomSelesai).toLocaleString('id')} kasus)</span>`;
+  document.getElementById('statTotal').textContent = safe(total).toLocaleString('id');
+  document.getElementById('statBelum').textContent = safe(belum).toLocaleString('id');
+  document.getElementById('statSelesai').textContent = safe(selesai).toLocaleString('id');
+
+  // Render Progress Utama (Assignment %)
+  document.getElementById('statProgress').textContent = `${assgnProgress}%`;
+
+  // Render Sub-Label & Istilah Baku
+  document.getElementById('statTotalSub').innerHTML = `assignment unik <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomTotal).toLocaleString('id')} kasus anomali)</span>`;
+  document.getElementById('statBelumSub').innerHTML = `assignment belum selesai <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomBelum).toLocaleString('id')} belum ditindaklanjuti)</span>`;
+  document.getElementById('statSelesaiSub').innerHTML = `assignment sudah selesai <span style="font-size:0.75rem;color:var(--text-subtle)">(${safe(anomSelesai).toLocaleString('id')} sudah ditindaklanjuti)</span>`;
+
+  const statProgressSub = document.getElementById('statProgressSub');
+  if (statProgressSub) {
+    const badge = document.getElementById('anomaliBadge');
+    if (badge) {
+      badge.innerHTML = ` Anomali ditindaklanjuti: ${anomProgress}%`;
+    }
+  }
 
   const fill = document.getElementById('progressFill');
-  if (fill) fill.style.width = `${safe(progress)}%`;
+  if (fill) fill.style.width = `${assgnProgress}%`;
 
   // Update table subtitle count immediately with loaded stats values
   updateTableCount();
@@ -370,7 +406,7 @@ async function loadAnomalinomorOptions() {
 
   // Baca filter jenis dari UI
   let jenis = document.getElementById('filterJenis')?.value;
-  
+
   // Jika PPL, paksa ke keluarga
   if (currentProfile?.role === 'ppl') {
     jenis = 'keluarga';
@@ -397,7 +433,7 @@ async function loadAnomalinomorOptions() {
     seen.add(val);
     const label = `Anomali ${item.tipe === 'keluarga' ? 'KK' : 'Usaha'} ${item.nomor}`;
     const isChecked = !excludedSet.has(val); // default semua checked; unchecked = dikecualikan
-    
+
     html += `
       <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.75rem; padding:0.25rem 0.5rem; cursor:pointer; color:var(--text); margin:0; hover:background-color:var(--border)">
         <input type="checkbox" class="nomor-filter-cb" value="${val}" ${isChecked ? 'checked' : ''} onchange="onNomorFilterChange()" style="width:13px; height:13px; accent-color:var(--primary); cursor:pointer">
@@ -441,7 +477,7 @@ function updateNomorLabel() {
   const excluded = getExcludedNomorFilters();
   const label = document.getElementById('nomorChecklistLabel');
   if (!label) return;
-  
+
   if (excluded.length === 0) {
     label.textContent = 'Nomor: Semua';
   } else if (excluded.length === 1) {
@@ -483,21 +519,21 @@ async function loadRemainingRowsInBackground(loadId, buildScopeQuery, applyRoleF
   let page = 1;
   const pageSize = 500;
   let hasMore = true;
-  
+
   while (hasMore && loadId === currentLoadId) {
     try {
       let q = buildScopeQuery();
       const qObj = await applyRoleFilter(q);
       q = qObj ? qObj.q : null;
       if (!q) break;
-      
+
       const start = page * pageSize;
       const end = (page + 1) * pageSize - 1;
       const { data, error } = await q.range(start, end);
-      
+
       if (error) throw error;
       if (loadId !== currentLoadId) break;
-      
+
       if (data && data.length > 0) {
         activeScopeRows = activeScopeRows.concat(data);
         applyLocalFiltersAndRender();
@@ -518,9 +554,9 @@ async function loadRemainingRowsInBackground(loadId, buildScopeQuery, applyRoleF
 
 function applyLocalFiltersAndRender() {
   const status = document.getElementById('filterStatus')?.value;
-  const jenis  = document.getElementById('filterJenis')?.value;
+  const jenis = document.getElementById('filterJenis')?.value;
   const excludedNomorList = getExcludedNomorFilters();
-  const ket    = document.getElementById('filterKeterangan')?.value;
+  const ket = document.getElementById('filterKeterangan')?.value;
   const search = document.getElementById('filterSearch')?.value.trim().toLowerCase();
   const reject = document.getElementById('filterReject')?.value;
 
@@ -539,7 +575,7 @@ function applyLocalFiltersAndRender() {
 
   // Local Search Filter
   if (search) {
-    rows = rows.filter(r => 
+    rows = rows.filter(r =>
       (r.assignment_id && r.assignment_id.toLowerCase().includes(search)) ||
       (r.nama_entitas && r.nama_entitas.toLowerCase().includes(search)) ||
       (r.kode_sls_gabungan && r.kode_sls_gabungan.toLowerCase().includes(search))
@@ -547,12 +583,12 @@ function applyLocalFiltersAndRender() {
   }
 
   allData = groupByAssignment(rows);
-  
+
   // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
   filteredData = allData.filter(group => {
     // 1. Status Filter
     if (status && !group.rows.some(r => r.status === status)) return false;
-    
+
     // 2. Nomor Filter (Exclusion mode: semua terpilih by default.
     //    Jika ada nomor yang di-uncheck, sembunyikan group yang PUNYA anomali tersebut.)
     if (excludedNomorList && excludedNomorList.length > 0) {
@@ -562,7 +598,7 @@ function applyLocalFiltersAndRender() {
       });
       if (hasExcludedNomor) return false;
     }
-    
+
     // 3. Keterangan (ket) Filter
     if (ket) {
       const groupKet = getKeterangan(group);
@@ -582,7 +618,7 @@ function applyLocalFiltersAndRender() {
     } else if (jenis && jenis !== 'semua') {
       if (!group.rows.some(r => r.tipe === jenis)) return false;
     }
-    
+
     return true;
   });
 
@@ -600,7 +636,7 @@ async function loadData(forceRefresh = false) {
     petugasId: selectedPetugas?.id || ''
   };
 
-  const isScopeSame = 
+  const isScopeSame =
     currentScope.kec === lastLoadedScope.kec &&
     currentScope.des === lastLoadedScope.des &&
     currentScope.sls === lastLoadedScope.sls &&
@@ -623,12 +659,12 @@ async function loadData(forceRefresh = false) {
     const buildScopeQuery = (tipeOverride = null) => {
       let q = db.from('assignment_anomali').select(COLS).order('first_seen', { ascending: false });
       if (tipeOverride) q = q.eq('tipe', tipeOverride);
-      
+
       const isPetugas = currentProfile && ['ppl', 'pml'].includes(currentProfile.role);
       if (isPetugas) {
         q = q.eq('show_anomaly', true);
       }
-      
+
       // Filter Wilayah Berjenjang
       if (selectedSub) {
         q = q.eq('kode_sls_gabungan', selectedSub);
@@ -639,7 +675,7 @@ async function loadData(forceRefresh = false) {
       } else if (selectedKec) {
         q = q.like('kode_desa', `${selectedKec}%`);
       }
-      
+
       return q;
     };
 
@@ -663,7 +699,7 @@ async function loadData(forceRefresh = false) {
           p_user_id: selectedPetugas.id,
           p_role: selectedPetugas.role.toLowerCase()
         });
-        
+
         if (!rpcRes.error) {
           codes = (rpcRes.data || []).map(r => r.kode_sls);
         } else {
@@ -736,22 +772,22 @@ function groupByAssignment(rows) {
   rows.forEach(row => {
     if (!map[row.assignment_id]) {
       map[row.assignment_id] = {
-        assignment_id:     row.assignment_id,
+        assignment_id: row.assignment_id,
         kode_sls_gabungan: row.kode_sls_gabungan,
-        kode_desa:         row.kode_desa,
-        kode_sls:          row.kode_sls,
-        kode_sub_sls:      row.kode_sub_sls,
-        nama_kk:           null,
-        nama_usaha_list:   [],
-        anomali_keluarga:  [],
-        anomali_usaha:     [],
-        is_ever_reopened:  false,
-        show_anomaly:      row.show_anomaly !== undefined ? row.show_anomaly : false,
-        is_rejected:       row.is_rejected !== undefined ? row.is_rejected : false,
-        is_api_synced:     row.is_api_synced !== undefined ? row.is_api_synced : false,
-        first_seen:        row.first_seen,
-        last_seen:         row.last_seen,
-        rows:              []
+        kode_desa: row.kode_desa,
+        kode_sls: row.kode_sls,
+        kode_sub_sls: row.kode_sub_sls,
+        nama_kk: null,
+        nama_usaha_list: [],
+        anomali_keluarga: [],
+        anomali_usaha: [],
+        is_ever_reopened: false,
+        show_anomaly: row.show_anomaly !== undefined ? row.show_anomaly : false,
+        is_rejected: row.is_rejected !== undefined ? row.is_rejected : false,
+        is_api_synced: row.is_api_synced !== undefined ? row.is_api_synced : false,
+        first_seen: row.first_seen,
+        last_seen: row.last_seen,
+        rows: []
       };
     }
     const asgn = map[row.assignment_id];
@@ -766,7 +802,7 @@ function groupByAssignment(rows) {
       asgn.anomali_usaha.push(row);
     }
     if (row.first_seen < asgn.first_seen) asgn.first_seen = row.first_seen;
-    if (row.last_seen  > asgn.last_seen)  asgn.last_seen  = row.last_seen;
+    if (row.last_seen > asgn.last_seen) asgn.last_seen = row.last_seen;
   });
   return Object.values(map);
 }
@@ -778,7 +814,7 @@ function getKeterangan(group) {
 }
 
 function getJenis(group) {
-  const hasKK    = group.anomali_keluarga.length > 0;
+  const hasKK = group.anomali_keluarga.length > 0;
   const hasUsaha = group.anomali_usaha.length > 0;
   if (hasKK && hasUsaha) return 'keduanya';
   return hasKK ? 'keluarga' : 'usaha';
@@ -861,17 +897,17 @@ function sortData() {
   filteredData.sort((a, b) => {
     const getVal = g => {
       switch (sortField) {
-        case 'assignment_id':     return g.assignment_id;
+        case 'assignment_id': return g.assignment_id;
         case 'kode_sls_gabungan': return g.kode_sls_gabungan;
-        case 'nama_kk':           return g.nama_kk || '';
-        case 'nama_usaha':        return g.nama_usaha_list[0] || '';
-        case 'keterangan':        return getKeterangan(g);
-        default:                  return g.first_seen;
+        case 'nama_kk': return g.nama_kk || '';
+        case 'nama_usaha': return g.nama_usaha_list[0] || '';
+        case 'keterangan': return getKeterangan(g);
+        default: return g.first_seen;
       }
     };
     const va = getVal(a), vb = getVal(b);
     if (va < vb) return sortDir === 'asc' ? -1 : 1;
-    if (va > vb) return sortDir === 'asc' ?  1 : -1;
+    if (va > vb) return sortDir === 'asc' ? 1 : -1;
     return 0;
   });
 }
@@ -880,7 +916,7 @@ function sortData() {
 // RENDER
 // ============================================================
 function renderAll() {
-  const start    = (currentPage - 1) * pageSize;
+  const start = (currentPage - 1) * pageSize;
   const pageData = filteredData.slice(start, start + pageSize);
   renderTable(pageData);
   renderMobileCards(pageData);
@@ -899,8 +935,8 @@ function renderTable(pageData) {
     return;
   }
   tbody.innerHTML = pageData.map(group => {
-    const jenis      = getJenis(group);
-    const ket        = getKeterangan(group);
+    const jenis = getJenis(group);
+    const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
     const nameParts = [];
@@ -945,8 +981,8 @@ function renderMobileCards(pageData) {
     return;
   }
   container.innerHTML = pageData.map(group => {
-    const jenis      = getJenis(group);
-    const ket        = getKeterangan(group);
+    const jenis = getJenis(group);
+    const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
     return `<div class="mobile-card ${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''}" data-id="${group.assignment_id}">
@@ -983,9 +1019,9 @@ function renderMobileCards(pageData) {
 // PAGINATION
 // ============================================================
 function renderPagination() {
-  const total      = filteredData.length;
+  const total = filteredData.length;
   const totalPages = Math.ceil(total / pageSize);
-  const pag        = document.getElementById('pagination');
+  const pag = document.getElementById('pagination');
   if (totalPages <= 1) { pag.innerHTML = ''; return; }
 
   const firstBtn = `<button class="page-btn" onclick="goPage(1)" ${currentPage === 1 ? 'disabled' : ''} title="Halaman pertama"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>`;
@@ -1019,31 +1055,31 @@ function goPage(p) {
 }
 
 function changePageSize() {
-  pageSize    = parseInt(document.getElementById('pageSizeSelect').value);
+  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
   currentPage = 1;
   renderAll();
 }
 
 function updateTableCount() {
-  const start   = (currentPage - 1) * pageSize + 1;
-  const end     = Math.min(currentPage * pageSize, filteredData.length);
-  const total   = filteredData.length;
+  const start = (currentPage - 1) * pageSize + 1;
+  const end = Math.min(currentPage * pageSize, filteredData.length);
+  const total = filteredData.length;
   const dbTotal = document.getElementById('statTotal')?.textContent || '0';
 
   const displayTotal = total.toLocaleString('id');
 
   // Cek apakah ada filter aktif yang membatasi dataset
   const hasActiveFilters = document.getElementById('filterStatus')?.value ||
-                           document.getElementById('filterJenis')?.value ||
-                           getSelectedNomorFilters().length > 0 ||
-                           document.getElementById('filterKeterangan')?.value ||
-                           selectedKec || selectedDes || selectedSLS || selectedSub ||
-                           selectedPetugas ||
-                           document.getElementById('filterReject')?.value ||
-                           document.getElementById('filterSearch')?.value.trim();
+    document.getElementById('filterJenis')?.value ||
+    getSelectedNomorFilters().length > 0 ||
+    document.getElementById('filterKeterangan')?.value ||
+    selectedKec || selectedDes || selectedSLS || selectedSub ||
+    selectedPetugas ||
+    document.getElementById('filterReject')?.value ||
+    document.getElementById('filterSearch')?.value.trim();
 
-  let text = total === 0 
-    ? 'Tidak ada data' 
+  let text = total === 0
+    ? 'Tidak ada data'
     : `Menampilkan ${start}–${end} dari ${displayTotal}`;
   const dbTotalNum = parseInt(dbTotal.replace(/\./g, '')) || 0;
   if (hasActiveFilters && (total < allData.length || allData.length < dbTotalNum)) {
@@ -1080,7 +1116,7 @@ function updateFab() {
   const count = selectedIds.size;
   document.getElementById('fabCount').textContent = `${count} baris dipilih`;
   document.getElementById('fabBar').classList.toggle('visible', count > 0);
-  
+
   const openBtn = document.getElementById('fabOpenBtn');
   if (openBtn) {
     const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
@@ -1111,17 +1147,17 @@ function copySelectedIds() {
 function toggleReopenHighlight() {
   showReopenHighlight = !showReopenHighlight;
   const btn = document.getElementById('reopenToggle');
-  btn.classList.toggle('btn-primary',   showReopenHighlight);
+  btn.classList.toggle('btn-primary', showReopenHighlight);
   btn.classList.toggle('btn-secondary', !showReopenHighlight);
   renderAll();
 }
 
 function updateFilterChips() {
-  const bar    = document.getElementById('filterActiveBar');
+  const bar = document.getElementById('filterActiveBar');
   const status = document.getElementById('filterStatus').value;
-  const jenis  = document.getElementById('filterJenis').value;
+  const jenis = document.getElementById('filterJenis').value;
   const excludedNomorList = getExcludedNomorFilters();
-  const ket    = document.getElementById('filterKeterangan').value;
+  const ket = document.getElementById('filterKeterangan').value;
   const search = document.getElementById('filterSearch').value.trim();
   const reject = document.getElementById('filterReject')?.value;
 
@@ -1132,8 +1168,8 @@ function updateFilterChips() {
   };
 
   const chips = [
-    status && { label: `Status: ${STATUS_CONFIG[status]?.label}`,  clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
-    jenis  && { label: `Jenis: ${jenisLabel(jenis)}`,              clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
+    status && { label: `Status: ${STATUS_CONFIG[status]?.label}`, clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
+    jenis && { label: `Jenis: ${jenisLabel(jenis)}`, clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
     ...excludedNomorList.map(val => {
       const [tipe, nomor] = val.split(':');
       return {
@@ -1154,9 +1190,9 @@ function updateFilterChips() {
     (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
     (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
     (!selectedDes && selectedKec) && { label: `Kec: ${getSelectText('filterKecamatan')}`, clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); applyWilayahFilter(); } },
-    ket    && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
+    ket && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
     reject && { label: `Reject: ${reject === 'ya' ? 'Ya' : 'Tidak'}`, clear: () => { document.getElementById('filterReject').value = ''; applyFilters(); } },
-    search && { label: `Cari: "${search}"`,                        clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
+    search && { label: `Cari: "${search}"`, clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
   ].filter(Boolean);
 
   bar.innerHTML = chips.map(c =>
@@ -1196,7 +1232,7 @@ function applyWilayahFilter() {
   selectedDes = document.getElementById('filterDesa')?.value || '';
   selectedSLS = document.getElementById('filterSLS')?.value || '';
   selectedSub = document.getElementById('filterSubSLS')?.value || '';
-  
+
   closeWilayahFilterModal();
   applyFilters();
 }
@@ -1389,7 +1425,7 @@ function renderKecamatanProgress() {
     // Update indicator and buttons
     const ind = document.getElementById('kecPageIndicator');
     if (ind) ind.textContent = `${currentKecPage + 1}/${totalPages}`;
-    
+
     const btnPrev = document.getElementById('btnKecPrev');
     const btnNext = document.getElementById('btnKecNext');
     if (btnPrev) btnPrev.disabled = currentKecPage === 0;
