@@ -35,14 +35,14 @@
     const SUPABASE_URL     = 'https://vpbhqemomsewrnrggbmd.supabase.co';
     const SUPABASE_KEY     = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
     const SURVEY_PERIOD_ID = 'fd68e454-ba45-4b85-8205-f3bf777ded24';
-    const REGION1_ID       = '3d7e1f4e-5445-4770-8dc2-1f69697901b2'; // Prov Banten
-    const REGION2_ID       = '6ded025d-0c3a-40b9-b274-ae6f1e748b44'; // Kab Lebak
+    const REGION1_ID       = '3d7e1f4e-5445-4770-8dc2-1f69697901b2'; 
+    const REGION2_ID       = '6ded025d-0c3a-40b9-b274-ae6f1e748b44';
     const FASIH_CAPAIAN_URL = 'https://fasih-sm.bps.go.id/app/api/analytic/api/v2/assignment/report-progress-assignment';
 
-    const BATCH_SIZE  = 20;   // SLS per claim (jangan terlalu besar)
-    const DELAY_MIN   = 800;  // ms minimum delay antar SLS
-    const DELAY_MAX   = 2500; // ms maksimum delay
-    const UPSERT_CHUNK = 100; // sub-SLS per upsert batch
+    const BATCH_SIZE    = 30;   // SLS per claim batch
+    const CONCURRENCY   = 3;    // 3 Worker paralel
+    const DELAY_MIN     = 500;  // ms minimum delay per worker
+    const DELAY_MAX     = 1200; // ms maksimum delay per worker
 
     // ──────────────────────────────────────────────────────
     // LOAD SUPABASE
@@ -112,11 +112,12 @@
         return false;
     }
 
+    // Semua write ke tabel melalui SECURITY DEFINER RPC (bypass RLS)
     async function releaseItem(kodeSls) {
-        await db
-            .from('fasih_scrape_queue')
-            .update({ status: 'pending', claimed_at: null })
-            .eq('kode_sls', kodeSls);
+        await db.rpc('fasih_set_sls_status', { p_kode_sls: kodeSls, p_status: 'pending' });
+    }
+    async function markSlsError(kodeSls) {
+        await db.rpc('fasih_set_sls_status', { p_kode_sls: kodeSls, p_status: 'error' });
     }
 
     // ──────────────────────────────────────────────────────
@@ -127,8 +128,6 @@
 
     // ──────────────────────────────────────────────────────
     // AUTO-DETECT HARI BARU → Reset queue otomatis
-    // Cek scrape_date terakhir di queue. Jika berbeda dari
-    // TODAY, berarti ini hari baru → reset queue.
     // ──────────────────────────────────────────────────────
     console.log(LOG_PREFIX + ' Mengecek tanggal scraping terakhir di queue...', LOG_INFO);
     const { data: lastDoneRow } = await db
@@ -140,17 +139,14 @@
         .maybeSingle();
 
     const lastScrapeDate = lastDoneRow?.scrape_date
-        ? String(lastDoneRow.scrape_date).substring(0, 10)  // ambil YYYY-MM-DD saja
+        ? String(lastDoneRow.scrape_date).substring(0, 10)
         : null;
 
     if (!lastScrapeDate) {
-        // Queue belum pernah dijalankan sama sekali — langsung mulai
         console.log(LOG_PREFIX + ' Queue belum pernah dijalankan. Mulai dari awal.', LOG_INFO);
     } else if (lastScrapeDate === TODAY) {
-        // Hari yang sama — lanjut dari sisa queue (resume mode)
         console.log(LOG_PREFIX + ` Resume: queue sudah pernah berjalan hari ini (${TODAY}). Melanjutkan sisa...`, LOG_INFO);
     } else {
-        // Hari berbeda — ini hari baru, reset queue
         console.log(LOG_PREFIX + ` Hari baru terdeteksi! Terakhir: ${lastScrapeDate} → Sekarang: ${TODAY}`, LOG_WARN);
         console.log(LOG_PREFIX + ' Auto-reset queue untuk hari baru...', LOG_WARN);
         const { error: resetErr } = await db.rpc('fasih_reset_scrape_queue');
@@ -161,8 +157,6 @@
         console.log(LOG_PREFIX + ' ✅ Queue berhasil di-reset. Siap scraping hari baru!', LOG_OK);
     }
 
-    // Pastikan kolom tanggal sudah ada di fasih_capaian_harian
-    console.log(LOG_PREFIX + ` Memastikan kolom "${TODAY}" ada di fasih_capaian_harian...`, LOG_INFO);
     const { error: colErr } = await db.rpc('fasih_add_date_column', { p_date: TODAY });
     if (colErr) {
         console.error(LOG_PREFIX + ' Gagal menambah kolom tanggal:', LOG_ERR, colErr);
@@ -174,14 +168,128 @@
     let totalSubSlsProcessed = 0;
     let totalSlsDone = 0;
     let totalSlsError = 0;
+    let isAborted = false;
 
     // ──────────────────────────────────────────────────────
-    // MAIN LOOP
+    // SINGLE WORKER SCRAPER
     // ──────────────────────────────────────────────────────
-    console.log(LOG_PREFIX + ' Memulai loop scraping...', LOG_INFO);
+    async function processSingleSls(item, workerId) {
+        if (isAborted) return;
+        const { kode_sls, fasih_sls_id, fasih_desa_id, fasih_kec_id } = item;
 
-    while (true) {
-        // Claim batch SLS dari queue
+        await randomDelay();
+
+        const payload = {
+            assignmentErrorStatusType: -1,
+            assignmentStatusAlias:     null,
+            currentUserId:             null,
+            data1: null, data2: null, data3: null, data4: null,
+            data5: null, data6: null, data7: null, data8: null,
+            data9: null, data10: null,
+            region1Id:       REGION1_ID,
+            region2Id:       REGION2_ID,
+            region3Id:       fasih_kec_id,
+            region4Id:       fasih_desa_id,
+            region5Id:       fasih_sls_id,
+            regionId:        null,
+            surveyPeriodId:  SURVEY_PERIOD_ID,
+            userIdResponsibility: null
+        };
+
+        try {
+            const res = await fetch(FASIH_CAPAIAN_URL, {
+                method:  'POST',
+                headers: headers,
+                body:    JSON.stringify(payload)
+            });
+
+            // 1. DETEKSI RATE LIMIT (429 / 503)
+            if (res.status === 429 || res.status === 503) {
+                console.error(LOG_PREFIX + ` 🛑 RATE LIMIT TERDETEKSI (HTTP ${res.status}) pada SLS ${kode_sls}! Stopping bot...`, LOG_ERR);
+                isAborted = true;
+                await releaseItem(kode_sls);
+                document.title = '⛔ RATE LIMIT - Bot Terhenti';
+                alert(`⚠️ WARN: Server FASIH memberikan batas rate limit (HTTP ${res.status}).\n\nBot dihentikan untuk keamanan akun. Antrian SLS telah dikembalikan secara aman.`);
+                return;
+            }
+
+            const rawText = await res.text();
+
+            // 2. DETEKSI SESI EXPIRED
+            if (isSessionExpired(res, rawText)) {
+                console.error(LOG_PREFIX + ' ⚠️ Sesi login habis! Stopping bot...', LOG_ERR);
+                isAborted = true;
+                await releaseItem(kode_sls);
+                document.title = '⚠️ HARAP LOGIN KEMBALI - Bot Terhenti';
+                alert('Sesi login FASIH-SM habis!\n\nAntrian dikembalikan. Silakan login ulang dan jalankan kembali bot.');
+                return;
+            }
+
+            let responseData;
+            try {
+                responseData = JSON.parse(rawText);
+            } catch {
+                console.warn(LOG_PREFIX + ` [W${workerId}] Response non-JSON untuk SLS ${kode_sls}. Skip.`, LOG_WARN);
+                await markSlsError(kode_sls);
+                totalSlsError++;
+                return;
+            }
+
+            if (!Array.isArray(responseData)) {
+                console.warn(LOG_PREFIX + ` [W${workerId}] Response bukan array untuk SLS ${kode_sls}:`, LOG_WARN, responseData);
+                await markSlsError(kode_sls);
+                totalSlsError++;
+                return;
+            }
+
+            if (responseData.length === 0) {
+                await db.rpc('fasih_save_capaian', { p_date: TODAY, p_kode_sls: kode_sls, p_rows: [] });
+                totalSlsDone++;
+                return;
+            }
+
+            const rpcRows = [];
+            for (const subItem of responseData) {
+                const kodeSubSls = subItem.label;
+                if (!kodeSubSls) continue;
+                const cap = parseCapaianValues(subItem.values || []);
+                rpcRows.push({
+                    kode_sub_sls:       kodeSubSls,
+                    total:              cap.total,
+                    open:               cap.open,
+                    approved_pengawas:  cap.approved_pengawas
+                });
+            }
+
+            const { data: savedCount, error: saveErr } = await db.rpc('fasih_save_capaian', {
+                p_date:     TODAY,
+                p_kode_sls: kode_sls,
+                p_rows:     rpcRows
+            });
+
+            if (saveErr) {
+                console.error(LOG_PREFIX + ` [W${workerId}] Gagal save SLS ${kode_sls}:`, LOG_ERR, saveErr);
+                await markSlsError(kode_sls);
+                totalSlsError++;
+            } else {
+                totalSubSlsProcessed += savedCount ?? rpcRows.length;
+                totalSlsDone++;
+                console.log(LOG_PREFIX + ` [W${workerId}] ✅ SLS ${kode_sls}: ${rpcRows.length} sub-SLS tersimpan. Total: ${totalSlsDone}`, LOG_OK);
+            }
+
+        } catch (fetchErr) {
+            console.error(LOG_PREFIX + ` [W${workerId}] Connection error SLS ${kode_sls}:`, LOG_ERR, fetchErr);
+            await releaseItem(kode_sls);
+            totalSlsError++;
+        }
+    }
+
+    // ──────────────────────────────────────────────────────
+    // MAIN PARALLEL LOOP
+    // ──────────────────────────────────────────────────────
+    console.log(LOG_PREFIX + ` Memulai loop scraping paralel (${CONCURRENCY} workers)...`, LOG_INFO);
+
+    while (!isAborted) {
         const { data: claimedBatch, error: claimErr } = await db.rpc('fasih_claim_scrape_queue', {
             p_limit: BATCH_SIZE,
             p_date: TODAY
@@ -199,132 +307,30 @@
             break;
         }
 
-        console.log(LOG_PREFIX + ` Klaim ${claimedBatch.length} SLS berhasil.`, LOG_INFO);
+        console.log(LOG_PREFIX + ` Klaim batch ${claimedBatch.length} SLS berhasil. Menjalankan ${CONCURRENCY} worker...`, LOG_INFO);
 
-        for (let idx = 0; idx < claimedBatch.length; idx++) {
-            const item = claimedBatch[idx];
-            const { kode_sls, fasih_sls_id, fasih_desa_id, fasih_kec_id } = item;
-
-            const delay = DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN);
-            console.log(LOG_PREFIX + ` [${totalSlsDone + totalSlsError + 1}] Menunggu ${Math.round(delay)}ms sebelum scrape SLS ${kode_sls}...`, 'color:#6b7280;');
-            await sleep(delay);
-
-            // Build payload
-            const payload = {
-                assignmentErrorStatusType: -1,
-                assignmentStatusAlias:     null,
-                currentUserId:             null,
-                data1: null, data2: null, data3: null, data4: null,
-                data5: null, data6: null, data7: null, data8: null,
-                data9: null, data10: null,
-                region1Id:       REGION1_ID,
-                region2Id:       REGION2_ID,
-                region3Id:       fasih_kec_id,
-                region4Id:       fasih_desa_id,
-                region5Id:       fasih_sls_id,
-                regionId:        null,
-                surveyPeriodId:  SURVEY_PERIOD_ID,
-                userIdResponsibility: null
-            };
-
-            try {
-                const res = await fetch(FASIH_CAPAIAN_URL, {
-                    method:  'POST',
-                    headers: headers,
-                    body:    JSON.stringify(payload)
-                });
-
-                const rawText = await res.text();
-
-                // Deteksi sesi habis
-                if (isSessionExpired(res, rawText)) {
-                    console.error(LOG_PREFIX + ' ⚠️ Sesi login habis! Mengembalikan semua item yang tersisa...', LOG_ERR);
-                    // Kembalikan semua yang masih claimed
-                    for (const rem of claimedBatch.slice(idx)) {
-                        await releaseItem(rem.kode_sls);
-                    }
-                    document.title = '⚠️ HARAP LOGIN KEMBALI - Bot Capaian Terhenti';
-                    alert('Sesi login FASIH-SM habis!\n\nSemua antrian yang tersisa sudah dikembalikan. Silakan login ulang dan jalankan kembali bot.');
-                    return;
+        // Eksekusi batch dengan Concurrency Worker Pool
+        for (let i = 0; i < claimedBatch.length; i += CONCURRENCY) {
+            if (isAborted) {
+                // Kembalikan sisa batch jika bot di-abort
+                for (const rem of claimedBatch.slice(i)) {
+                    await releaseItem(rem.kode_sls);
                 }
-
-                let responseData;
-                try {
-                    responseData = JSON.parse(rawText);
-                } catch {
-                    console.warn(LOG_PREFIX + ` Response non-JSON untuk SLS ${kode_sls}. Skip.`, LOG_WARN);
-                    await db.from('fasih_scrape_queue').update({ status: 'error' }).eq('kode_sls', kode_sls);
-                    totalSlsError++;
-                    continue;
-                }
-
-                // Response adalah array sub-SLS
-                if (!Array.isArray(responseData)) {
-                    console.warn(LOG_PREFIX + ` Response bukan array untuk SLS ${kode_sls}:`, LOG_WARN, responseData);
-                    await db.from('fasih_scrape_queue').update({ status: 'error' }).eq('kode_sls', kode_sls);
-                    totalSlsError++;
-                    continue;
-                }
-
-                if (responseData.length === 0) {
-                    console.log(LOG_PREFIX + ` SLS ${kode_sls}: tidak ada sub-SLS di response (array kosong).`, 'color:#6b7280;');
-                    await db.from('fasih_scrape_queue').update({ status: 'done', done_at: new Date().toISOString() }).eq('kode_sls', kode_sls);
-                    totalSlsDone++;
-                    continue;
-                }
-
-                // Parse setiap sub-SLS dari response
-                const upsertRows = [];
-                for (const item of responseData) {
-                    const kodeSubSls = item.label; // 16 digit
-                    if (!kodeSubSls) continue;
-                    const capaianData = parseCapaianValues(item.values || []);
-                    upsertRows.push({
-                        kode_sub_sls: kodeSubSls,
-                        [TODAY]:      capaianData,
-                        updated_at:   new Date().toISOString()
-                    });
-                }
-
-                // Upsert ke fasih_capaian_harian dalam chunk
-                let upsertOk = true;
-                for (let ci = 0; ci < upsertRows.length; ci += UPSERT_CHUNK) {
-                    const chunk = upsertRows.slice(ci, ci + UPSERT_CHUNK);
-                    const { error: upsertErr } = await db
-                        .from('fasih_capaian_harian')
-                        .upsert(chunk, { onConflict: 'kode_sub_sls' });
-                    if (upsertErr) {
-                        console.error(LOG_PREFIX + ` Gagal upsert chunk SLS ${kode_sls}:`, LOG_ERR, upsertErr);
-                        upsertOk = false;
-                    }
-                }
-
-                if (upsertOk) {
-                    totalSubSlsProcessed += upsertRows.length;
-                    await db
-                        .from('fasih_scrape_queue')
-                        .update({ status: 'done', done_at: new Date().toISOString() })
-                        .eq('kode_sls', kode_sls);
-                    totalSlsDone++;
-                    console.log(LOG_PREFIX + ` ✅ SLS ${kode_sls}: ${upsertRows.length} sub-SLS di-upsert.`, LOG_OK);
-                } else {
-                    await db.from('fasih_scrape_queue').update({ status: 'error' }).eq('kode_sls', kode_sls);
-                    totalSlsError++;
-                }
-
-            } catch (fetchErr) {
-                console.error(LOG_PREFIX + ` Error koneksi SLS ${kode_sls}:`, LOG_ERR, fetchErr);
-                await releaseItem(kode_sls);
-                totalSlsError++;
+                break;
             }
-        } // end for claimedBatch
 
-        // Jeda antar-batch
-        const batchDelay = 2000 + Math.random() * 3000;
-        console.log(LOG_PREFIX + ` Jeda ${Math.round(batchDelay / 1000)}s sebelum batch berikutnya...`, 'color:#6b7280; font-style:italic;');
-        await sleep(batchDelay);
+            const chunk = claimedBatch.slice(i, i + CONCURRENCY);
+            await Promise.all(chunk.map((item, idx) => processSingleSls(item, idx + 1)));
+        }
+
+        if (!isAborted) {
+            const batchDelay = 1000 + Math.random() * 1500;
+            await sleep(batchDelay);
+        }
     }
 
-    console.log(LOG_PREFIX + ' 🎉 Bot Capaian selesai!', LOG_OK);
-    document.title = `✅ Bot Capaian Selesai — ${TODAY}`;
+    if (!isAborted) {
+        console.log(LOG_PREFIX + ' 🎉 Bot Capaian selesai!', LOG_OK);
+        document.title = `✅ Bot Capaian Selesai — ${TODAY}`;
+    }
 })();
