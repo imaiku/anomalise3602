@@ -274,9 +274,10 @@
     console.log(LOG_PREFIX + ` [Fase 3] Selesai. Total ${fase3Total} SLS di-update.`, LOG_OK);
 
     // ──────────────────────────────────────────────────────
-    // FASE 4: Build fasih_scrape_queue
+    // FASE 4: Build fasih_scrape_queue via SECURITY DEFINER RPC
     // Hanya dijalankan jika tidak ada lagi desa yang pending/claimed
     // (device terakhir yang selesai akan menjalankan fase ini)
+    // RPC berjalan sebagai database owner → bypass RLS sepenuhnya
     // ──────────────────────────────────────────────────────
     console.log(LOG_PREFIX + ' [Fase 4] Mengecek apakah semua desa sudah selesai...', LOG_INFO);
 
@@ -291,59 +292,24 @@
         return;
     }
 
-    console.log(LOG_PREFIX + ' Semua desa selesai! Membangun fasih_scrape_queue...', LOG_INFO);
+    console.log(LOG_PREFIX + ' Semua desa selesai! Membangun fasih_scrape_queue via RPC...', LOG_INFO);
 
-    // Ambil semua SLS yang sudah punya fasih_region_id beserta desa & kec-nya
-    const { data: slsAll, error: slsAllErr } = await db
-        .from('wilayah_sls')
-        .select(`
-            kode_sls,
-            fasih_region_id,
-            kode_desa,
-            wilayah_desa!inner(fasih_region_id, kode_kec,
-                wilayah_kec!inner(fasih_region_id)
-            )
-        `)
-        .not('fasih_region_id', 'is', null);
+    // Panggil RPC SECURITY DEFINER — bypass RLS, tidak butuh sesi auth
+    const { data: queueCount, error: queueErr } = await db.rpc('fasih_populate_scrape_queue');
 
-    if (slsAllErr) {
-        console.error(LOG_PREFIX + ' Gagal ambil SLS untuk build queue:', LOG_ERR, slsAllErr);
+    if (queueErr) {
+        console.error(LOG_PREFIX + ' Gagal build queue via RPC:', LOG_ERR, queueErr);
+        console.error(LOG_PREFIX + ' Pastikan fungsi fasih_populate_scrape_queue() sudah dibuat di Supabase SQL Editor.', LOG_WARN);
         return;
     }
 
-    const queuePayload = [];
-    for (const sls of (slsAll || [])) {
-        const fasihDesaId = sls.wilayah_desa?.fasih_region_id;
-        const fasihKecId  = sls.wilayah_desa?.wilayah_kec?.fasih_region_id;
-        if (!fasihDesaId || !fasihKecId) continue;
-        queuePayload.push({
-            kode_sls:      sls.kode_sls,
-            fasih_sls_id:  sls.fasih_region_id,
-            fasih_desa_id: fasihDesaId,
-            fasih_kec_id:  fasihKecId,
-            status:        'pending'
-        });
-    }
-
-    // Upsert dalam batch 500
-    const UPSERT_BATCH = 500;
-    let queueInserted = 0;
-    for (let i = 0; i < queuePayload.length; i += UPSERT_BATCH) {
-        const batch = queuePayload.slice(i, i + UPSERT_BATCH);
-        const { error } = await db
-            .from('fasih_scrape_queue')
-            .upsert(batch, { onConflict: 'kode_sls', ignoreDuplicates: false });
-        if (error) console.error(LOG_PREFIX + ` Gagal upsert queue batch ${i}:`, LOG_ERR, error);
-        else queueInserted += batch.length;
-    }
-
-    console.log(LOG_PREFIX + ` [Fase 4] Selesai. ${queueInserted} SLS di-upsert ke fasih_scrape_queue.`, LOG_OK);
+    console.log(LOG_PREFIX + ` [Fase 4] Selesai. ${queueCount} SLS di-upsert ke fasih_scrape_queue.`, LOG_OK);
     console.log(LOG_PREFIX + ' 🎉 SEMUA FASE SELESAI! Sekarang jalankan fasihsm-capaian-bot.js.', LOG_OK);
     document.title = '✅ Region Lookup Selesai';
 
     console.table({
         'Total Kecamatan'     : kecList.length,
         'Total Desa Diproses' : fase3Total > 0 ? 'Ya' : 'Skip (sudah ada)',
-        'Total SLS (queue)'   : queueInserted
+        'Total SLS (queue)'   : queueCount ?? 0
     });
 })();

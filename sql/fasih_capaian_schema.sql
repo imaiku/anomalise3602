@@ -58,8 +58,11 @@ CREATE TABLE IF NOT EXISTS public.fasih_scrape_queue (
 ALTER TABLE public.fasih_scrape_queue ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "scrape_queue_all" ON public.fasih_scrape_queue;
+-- Izinkan semua role (anon + authenticated) karena bot berjalan di browser FASIH
+-- tanpa sesi Supabase (hanya anon key). Tabel ini tidak berisi data sensitif.
 CREATE POLICY "scrape_queue_all" ON public.fasih_scrape_queue
-  FOR ALL TO authenticated USING (true) WITH CHECK (true);
+  FOR ALL USING (true) WITH CHECK (true);
+
 
 -- 5. RPC: Claim batch antrian scraping (aman untuk multi-device)
 CREATE OR REPLACE FUNCTION public.fasih_claim_scrape_queue(p_limit INT, p_date DATE)
