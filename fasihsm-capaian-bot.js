@@ -192,6 +192,9 @@
     }
 
 
+    let consecutiveRateLimits = 0;
+    const ONE_HOUR_MS = 60 * 60 * 1000; // 1 jam dalam ms
+
     // ──────────────────────────────────────────────────────
     // SINGLE WORKER SCRAPER
     // ──────────────────────────────────────────────────────
@@ -232,13 +235,35 @@
                 (rawText && (rawText.toLowerCase().includes('rate limit') || rawText.toLowerCase().includes('too many requests')));
 
             if (isRateLimited) {
-                const retryDelay = 12000 + Math.random() * 6000; // Jeda 12 - 18 detik
-                console.warn(LOG_PREFIX + ` ⚠️ RATE LIMIT TERDETEKSI (HTTP ${res.status}) pada SLS ${kode_sls}! Melepas SLS & cooling down ${Math.round(retryDelay / 1000)} detik...`, LOG_WARN);
+                consecutiveRateLimits++;
                 await releaseItem(kode_sls);
                 totalSlsError++;
+
+                if (consecutiveRateLimits >= 10) {
+                    console.error(LOG_PREFIX + ` 🛑 RATE LIMIT TERDETEKSI 10x BERTURUT-TURUT! Memulai COOLDOWN PANJANG (1 JAM)...`, LOG_ERR);
+                    document.title = '⏳ COOLDOWN 1 JAM - Bot Menunggu';
+                    const resumeTime = new Date(Date.now() + ONE_HOUR_MS).toLocaleTimeString('id-ID');
+                    console.warn(LOG_PREFIX + ` Bot akan tidur selama 1 jam sampai pkl ${resumeTime}.`, LOG_WARN);
+                    
+                    // Jeda 1 Jam (3600 detik)
+                    await sleep(ONE_HOUR_MS);
+                    
+                    // Reset penghitung berturut-turut setelah 1 jam berlalu
+                    consecutiveRateLimits = 0;
+                    document.title = `Bot Capaian — ${TODAY}`;
+                    console.log(LOG_PREFIX + ' ⏰ Cooldown 1 jam selesai. Melanjutkan kembali scraping...', LOG_OK);
+                    return;
+                }
+
+                const retryDelay = 12000 + Math.random() * 6000; // Jeda pendek 12 - 18 detik
+                console.warn(LOG_PREFIX + ` ⚠️ Rate Limit ke-${consecutiveRateLimits}/10 pada SLS ${kode_sls}! Cooling down ${Math.round(retryDelay / 1000)}s...`, LOG_WARN);
                 await sleep(retryDelay);
                 return;
             }
+
+            // Reset counter consecutive jika request berhasil
+            consecutiveRateLimits = 0;
+
 
 
 
