@@ -121,12 +121,6 @@
     }
 
     // ──────────────────────────────────────────────────────
-    // INIT
-    // ──────────────────────────────────────────────────────
-    const TODAY = getTodayDate();
-    console.log(LOG_PREFIX + ` Tanggal scraping: ${TODAY}`, LOG_INFO);
-
-    // ──────────────────────────────────────────────────────
     // INIT & 7-DAY ROLLING SCRAPER CONFIG
     // ──────────────────────────────────────────────────────
     const TODAY = getTodayDate();
