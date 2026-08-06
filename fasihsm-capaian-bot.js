@@ -22,27 +22,27 @@
 
 (async () => {
     const LOG_PREFIX = '%c[Bot Capaian]';
-    const LOG_OK     = 'color: #10b981; font-weight: bold;';
-    const LOG_INFO   = 'color: #3b82f6; font-weight: bold;';
-    const LOG_WARN   = 'color: #f59e0b; font-weight: bold;';
-    const LOG_ERR    = 'color: #ef4444; font-weight: bold;';
+    const LOG_OK = 'color: #10b981; font-weight: bold;';
+    const LOG_INFO = 'color: #3b82f6; font-weight: bold;';
+    const LOG_WARN = 'color: #f59e0b; font-weight: bold;';
+    const LOG_ERR = 'color: #ef4444; font-weight: bold;';
 
     console.log(LOG_PREFIX + ' Memulai Bot Capaian Harian...', LOG_INFO);
 
     // ──────────────────────────────────────────────────────
     // KONSTANTA
     // ──────────────────────────────────────────────────────
-    const SUPABASE_URL     = 'https://vpbhqemomsewrnrggbmd.supabase.co';
-    const SUPABASE_KEY     = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
+    const SUPABASE_URL = 'https://vpbhqemomsewrnrggbmd.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
     const SURVEY_PERIOD_ID = 'fd68e454-ba45-4b85-8205-f3bf777ded24';
-    const REGION1_ID       = '3d7e1f4e-5445-4770-8dc2-1f69697901b2'; 
-    const REGION2_ID       = '6ded025d-0c3a-40b9-b274-ae6f1e748b44';
+    const REGION1_ID = '3d7e1f4e-5445-4770-8dc2-1f69697901b2';
+    const REGION2_ID = '6ded025d-0c3a-40b9-b274-ae6f1e748b44';
     const FASIH_CAPAIAN_URL = 'https://fasih-sm.bps.go.id/app/api/analytic/api/v2/assignment/report-progress-assignment';
 
-    const BATCH_SIZE    = 20;   // SLS per claim batch
-    const CONCURRENCY   = 2;    // Maksimal 2 Worker paralel untuk menghindari rate limit
-    const DELAY_MIN     = 1200; // ms (1.2 detik minimum delay per request)
-    const DELAY_MAX     = 2500; // ms (2.5 detik maksimum delay per request)
+    const BATCH_SIZE = 20;   // SLS per claim batch
+    const CONCURRENCY = 2;    // Maksimal 2 Worker paralel untuk menghindari rate limit
+    const DELAY_MIN = 1200; // ms (1.2 detik minimum delay per request)
+    const DELAY_MAX = 2500; // ms (2.5 detik maksimum delay per request)
 
     // ──────────────────────────────────────────────────────
     // LOAD SUPABASE
@@ -127,55 +127,35 @@
     console.log(LOG_PREFIX + ` Tanggal scraping: ${TODAY}`, LOG_INFO);
 
     // ──────────────────────────────────────────────────────
-    // AUTO-DETECT HARI BARU → Reset queue otomatis
+    // INIT & 7-DAY ROLLING SCRAPER CONFIG
     // ──────────────────────────────────────────────────────
-    console.log(LOG_PREFIX + ' Mengecek tanggal scraping terakhir di queue...', LOG_INFO);
-    const { data: lastDoneRow } = await db
-        .from('fasih_scrape_queue')
-        .select('scrape_date')
-        .not('scrape_date', 'is', null)
-        .order('scrape_date', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-    const lastScrapeDate = lastDoneRow?.scrape_date
-        ? String(lastDoneRow.scrape_date).substring(0, 10)
-        : null;
-
-    if (!lastScrapeDate) {
-        console.log(LOG_PREFIX + ' Queue belum pernah dijalankan. Mulai dari awal.', LOG_INFO);
-    } else if (lastScrapeDate === TODAY) {
-        console.log(LOG_PREFIX + ` Resume: queue sudah pernah berjalan hari ini (${TODAY}). Melanjutkan sisa...`, LOG_INFO);
-    } else {
-        console.log(LOG_PREFIX + ` Hari baru terdeteksi! Terakhir: ${lastScrapeDate} → Sekarang: ${TODAY}`, LOG_WARN);
-        console.log(LOG_PREFIX + ' Auto-reset queue untuk hari baru...', LOG_WARN);
-        const { error: resetErr } = await db.rpc('fasih_reset_scrape_queue');
-        if (resetErr) {
-            console.error(LOG_PREFIX + ' Gagal reset queue:', LOG_ERR, resetErr);
-            return;
-        }
-        console.log(LOG_PREFIX + ' ✅ Queue berhasil di-reset. Siap scraping hari baru!', LOG_OK);
-    }
+    const TODAY = getTodayDate();
+    console.log(LOG_PREFIX + ` Tanggal scraping hari ini: ${TODAY}`, LOG_INFO);
 
     const { error: colErr } = await db.rpc('fasih_add_date_column', { p_date: TODAY });
     if (colErr) {
         console.error(LOG_PREFIX + ' Gagal menambah kolom tanggal:', LOG_ERR, colErr);
         return;
     }
-    console.log(LOG_PREFIX + ` Kolom "${TODAY}" siap.`, LOG_OK);
+    console.log(LOG_PREFIX + ` Kolom tanggal "${TODAY}" siap.`, LOG_OK);
 
-    // Ambil total SLS di queue untuk laporan progres
-    const { count: totalQueueCount } = await db
+    // Ambil total SLS yang membutuhkan refresh (last_scraped_at IS NULL atau > 7 hari)
+    const { count: totalEligibleCount } = await db
         .from('fasih_scrape_queue')
-        .select('kode_sls', { count: 'exact', head: true });
+        .select('kode_sls', { count: 'exact', head: true })
+        .or('last_scraped_at.is.null,last_scraped_at.lt.' + new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
-    const totalQueueSLS = totalQueueCount || 0;
+    const totalQueueSLS = totalEligibleCount || 0;
+    console.log(LOG_PREFIX + ` Total SLS butuh update/pencatatan (>7 hari / baru): ${totalQueueSLS}`, LOG_INFO);
 
     const headers = buildHeaders();
     let totalSubSlsProcessed = 0;
     let totalSlsDone = 0;
     let totalSlsError = 0;
     let isAborted = false;
+    let consecutiveRateLimits = 0;
+    let longCooldownCount = 0; // Pelacak 1-Hour Long Cooldown
+    const ONE_HOUR_MS = 60 * 60 * 1000; // 1 jam dalam ms
 
     function printProgressSummary(statusText = 'BERHENTI') {
         const totalProcessed = totalSlsDone + totalSlsError;
@@ -183,17 +163,14 @@
         console.log(LOG_PREFIX + ` 📊 REKAPITULASI PROGRES [${statusText}]:`, LOG_OK);
         console.table({
             'Status Bot': statusText,
-            'Total Target SLS': totalQueueSLS,
+            'Target SLS (>7 Hari / Baru)': totalQueueSLS,
             'SLS Berhasil (Done)': totalSlsDone,
-            'SLS Gagal (Error)': totalSlsError,
+            'SLS Gagal / Skipped': totalSlsError,
             'Total SLS Diproses': `${totalProcessed} / ${totalQueueSLS} (${pct}%)`,
-            'Total Sub-SLS Tersimpan': totalSubSlsProcessed
+            'Total Sub-SLS Tersimpan': totalSubSlsProcessed,
+            'Insiden Long Cooldown': longCooldownCount
         });
     }
-
-
-    let consecutiveRateLimits = 0;
-    const ONE_HOUR_MS = 60 * 60 * 1000; // 1 jam dalam ms
 
     // ──────────────────────────────────────────────────────
     // SINGLE WORKER SCRAPER
@@ -206,26 +183,26 @@
 
         const payload = {
             assignmentErrorStatusType: -1,
-            assignmentStatusAlias:     null,
-            currentUserId:             null,
+            assignmentStatusAlias: null,
+            currentUserId: null,
             data1: null, data2: null, data3: null, data4: null,
             data5: null, data6: null, data7: null, data8: null,
             data9: null, data10: null,
-            region1Id:       REGION1_ID,
-            region2Id:       REGION2_ID,
-            region3Id:       fasih_kec_id,
-            region4Id:       fasih_desa_id,
-            region5Id:       fasih_sls_id,
-            regionId:        null,
-            surveyPeriodId:  SURVEY_PERIOD_ID,
+            region1Id: REGION1_ID,
+            region2Id: REGION2_ID,
+            region3Id: fasih_kec_id,
+            region4Id: fasih_desa_id,
+            region5Id: fasih_sls_id,
+            regionId: null,
+            surveyPeriodId: SURVEY_PERIOD_ID,
             userIdResponsibility: null
         };
 
         try {
             const res = await fetch(FASIH_CAPAIAN_URL, {
-                method:  'POST',
+                method: 'POST',
                 headers: headers,
-                body:    JSON.stringify(payload)
+                body: JSON.stringify(payload)
             });
 
             const rawText = await res.text();
@@ -240,22 +217,32 @@
                 totalSlsError++;
 
                 if (consecutiveRateLimits >= 10) {
-                    console.error(LOG_PREFIX + ` 🛑 RATE LIMIT TERDETEKSI 10x BERTURUT-TURUT! Memulai COOLDOWN PANJANG (1 JAM)...`, LOG_ERR);
+                    longCooldownCount++;
+                    console.error(LOG_PREFIX + ` 🛑 RATE LIMIT TERDETEKSI 10x BERTURUT-TURUT! (Long Cooldown Ke-${longCooldownCount})`, LOG_ERR);
+
+                    // Pengecekan Safeguard: Jika Long Cooldown terjadi 2 kali berturut-turut → Limit Harian BPS Tercapai!
+                    if (longCooldownCount >= 2) {
+                        console.error(LOG_PREFIX + ` ⛔ BATAS LIMIT HARIAN BPS TERCAPAI (2x Long Cooldown berturut-turut)! Menghentikan bot sepenuhnya...`, LOG_ERR);
+                        isAborted = true;
+                        document.title = '⛔ LIMIT HARIAN TERCAPAI - Bot Terhenti';
+                        alert('⚠️ LIMIT HARIAN BPS TERCAPAI!\n\nBot mendeteksi 2x Long Cooldown (Rate Limit 10x berturut-turut).\nBot dihentikan secara aman. Silakan jalankan kembali besok.');
+                        return;
+                    }
+
                     document.title = '⏳ COOLDOWN 1 JAM - Bot Menunggu';
                     const resumeTime = new Date(Date.now() + ONE_HOUR_MS).toLocaleTimeString('id-ID');
                     console.warn(LOG_PREFIX + ` Bot akan tidur selama 1 jam sampai pkl ${resumeTime}.`, LOG_WARN);
-                    
-                    // Jeda 1 Jam (3600 detik)
+
+                    // Jeda 1 Jam
                     await sleep(ONE_HOUR_MS);
-                    
-                    // Reset penghitung berturut-turut setelah 1 jam berlalu
+
                     consecutiveRateLimits = 0;
                     document.title = `Bot Capaian — ${TODAY}`;
                     console.log(LOG_PREFIX + ' ⏰ Cooldown 1 jam selesai. Melanjutkan kembali scraping...', LOG_OK);
                     return;
                 }
 
-                const retryDelay = 12000 + Math.random() * 6000; // Jeda pendek 12 - 18 detik
+                const retryDelay = 12000 + Math.random() * 6000;
                 console.warn(LOG_PREFIX + ` ⚠️ Rate Limit ke-${consecutiveRateLimits}/10 pada SLS ${kode_sls}! Cooling down ${Math.round(retryDelay / 1000)}s...`, LOG_WARN);
                 await sleep(retryDelay);
                 return;
@@ -263,6 +250,7 @@
 
             // Reset counter consecutive jika request berhasil
             consecutiveRateLimits = 0;
+
 
 
 
@@ -306,17 +294,17 @@
                 if (!kodeSubSls) continue;
                 const cap = parseCapaianValues(subItem.values || []);
                 rpcRows.push({
-                    kode_sub_sls:       kodeSubSls,
-                    total:              cap.total,
-                    open:               cap.open,
-                    approved_pengawas:  cap.approved_pengawas
+                    kode_sub_sls: kodeSubSls,
+                    total: cap.total,
+                    open: cap.open,
+                    approved_pengawas: cap.approved_pengawas
                 });
             }
 
             const { data: savedCount, error: saveErr } = await db.rpc('fasih_save_capaian', {
-                p_date:     TODAY,
+                p_date: TODAY,
                 p_kode_sls: kode_sls,
-                p_rows:     rpcRows
+                p_rows: rpcRows
             });
 
             if (saveErr) {
