@@ -39,10 +39,10 @@
     const REGION2_ID       = '6ded025d-0c3a-40b9-b274-ae6f1e748b44';
     const FASIH_CAPAIAN_URL = 'https://fasih-sm.bps.go.id/app/api/analytic/api/v2/assignment/report-progress-assignment';
 
-    const BATCH_SIZE    = 30;   // SLS per claim batch
-    const CONCURRENCY   = 3;    // 3 Worker paralel
-    const DELAY_MIN     = 500;  // ms minimum delay per worker
-    const DELAY_MAX     = 1200; // ms maksimum delay per worker
+    const BATCH_SIZE    = 20;   // SLS per claim batch
+    const CONCURRENCY   = 2;    // Maksimal 2 Worker paralel untuk menghindari rate limit
+    const DELAY_MIN     = 1200; // ms (1.2 detik minimum delay per request)
+    const DELAY_MAX     = 2500; // ms (2.5 detik maksimum delay per request)
 
     // ──────────────────────────────────────────────────────
     // LOAD SUPABASE
@@ -164,11 +164,33 @@
     }
     console.log(LOG_PREFIX + ` Kolom "${TODAY}" siap.`, LOG_OK);
 
+    // Ambil total SLS di queue untuk laporan progres
+    const { count: totalQueueCount } = await db
+        .from('fasih_scrape_queue')
+        .select('kode_sls', { count: 'exact', head: true });
+
+    const totalQueueSLS = totalQueueCount || 0;
+
     const headers = buildHeaders();
     let totalSubSlsProcessed = 0;
     let totalSlsDone = 0;
     let totalSlsError = 0;
     let isAborted = false;
+
+    function printProgressSummary(statusText = 'BERHENTI') {
+        const totalProcessed = totalSlsDone + totalSlsError;
+        const pct = totalQueueSLS > 0 ? ((totalProcessed / totalQueueSLS) * 100).toFixed(2) : '0.00';
+        console.log(LOG_PREFIX + ` 📊 REKAPITULASI PROGRES [${statusText}]:`, LOG_OK);
+        console.table({
+            'Status Bot': statusText,
+            'Total Target SLS': totalQueueSLS,
+            'SLS Berhasil (Done)': totalSlsDone,
+            'SLS Gagal (Error)': totalSlsError,
+            'Total SLS Diproses': `${totalProcessed} / ${totalQueueSLS} (${pct}%)`,
+            'Total Sub-SLS Tersimpan': totalSubSlsProcessed
+        });
+    }
+
 
     // ──────────────────────────────────────────────────────
     // SINGLE WORKER SCRAPER
@@ -203,17 +225,22 @@
                 body:    JSON.stringify(payload)
             });
 
-            // 1. DETEKSI RATE LIMIT (429 / 503)
-            if (res.status === 429 || res.status === 503) {
-                console.error(LOG_PREFIX + ` 🛑 RATE LIMIT TERDETEKSI (HTTP ${res.status}) pada SLS ${kode_sls}! Stopping bot...`, LOG_ERR);
-                isAborted = true;
+            const rawText = await res.text();
+
+            // 1. DETEKSI RATE LIMIT (HTTP 429 / 503 ATAU pesan di body)
+            const isRateLimited = res.status === 429 || res.status === 503 ||
+                (rawText && (rawText.toLowerCase().includes('rate limit') || rawText.toLowerCase().includes('too many requests')));
+
+            if (isRateLimited) {
+                const retryDelay = 12000 + Math.random() * 6000; // Jeda 12 - 18 detik
+                console.warn(LOG_PREFIX + ` ⚠️ RATE LIMIT TERDETEKSI (HTTP ${res.status}) pada SLS ${kode_sls}! Melepas SLS & cooling down ${Math.round(retryDelay / 1000)} detik...`, LOG_WARN);
                 await releaseItem(kode_sls);
-                document.title = '⛔ RATE LIMIT - Bot Terhenti';
-                alert(`⚠️ WARN: Server FASIH memberikan batas rate limit (HTTP ${res.status}).\n\nBot dihentikan untuk keamanan akun. Antrian SLS telah dikembalikan secara aman.`);
+                totalSlsError++;
+                await sleep(retryDelay);
                 return;
             }
 
-            const rawText = await res.text();
+
 
             // 2. DETEKSI SESI EXPIRED
             if (isSessionExpired(res, rawText)) {
@@ -329,8 +356,12 @@
         }
     }
 
-    if (!isAborted) {
+    if (isAborted) {
+        printProgressSummary('TERHENTI / ABORTED');
+    } else {
         console.log(LOG_PREFIX + ' 🎉 Bot Capaian selesai!', LOG_OK);
+        printProgressSummary('SELESAI (100%)');
         document.title = `✅ Bot Capaian Selesai — ${TODAY}`;
     }
 })();
+
