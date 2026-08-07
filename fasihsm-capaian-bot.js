@@ -153,10 +153,10 @@
     const { count: totalEligibleCount } = await db
         .from('fasih_scrape_queue')
         .select('kode_sls', { count: 'exact', head: true })
-        .or('last_scraped_at.is.null,last_scraped_at.lt.' + new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+        .neq('status', 'done');
 
     const totalQueueSLS = totalEligibleCount || 0;
-    console.log(LOG_PREFIX + ` Total SLS butuh update/pencatatan (>7 hari / baru): ${totalQueueSLS}`, LOG_INFO);
+    console.log(LOG_PREFIX + ` Total SLS belum selesai (status != 'done'): ${totalQueueSLS}`, LOG_INFO);
 
     const headers = buildHeaders();
     let totalSubSlsProcessed = 0;
