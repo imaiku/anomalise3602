@@ -75,10 +75,10 @@ async function initPresence() {
 
   // Interval per role (ms)
   const INTERVAL_MS = {
-    admin:      1 * 60 * 1000,
+    admin: 1 * 60 * 1000,
     superadmin: 5 * 60 * 1000,
-    pml:       60 * 60 * 1000,
-    ppl:       60 * 60 * 1000,
+    pml: 60 * 60 * 1000,
+    ppl: 60 * 60 * 1000,
   };
   const intervalMs = INTERVAL_MS[adminProfile.role] ?? (5 * 60 * 1000);
 
@@ -185,9 +185,9 @@ function renderUnifiedPresence(presenceState, historyRows) {
 
   const ROLE_COLORS = {
     superadmin: { bg: '#7c3aed', text: '#fff' },
-    admin:      { bg: '#ea580c', text: '#fff' },
-    pml:        { bg: '#0284c7', text: '#fff' },
-    ppl:        { bg: '#16a34a', text: '#fff' },
+    admin: { bg: '#ea580c', text: '#fff' },
+    pml: { bg: '#0284c7', text: '#fff' },
+    ppl: { bg: '#16a34a', text: '#fff' },
   };
 
   const now = Date.now();
@@ -197,9 +197,9 @@ function renderUnifiedPresence(presenceState, historyRows) {
     const diffMin = Math.floor((now - new Date(u.last_seen)) / 60000);
     const timeLabel = u.isOnline ? 'online'
       : diffMin < 1 ? 'baru saja'
-      : diffMin < 60 ? `${diffMin} mnt lalu`
-      : diffMin < 1440 ? `${Math.floor(diffMin/60)} jam lalu`
-      : `${Math.floor(diffMin/1440)} hari lalu`;
+        : diffMin < 60 ? `${diffMin} mnt lalu`
+          : diffMin < 1440 ? `${Math.floor(diffMin / 60)} jam lalu`
+            : `${Math.floor(diffMin / 1440)} hari lalu`;
 
     return `
       <div class="presence-user-item" style="opacity:${u.isOnline ? 1 : 0.65}">
@@ -258,10 +258,10 @@ function showSection(sectionId, updateHash = true) {
 function switchBerkasTab(tabId) {
   document.querySelectorAll('.berkas-tab-btn').forEach(btn => btn.classList.remove('active'));
   document.querySelectorAll('.berkas-tab-content').forEach(content => content.classList.remove('active'));
-  
+
   const selectedBtn = document.getElementById(`tab-btn-${tabId}`);
   const selectedContent = document.getElementById(`berkas-tab-${tabId}`);
-  
+
   if (selectedBtn) selectedBtn.classList.add('active');
   if (selectedContent) selectedContent.classList.add('active');
 }
@@ -4585,7 +4585,7 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
   let tanggalText = "16 Juli 2026";
   if (gelombang === 2) tanggalText = "23 Juli 2026";
   if (gelombang === 3) tanggalText = "28 Juli 2026";
-  if (gelombang === 4) tanggalText = "31 Juli 2026";
+  if (gelombang === 4) tanggalText = "10 Agustus 2026";
 
   let nomorSuratStr = "B-909/SPer-I-SE2026/3602/07/2026";
   if (gelombang === 2) nomorSuratStr = "B-.../...-SE2026/3602/07/2026";

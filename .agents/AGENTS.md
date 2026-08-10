@@ -5,6 +5,6 @@ The document dates (tanggal surat) for each wave (gelombang) in Termin 1 are con
 - **Gelombang 1**: 16 Juli 2026 (Lebak, 16 Juli 2026)
 - **Gelombang 2**: 23 Juli 2026 (Lebak, 23 Juli 2026)
 - **Gelombang 3**: 28 Juli 2026 (Lebak, 28 Juli 2026)
-- **Gelombang 4**: 31 Juli 2026 (Lebak, 31 Juli 2026)
+- **Gelombang 4**: 10 Agustus 2026 (Lebak, 10 Agustus 2026)
 
 *Note: Tanggal surat untuk Termin 2 akan ditentukan kemudian.*
