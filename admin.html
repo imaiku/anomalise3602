@@ -61,10 +61,21 @@
       margin-right: 4px;
       vertical-align: middle;
     }
+
     @keyframes presencePulse {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.5; transform: scale(0.8); }
+
+      0%,
+      100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+
+      50% {
+        opacity: 0.5;
+        transform: scale(0.8);
+      }
     }
+
     .presence-user-item {
       display: flex;
       align-items: center;
@@ -73,6 +84,7 @@
       border-radius: var(--radius-sm);
       font-size: 0.72rem;
     }
+
     .presence-avatar {
       position: relative;
       width: 22px;
@@ -85,6 +97,7 @@
       font-weight: 700;
       flex-shrink: 0;
     }
+
     .presence-role-badge {
       font-size: 0.58rem;
       font-weight: 600;
@@ -93,6 +106,7 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
+
     .sidebar-item {
       display: flex;
       align-items: center;
@@ -603,22 +617,15 @@
           </svg>
           SLS Tanpa PPL
         </button>
-        <button class="sidebar-item" onclick="showSection('import-sls')" id="nav-import-sls">
+        <button class="sidebar-item" onclick="showSection('kelola-petugas-sls')" id="nav-kelola-petugas-sls">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-            <line x1="4" x2="4" y1="22" y2="15" />
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
           </svg>
-          Import SLS & PML
-        </button>
-        <button class="sidebar-item" onclick="showSection('import-capaian')" id="nav-import-capaian">
-          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21.2 15c.5-1.1.8-2.3.8-3.5 0-4.4-3.6-8-8-8s-8 3.6-8 8c0 1.2.3 2.4.8 3.5" />
-            <path d="M3 15h18" />
-            <path d="M12 15v7" />
-          </svg>
-          Import Capaian SLS
+          Kelola Petugas SLS
         </button>
         <button class="sidebar-item" onclick="showSection('berkas-lainnya')" id="nav-berkas-lainnya">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
@@ -630,12 +637,15 @@
       </div>
 
       <!-- Online Presence Panel (hanya tampil untuk superadmin) -->
-      <div class="sidebar-section" id="presencePanel" style="display:none; margin-top:auto; padding-top:1rem; border-top:1px solid var(--border)">
+      <div class="sidebar-section" id="presencePanel"
+        style="display:none; margin-top:auto; padding-top:1rem; border-top:1px solid var(--border)">
         <div class="sidebar-section-label" style="display:flex; align-items:center;">
           <span><span class="presence-dot-pulse"></span> Aktif & Terakhir</span>
-          <span id="presenceCount" style="margin-left:auto; background:var(--primary); color:white; border-radius:9999px; padding:0 6px; font-size:0.6rem; font-weight:600">0</span>
+          <span id="presenceCount"
+            style="margin-left:auto; background:var(--primary); color:white; border-radius:9999px; padding:0 6px; font-size:0.6rem; font-weight:600">0</span>
         </div>
-        <div id="presenceList" style="display:flex; flex-direction:column; gap:0.25rem; max-height:280px; overflow-y:auto"></div>
+        <div id="presenceList"
+          style="display:flex; flex-direction:column; gap:0.25rem; max-height:280px; overflow-y:auto"></div>
       </div>
     </aside>
 
@@ -1121,157 +1131,130 @@
         </div>
       </div>
 
-      <!-- ============ IMPORT SLS & RELATIONSHIP ============ -->
-      <div class="section-panel" id="panel-import-sls">
-        <div class="section-title">Import SLS & Hubungan PML-PPL</div>
-        <div class="section-sub">Upload file Excel berisi data Kode SLS, Email PML, dan Email PPL untuk di-mapping
-          secara massal.</div>
+      <!-- ============ KELOLA PETUGAS SLS PANEL ============ -->
+      <div class="section-panel" id="panel-kelola-petugas-sls">
+        <div class="section-title">Kelola Petugas SLS</div>
+        <div class="section-sub">Pemetaan petugas PPL & PML per wilayah Sub-SLS (8 format kolom standar) untuk
+          mengidentifikasi penugasan wilayah.</div>
 
-        <div class="card card-body mb-4" style="max-width:600px">
-          <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Mapping SLS</div>
-          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar
-            format kolom SLS, PML, dan PPL sesuai.</div>
-          <button class="btn btn-secondary btn-sm" onclick="generateSLSTemplate()">
+        <!-- Action Toolbar & Filters (Matching panel-users & panel-wilayah style) -->
+        <div style="display:flex; gap:0.75rem; margin-bottom:1.25rem; flex-wrap:wrap; align-items:center;">
+          <button class="btn btn-primary btn-sm" onclick="openImportModal()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" x2="12" y1="3" y2="15" />
+            </svg>
+            Impor Excel Penugasan
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadKelolaTemplate()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="12" y1="18" x2="12" y2="12" />
+              <polyline points="9 15 12 12 15 15" />
+            </svg>
+            Unduh Template Excel
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="exportKelolaExcel()">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="7 10 12 15 17 10" />
               <line x1="12" x2="12" y1="15" y2="3" />
             </svg>
-            Download Template Excel SLS
+            Export Excel
           </button>
+
+          <input type="text" class="filter-select" id="searchInput" placeholder="Cari kode SLS / email / nama..."
+            style="max-width:220px">
+          <select class="filter-select" id="filterStatusPetugas" style="max-width:170px">
+            <option value="semua">Semua Status</option>
+            <option value="tanpa_ppl">⚠️ Belum Ada PPL</option>
+            <option value="tanpa_pml">⚠️ Belum Ada PML</option>
+            <option value="lengkap">✅ Lengkap (PPL & PML)</option>
+          </select>
+          <select class="filter-select" id="filterKecamatan" style="max-width:170px">
+            <option value="">Semua Kecamatan</option>
+          </select>
+          <select class="filter-select" id="filterDesa" style="max-width:170px">
+            <option value="">Semua Desa</option>
+          </select>
         </div>
 
-        <div class="upload-card mb-4" style="max-width:600px">
-          <div class="upload-card-title">File Excel Mapping SLS</div>
-          <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
-          <div class="upload-zone" id="zoneSLS" onclick="document.getElementById('fileSLS').click()"
-            ondragover="handleDragOver(event,'zoneSLS')" ondragleave="handleDragLeave('zoneSLS')"
-            ondrop="handleSLSDrop(event)">
-            <input type="file" id="fileSLS" accept=".xlsx,.xls" onchange="handleSLSFileSelect(event)">
-            <div class="upload-zone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
+        <!-- Summary Stats Bar -->
+        <div class="stats-grid mb-4"
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+          <div class="stat-card">
+            <div class="stat-card-title">Total Sub-SLS</div>
+            <div class="stat-card-value" id="statTotalSubsls">0</div>
+            <div class="stat-card-sub">Seluruh wilayah Sub-SLS</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">Belum Ada PPL</div>
+            <div class="stat-card-value" id="statTanpaPpl" style="color: #ef4444;">0</div>
+            <div class="stat-card-sub">Perlu di-assign PPL</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">Belum Ada PML</div>
+            <div class="stat-card-value" id="statTanpaPml" style="color: #f59e0b;">0</div>
+            <div class="stat-card-sub">Perlu di-assign PML</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-title">Penugasan Lengkap</div>
+            <div class="stat-card-value" id="statLengkap" style="color: #16a34a;">0</div>
+            <div class="stat-card-sub">Memiliki PPL & PML</div>
+          </div>
+        </div>
+
+        <!-- Table Wrapper (Matching admin-table style) -->
+        <div class="table-wrapper">
+          <div class="table-header">
+            <div class="table-title">Daftar Penugasan Sub-SLS</div>
+            <div class="table-count" id="tableCountLabel">Memuat data...</div>
+          </div>
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th class="code-cell">kdprov</th>
+                <th class="code-cell">kdkab</th>
+                <th class="code-cell">kdkec</th>
+                <th class="code-cell">kddesa</th>
+                <th class="code-cell">kdsls</th>
+                <th class="code-cell">kdsubsls</th>
+                <th>emailpml</th>
+                <th>emailppl</th>
+                <th style="text-align: center; width: 110px;" class="no-sort">Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="tableBodyKelola">
+              <tr>
+                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                  <div class="spinner" style="margin: 0 auto 0.5rem auto;"></div>
+                  Sedang memuat daftar Sub-SLS dan pemetaan petugas...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Pagination (Matching admin table footer style) -->
+          <div class="table-footer"
+            style="margin-top:1.25rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:1rem;padding:0.75rem 1rem;background:var(--bg-card-2);border-top:1px solid var(--border);border-bottom-left-radius:var(--radius-lg);border-bottom-right-radius:var(--radius-lg)">
+            <div style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.875rem;">
+              <span>Tampilkan</span>
+              <select id="pageSizeSelect" class="filter-select" onchange="changePageSize()"
+                style="width: 80px; padding: 0.25rem;">
+                <option value="10">10</option>
+                <option value="25" selected>25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">Semua</option>
+              </select>
+              <span>per halaman</span>
             </div>
-            <div class="upload-zone-title" id="slsImportLabel">Pilih atau seret file di sini</div>
-            <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
-          </div>
-          <div id="slsValidation" class="mt-2"></div>
-        </div>
-
-        <!-- Preview Impor SLS -->
-        <div id="importSLSPreviewArea" class="hidden">
-          <div class="table-wrapper mb-4">
-            <div class="table-header">
-              <div class="table-title">Preview Mapping SLS</div>
-              <div class="table-count" id="importSLSCount">0 baris ditemukan</div>
-            </div>
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Kode SLS</th>
-                  <th>Email PML</th>
-                  <th>Email PPL</th>
-                </tr>
-              </thead>
-              <tbody id="importSLSTableBody"></tbody>
-            </table>
-          </div>
-
-          <div style="display:flex;gap:0.75rem">
-            <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
-            <button class="btn btn-primary" id="processSLSImportBtn" onclick="processSLSImport()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <path d="m9 11 3 3L22 4" />
-              </svg>
-              Proses Impor SLS & PML
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- ============ IMPORT CAPAIAN SLS ============ -->
-      <div class="section-panel" id="panel-import-capaian">
-        <div class="section-title">Import Capaian & Target SLS</div>
-        <div class="section-sub">Upload file Excel berisi data target dan realisasi capaian SLS untuk di-update secara
-          massal.</div>
-
-        <div class="card card-body mb-4" style="max-width:600px">
-          <div style="font-weight:600;margin-bottom:0.5rem">Unduh Template Excel Capaian SLS</div>
-          <div style="color:var(--text-muted);font-size:0.875rem;margin-bottom:1rem">Gunakan template resmi berikut agar
-            format kolom SLS, Target, dan Realisasi sesuai.</div>
-          <button class="btn btn-secondary btn-sm" onclick="generateCapaianTemplate()">
-            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" x2="12" y1="15" y2="3" />
-            </svg>
-            Download Template Excel Capaian
-          </button>
-        </div>
-
-        <div class="upload-card mb-4" style="max-width:600px">
-          <div class="upload-card-title">File Excel Capaian SLS</div>
-          <div class="upload-card-sub">Seret atau pilih file Excel (.xlsx / .xls) hasil pengisian template.</div>
-          <div class="upload-zone" id="zoneCapaian" onclick="document.getElementById('fileCapaian').click()"
-            ondragover="handleDragOver(event,'zoneCapaian')" ondragleave="handleDragLeave('zoneCapaian')"
-            ondrop="handleCapaianDrop(event)">
-            <input type="file" id="fileCapaian" accept=".xlsx,.xls" onchange="handleCapaianFileSelect(event)">
-            <div class="upload-zone-icon">
-              <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-            </div>
-            <div class="upload-zone-title" id="capaianImportLabel">Pilih atau seret file di sini</div>
-            <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 10MB</div>
-          </div>
-          <div id="capaianValidation" class="mt-2"></div>
-        </div>
-
-        <!-- Preview Impor Capaian -->
-        <div id="importCapaianPreviewArea" class="hidden">
-          <div class="table-wrapper mb-4">
-            <div class="table-header">
-              <div class="table-title">Preview Target & Capaian SLS</div>
-              <div class="table-count" id="importCapaianCount">0 baris ditemukan</div>
-            </div>
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>Kode SLS</th>
-                  <th>Target (Wilayah)</th>
-                  <th>PPL T1 G1</th>
-                  <th>PPL T1 G2</th>
-                  <th>PPL T2 G1</th>
-                  <th>PPL T2 G2</th>
-                  <th>PML T1 G1</th>
-                  <th>PML T1 G2</th>
-                  <th>PML T2 G1</th>
-                  <th>PML T2 G2</th>
-                </tr>
-              </thead>
-              <tbody id="importCapaianTableBody"></tbody>
-            </table>
-          </div>
-
-          <div style="display:flex;gap:0.75rem">
-            <button class="btn btn-secondary" onclick="showSection('users')">Batal</button>
-            <button class="btn btn-primary" id="processCapaianImportBtn" onclick="processCapaianImport()">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-                <path d="m9 11 3 3L22 4" />
-              </svg>
-              Proses Impor Capaian
-            </button>
+            <div id="paginationButtons" class="pagination" style="display: flex; gap: 0.25rem;"></div>
           </div>
         </div>
       </div>
@@ -2922,6 +2905,85 @@
     </div>
   </div>
 
+  <!-- Modal Edit Petugas Sub-SLS -->
+  <div class="modal-backdrop hidden" id="editPetugasModal">
+    <div class="modal-box" style="max-width: 500px;">
+      <div class="modal-header">
+        <div class="modal-title">Ganti Petugas Sub-SLS</div>
+        <button class="modal-close" onclick="closeEditModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Kode Sub-SLS: <strong id="modalKodeSubSls">—</strong>
+        </p>
+
+        <div class="form-group mb-3">
+          <label style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.35rem; display: block;">Email / SobatID
+            Petugas PPL:</label>
+          <input type="text" id="modalEmailPpl" class="form-input" placeholder="contoh: nazwanazarina0608@gmail.com">
+        </div>
+
+        <div class="form-group mb-4">
+          <label style="font-weight: 600; font-size: 0.875rem; margin-bottom: 0.35rem; display: block;">Email / SobatID
+            Petugas PML:</label>
+          <input type="text" id="modalEmailPml" class="form-input" placeholder="contoh: mayang.juwita00@gmail.com">
+        </div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeEditModal()">Batal</button>
+        <button class="btn btn-primary" id="btnSaveEditPetugas" onclick="savePetugasEdit()">Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Impor Excel -->
+  <div class="modal-backdrop hidden" id="importModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-header">
+        <div class="modal-title">Impor Penugasan Petugas SLS (Excel)</div>
+        <button class="modal-close" onclick="closeImportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.875rem; color: var(--text-muted); margin-bottom: 0.75rem;">
+          Unggah berkas Excel berisi kolom <code>kdprov</code>, <code>kdkab</code>, <code>kdkec</code>,
+          <code>kddesa</code>, <code>kdsls</code>, <code>kdsubsls</code>, <code>emailpml</code>, dan
+          <code>emailppl</code>.
+        </p>
+
+        <div style="margin-bottom: 1rem;">
+          <button class="btn btn-secondary btn-sm" onclick="downloadKelolaTemplate()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" x2="12" y1="15" y2="3" />
+            </svg>
+            Unduh Template Format Penugasan (.xlsx)
+          </button>
+        </div>
+
+        <div class="upload-zone mb-3" onclick="document.getElementById('fileImportKelola').click()">
+          <input type="file" id="fileImportKelola" accept=".xlsx,.xls" onchange="handleImportFileSelect(event)">
+          <div class="upload-zone-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+              <polyline points="14 2 14 8 20 8" />
+            </svg>
+          </div>
+          <div class="upload-zone-title" id="importFileLabel">Klik atau seret file Excel di sini</div>
+          <div class="upload-zone-sub">.xlsx / .xls</div>
+        </div>
+
+        <div id="importResultLog" class="hidden alert alert-info"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+        <button class="btn btn-secondary" onclick="closeImportModal()">Batal</button>
+        <button class="btn btn-primary" id="btnProsesImport" onclick="processImportFile()">Proses Impor</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script src="js/config.js"></script>
@@ -2929,6 +2991,7 @@
   <script src="js/auth.js"></script>
   <script src="js/upload.js"></script>
   <script src="js/import.js"></script>
+  <script src="js/kelola-petugas-sls.js"></script>
   <script src="js/admin.js"></script>
 </body>
 

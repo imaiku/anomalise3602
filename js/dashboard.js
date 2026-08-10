@@ -282,6 +282,27 @@ document.addEventListener('click', (e) => {
   }
 });
 
+// Helper to resolve 14-character SLS codes to 16-character gabungan codes
+async function resolveDashboardSls(rawCodes) {
+  if (!rawCodes || rawCodes.length === 0) return [];
+  const sls14 = rawCodes.filter(c => c && c.length === 14);
+  const sls16 = rawCodes.filter(c => c && c.length === 16);
+  if (sls14.length > 0) {
+    let resolved = [];
+    const chunkSize = 100;
+    for (let i = 0; i < sls14.length; i += chunkSize) {
+      const chunk = sls14.slice(i, i + chunkSize);
+      const { data } = await db.from('wilayah_subsls').select('kode_sls_gabungan').in('kode_sls', chunk);
+      if (data) {
+        resolved = resolved.concat(data.map(m => m.kode_sls_gabungan));
+      }
+    }
+    const fallbacks = sls14.filter(c => !resolved.some(r => r.startsWith(c))).map(c => c + '00');
+    return Array.from(new Set(sls16.concat(resolved).concat(fallbacks)));
+  }
+  return rawCodes;
+}
+
 // ============================================================
 // STATS
 // ============================================================
@@ -314,7 +335,8 @@ async function loadStats() {
     if (statsRole === 'ppl') {
       baseQ = baseQ.eq('tipe', 'keluarga');
       const { data: sl } = await db.from('user_sls').select('kode_sls').eq('user_id', statsUserId).eq('status', 'aktif');
-      const codes = (sl || []).map(r => r.kode_sls);
+      const rawCodes = (sl || []).map(r => r.kode_sls);
+      const codes = await resolveDashboardSls(rawCodes);
       if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
       else baseQ = baseQ.in('kode_sls_gabungan', ['NONE']);
     } else if (statsRole === 'pml') {
@@ -323,7 +345,8 @@ async function loadStats() {
       const pplIds = (ppls || []).map(r => r.ppl_id);
       if (pplIds.length > 0) {
         const { data: sl } = await db.from('user_sls').select('kode_sls').eq('status', 'aktif').in('user_id', pplIds);
-        const codes = (sl || []).map(r => r.kode_sls);
+        const rawCodes = (sl || []).map(r => r.kode_sls);
+        const codes = await resolveDashboardSls(rawCodes);
         if (codes.length > 0) baseQ = baseQ.in('kode_sls_gabungan', codes);
         else baseQ = baseQ.in('kode_sls_gabungan', ['NONE']);
       } else {
@@ -712,7 +735,8 @@ async function loadData(forceRefresh = false) {
                 .eq('user_id', selectedPetugas.id)
                 .eq('status', 'aktif');
               if (slErr) throw slErr;
-              codes = (sl || []).map(r => r.kode_sls);
+              const rawCodes = (sl || []).map(r => r.kode_sls);
+              codes = await resolveDashboardSls(rawCodes);
             } else if (selectedPetugas.role.toLowerCase() === 'pml') {
               const { data: ppls, error: pplsErr } = await db
                 .from('pml_ppl')
@@ -727,7 +751,8 @@ async function loadData(forceRefresh = false) {
                   .eq('status', 'aktif')
                   .in('user_id', pplIds);
                 if (slErr) throw slErr;
-                codes = (sl || []).map(r => r.kode_sls);
+                const rawCodes = (sl || []).map(r => r.kode_sls);
+                codes = await resolveDashboardSls(rawCodes);
               }
             }
           }

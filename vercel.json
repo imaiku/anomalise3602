@@ -4,7 +4,8 @@
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/admin",     "destination": "/admin.html" },
     { "source": "/login",    "destination": "/login.html" },
-    { "source": "/bapp-pencairan-termin1", "destination": "/bapp-pencairan-termin1.html" }
+    { "source": "/bapp-pencairan-termin1", "destination": "/bapp-pencairan-termin1.html" },
+    { "source": "/kelola-petugas-sls", "destination": "/admin.html#kelola-petugas-sls" }
   ],
   "headers": [
     {

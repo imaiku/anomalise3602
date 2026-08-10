@@ -243,6 +243,9 @@ function showSection(sectionId, updateHash = true) {
   if (sectionId === 'users') {
     loadUsers();
   }
+  if (sectionId === 'kelola-petugas-sls') {
+    if (typeof loadKelolaData === 'function') loadKelolaData();
+  }
 
   if (updateHash) {
     window.location.hash = sectionId;
@@ -1587,9 +1590,26 @@ async function generateCapaianReportData(gelombang = 1) {
     userSlsMap[us.user_id].push(us.kode_sls);
   });
 
+  const resolveSlsCodes = (codes) => {
+    const resolved = [];
+    (codes || []).forEach(code => {
+      if (code && code.length === 14) {
+        const matches = subsls.filter(s => s.kode_sls_gabungan.startsWith(code)).map(s => s.kode_sls_gabungan);
+        if (matches.length > 0) {
+          resolved.push(...matches);
+        } else {
+          resolved.push(code + '00');
+        }
+      } else if (code) {
+        resolved.push(code);
+      }
+    });
+    return Array.from(new Set(resolved));
+  };
+
   // Helpers to get kecamatan code for sorting
   const getProfileKec = (id) => {
-    const codes = userSlsMap[id] || [];
+    const codes = resolveSlsCodes(userSlsMap[id] || []);
     return (codes.length > 0 && codes[0].length >= 7) ? codes[0].substring(4, 7) : '';
   };
   const getPmlKec = (pmlId) => {
@@ -1602,7 +1622,7 @@ async function generateCapaianReportData(gelombang = 1) {
   };
 
   const getPplStatus = (pplId, gel) => {
-    const slsCodes = userSlsMap[pplId] || [];
+    const slsCodes = resolveSlsCodes(userSlsMap[pplId] || []);
     let pplTargetSum = 0;
     let pplRealisasiSum = 0;
     let pplCoverage = 0;
@@ -1633,7 +1653,7 @@ async function generateCapaianReportData(gelombang = 1) {
     const ppl = profileMap[pplId];
     if (!ppl) return { targetSum: 0, realisasiSum: 0 };
 
-    const slsCodes = userSlsMap[pplId] || [];
+    const slsCodes = resolveSlsCodes(userSlsMap[pplId] || []);
     const gStatus = getPplStatus(pplId, gelombang);
     const gStatusG1 = getPplStatus(pplId, 1);
     const gStatusG2 = getPplStatus(pplId, 2);
@@ -2277,6 +2297,23 @@ async function loadBappEligibilityData(force = false) {
       userSlsMap[us.user_id].push(us.kode_sls);
     });
 
+    const resolveSlsCodes = (codes) => {
+      const resolved = [];
+      (codes || []).forEach(code => {
+        if (code && code.length === 14) {
+          const matches = subsls.filter(s => s.kode_sls_gabungan.startsWith(code)).map(s => s.kode_sls_gabungan);
+          if (matches.length > 0) {
+            resolved.push(...matches);
+          } else {
+            resolved.push(code + '00');
+          }
+        } else if (code) {
+          resolved.push(code);
+        }
+      });
+      return Array.from(new Set(resolved));
+    };
+
     // PML-PPL relations map
     const pmlToPpl = {};
     relations.forEach(r => {
@@ -2286,7 +2323,7 @@ async function loadBappEligibilityData(force = false) {
 
     // Check PPL eligibility for a wave
     const getPplStatus = (pplId, gel) => {
-      const slsCodes = userSlsMap[pplId] || [];
+      const slsCodes = resolveSlsCodes(userSlsMap[pplId] || []);
       let pplTargetSum = 0;
       let pplRealisasiSum = 0;
       let pplCoverage = 0;
@@ -4234,6 +4271,23 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
     userSlsMap[us.user_id].push(us.kode_sls);
   });
 
+  const resolveSlsCodes = (codes) => {
+    const resolved = [];
+    (codes || []).forEach(code => {
+      if (code && code.length === 14) {
+        const matches = subsls.filter(s => s.kode_sls_gabungan.startsWith(code)).map(s => s.kode_sls_gabungan);
+        if (matches.length > 0) {
+          resolved.push(...matches);
+        } else {
+          resolved.push(code + '00');
+        }
+      } else if (code) {
+        resolved.push(code);
+      }
+    });
+    return Array.from(new Set(resolved));
+  };
+
   // Profile map & relation lookup for PPL -> PML pairing
   const profileMap = {};
   profiles.forEach(p => { profileMap[p.id] = p; });
@@ -4264,7 +4318,7 @@ async function fetchSuperEvaluasiT1Data(gelombang = 1) {
       const namaPpl = (p.nama || '').toUpperCase();
       const emailPpl = p.email_ref || '';
 
-      const codes = userSlsMap[p.id] || [];
+      const codes = resolveSlsCodes(userSlsMap[p.id] || []);
       let kdkec = '';
       if (codes.length > 0) {
         kdkec = codes[0].substring(4, 7);
@@ -5910,6 +5964,23 @@ async function fetchSuperPPLData(gelombang = 1) {
     userSlsMap[us.user_id].push(us.kode_sls);
   });
 
+  const resolveSlsCodes = (codes) => {
+    const resolved = [];
+    (codes || []).forEach(code => {
+      if (code && code.length === 14) {
+        const matches = subsls.filter(s => s.kode_sls_gabungan.startsWith(code)).map(s => s.kode_sls_gabungan);
+        if (matches.length > 0) {
+          resolved.push(...matches);
+        } else {
+          resolved.push(code + '00');
+        }
+      } else if (code) {
+        resolved.push(code);
+      }
+    });
+    return Array.from(new Set(resolved));
+  };
+
   // Ambil kelayakan gelombang secara mutually exclusive
   await loadBappEligibilityData(true);
   const eligibleIds = bappEligibilityMap[gelombang];
@@ -5920,7 +5991,7 @@ async function fetchSuperPPLData(gelombang = 1) {
     // Hanya proses yang eligible di gelombang ini secara mutually exclusive
     if (!eligibleIds.has(p.id)) return;
 
-    const codes = userSlsMap[p.id] || [];
+    const codes = resolveSlsCodes(userSlsMap[p.id] || []);
     let kdkec = '';
     if (codes.length > 0) {
       kdkec = codes[0].substring(4, 7);
@@ -6444,6 +6515,40 @@ async function savePmlNoSuratAll() {
 }
 
 async function fetchSuperPMLData(gelombang = 1) {
+  // Fetch wilayah_subsls for resolving SLS codes
+  let subsls = [];
+  let fromSub = 0;
+  let hasMoreSub = true;
+  while (hasMoreSub) {
+    const { data, error } = await db.from('wilayah_subsls')
+      .select('kode_sls_gabungan')
+      .range(fromSub, fromSub + 999);
+    if (error) throw error;
+    if (!data || data.length === 0) hasMoreSub = false;
+    else {
+      subsls = subsls.concat(data);
+      if (data.length < 1000) hasMoreSub = false;
+      else fromSub += 1000;
+    }
+  }
+
+  const resolveSlsCodes = (codes) => {
+    const resolved = [];
+    (codes || []).forEach(code => {
+      if (code && code.length === 14) {
+        const matches = subsls.filter(s => s.kode_sls_gabungan.startsWith(code)).map(s => s.kode_sls_gabungan);
+        if (matches.length > 0) {
+          resolved.push(...matches);
+        } else {
+          resolved.push(code + '00');
+        }
+      } else if (code) {
+        resolved.push(code);
+      }
+    });
+    return Array.from(new Set(resolved));
+  };
+
   // 1. Fetch active profiles
   let profiles = [];
   let fromProf = 0;
@@ -6557,7 +6662,7 @@ async function fetchSuperPMLData(gelombang = 1) {
     rekapData.forEach(row => {
       const pplProf = allUsers.find(u => u.role === 'ppl' && String(u.sobatid).trim() === String(row.sobatid_ppl).trim());
       if (pplProf) {
-        const slsCodes = userSlsMap[pplProf.id] || [];
+        const slsCodes = resolveSlsCodes(userSlsMap[pplProf.id] || []);
         if (slsCodes.length > 0 && !kdkec) {
           kdkec = slsCodes[0].substring(4, 7);
         }

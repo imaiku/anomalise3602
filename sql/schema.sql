@@ -7,6 +7,7 @@
 CREATE TABLE public.profiles (
   id          UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   sobatid     VARCHAR(20) UNIQUE,
+  nik         VARCHAR(16),
   nama        VARCHAR(255) NOT NULL,
   email_ref   VARCHAR(255),
   role        VARCHAR(20) NOT NULL CHECK (role IN ('superadmin', 'admin', 'pml', 'ppl')),
@@ -96,6 +97,7 @@ CREATE TABLE public.wilayah_subsls (
   kdsubsls          VARCHAR(2) NOT NULL,
   nmsls             VARCHAR(255),
   nmsubsls          VARCHAR(255),
+  target            INTEGER DEFAULT 0,
   created_at        TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -179,6 +181,56 @@ CREATE TABLE public.status_history (
   created_at            TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 8. NO SURAT SE
+CREATE TABLE public.no_surat_se (
+  sobatid                  VARCHAR(20) PRIMARY KEY REFERENCES public.profiles(sobatid) ON DELETE CASCADE,
+  no_spk                   VARCHAR(100),
+  no_sp_pemeriksaan_t1     VARCHAR(100),
+  no_sp_pemeriksaan_t2     VARCHAR(100),
+  updated_at               TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. CAPAIAN
+CREATE TABLE public.capaian (
+  kode_sls_gabungan  VARCHAR(16) PRIMARY KEY REFERENCES public.wilayah_subsls(kode_sls_gabungan) ON DELETE CASCADE,
+  capaian1           INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 1
+  capaian1_g2        INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 2
+  capaian1_g3        INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 3
+  capaian1_g4        INTEGER DEFAULT 0,  -- capaian PPL Termin 1 Gelombang 4
+  capaian2           INTEGER DEFAULT 0,  -- capaian PPL Termin 2 Gelombang 1
+  capaian2_g2        INTEGER DEFAULT 0,  -- capaian PPL Termin 2 Gelombang 2
+  capaian1_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 1
+  capaian1_pml_g2    INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 2
+  capaian1_pml_g3    INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 3
+  capaian1_pml_g4    INTEGER DEFAULT 0,  -- capaian PML Termin 1 Gelombang 4
+  capaian2_pml       INTEGER DEFAULT 0,  -- capaian PML Termin 2 Gelombang 1
+  capaian2_pml_g2    INTEGER DEFAULT 0,  -- capaian PML Termin 2 Gelombang 2
+  updated_at         TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 10. HONORARIUM HOLD
+CREATE TABLE public.honorarium_hold (
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id      UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  gelombang    INT CHECK (gelombang IN (1, 2, 3, 4)),
+  alasan       TEXT NOT NULL,
+  ditahan_oleh UUID REFERENCES public.profiles(id),
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  is_active    BOOLEAN NOT NULL DEFAULT true
+);
+
+-- 11. BAPP UPLOADS
+CREATE TABLE public.bapp_uploads (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  profile_id     UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+  kode_kec       VARCHAR(7) REFERENCES public.wilayah_kec(kode_kec) ON DELETE SET NULL,
+  screenshot     TEXT NOT NULL, -- Menyimpan data gambar Base64
+  created_at     TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE (profile_id)
+);
+
+
 -- ============================================================
 -- INDEXES
 -- ============================================================
@@ -197,6 +249,9 @@ CREATE INDEX idx_history_anomali    ON public.status_history(assignment_anomali_
 CREATE INDEX idx_history_created    ON public.status_history(created_at);
 CREATE INDEX idx_profiles_role      ON public.profiles(role);
 CREATE INDEX idx_profiles_active    ON public.profiles(is_active);
+CREATE INDEX idx_capaian_kode       ON public.capaian(kode_sls_gabungan);
+CREATE INDEX idx_honorarium_hold_user_id ON public.honorarium_hold(user_id);
+CREATE INDEX idx_honorarium_hold_user_gel ON public.honorarium_hold(user_id, gelombang) WHERE is_active = true;
 
 -- ============================================================
 -- ROW LEVEL SECURITY (RLS)
@@ -209,6 +264,10 @@ ALTER TABLE public.upload_batches     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assignment_anomali ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_history     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_wilayah     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.no_surat_se         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.capaian              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.honorarium_hold     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.bapp_uploads         ENABLE ROW LEVEL SECURITY;
 
 -- Helper function: get current user role (Safe from RLS recursive calls)
 CREATE OR REPLACE FUNCTION public.get_my_role()
@@ -322,6 +381,29 @@ CREATE POLICY "history_insert" ON public.status_history FOR INSERT TO authentica
 -- MASTER_WILAYAH: public read access
 CREATE POLICY "wilayah_select" ON public.master_wilayah FOR SELECT USING (true);
 
+-- NO_SURAT_SE: select all, admin manage
+CREATE POLICY "no_surat_select" ON public.no_surat_se FOR SELECT USING (true);
+CREATE POLICY "no_surat_admin" ON public.no_surat_se FOR ALL TO authenticated
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+-- CAPAIAN: select all, admin manage
+CREATE POLICY "capaian_select" ON public.capaian FOR SELECT USING (true);
+CREATE POLICY "capaian_admin" ON public.capaian FOR ALL TO authenticated
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+-- HONORARIUM_HOLD: select all, admin manage
+CREATE POLICY "honorarium_hold_select" ON public.honorarium_hold FOR SELECT USING (true);
+CREATE POLICY "honorarium_hold_admin" ON public.honorarium_hold FOR ALL TO authenticated
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+-- BAPP_UPLOADS: select/insert/update public, admin delete
+CREATE POLICY "bapp_select_all" ON public.bapp_uploads FOR SELECT USING (true);
+CREATE POLICY "bapp_insert_public" ON public.bapp_uploads FOR INSERT WITH CHECK (true);
+CREATE POLICY "bapp_update_public" ON public.bapp_uploads FOR UPDATE USING (true) WITH CHECK (true);
+CREATE POLICY "bapp_delete_admin" ON public.bapp_uploads FOR DELETE TO authenticated 
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+
 -- ============================================================
 -- TRIGGER: auto-update updated_at
 -- ============================================================
@@ -340,6 +422,26 @@ CREATE TRIGGER trg_profiles_updated_at
 CREATE TRIGGER trg_anomali_updated_at
   BEFORE UPDATE ON public.assignment_anomali
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+CREATE TRIGGER trg_no_surat_updated_at
+  BEFORE UPDATE ON public.no_surat_se
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+CREATE TRIGGER trg_capaian_updated_at
+  BEFORE UPDATE ON public.capaian
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+CREATE OR REPLACE FUNCTION public.update_hold_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_hold_updated_at
+  BEFORE UPDATE ON public.honorarium_hold
+  FOR EACH ROW EXECUTE FUNCTION public.update_hold_updated_at();
 
 -- ============================================================
 -- TRIGGER: auto-create profile on auth.users insert
@@ -394,32 +496,27 @@ BEGIN
       WHERE email = (v_user->>'sobatid') || '@anomali3602.se';
 
       IF v_user_id IS NOT NULL THEN
-        -- A. User sudah ada, lakukan update profile saja (Timpah Data)
-        INSERT INTO public.profiles (
-          id,
-          sobatid,
-          nama,
-          role,
-          email_ref,
-          is_active
-        ) VALUES (
-          v_user_id,
-          v_user->>'sobatid',
-          v_user->>'nama',
-          v_user->>'role',
-          NULLIF(v_user->>'email', ''),
-          true
-        )
-        ON CONFLICT (sobatid) DO UPDATE SET
-          nama = EXCLUDED.nama,
-          role = EXCLUDED.role,
-          email_ref = EXCLUDED.email_ref,
-          is_active = EXCLUDED.is_active,
-          updated_at = now();
+        -- A. User sudah ada, lakukan update profile (Dukung parsial update seperti update NIK saja)
+        UPDATE public.profiles
+        SET 
+          nik = COALESCE(NULLIF(v_user->>'nik', ''), nik),
+          nama = COALESCE(NULLIF(v_user->>'nama', ''), nama),
+          role = COALESCE(NULLIF(v_user->>'role', ''), role),
+          email_ref = COALESCE(NULLIF(v_user->>'email', ''), email_ref),
+          updated_at = now()
+        WHERE id = v_user_id;
+
+        -- Jika NIK disediakan, update password di auth.users ke NIK baru
+        IF NULLIF(v_user->>'nik', '') IS NOT NULL THEN
+          UPDATE auth.users
+          SET encrypted_password = extensions.crypt(NULLIF(v_user->>'nik', ''), extensions.gen_salt('bf', 10)),
+              updated_at = now()
+          WHERE id = v_user_id;
+        END IF;
       ELSE
         -- B. User belum ada, daftarkan baru
         v_user_id := gen_random_uuid();
-        v_encrypted_pw := extensions.crypt(v_user->>'nik', extensions.gen_salt('bf', 10));
+        v_encrypted_pw := extensions.crypt(COALESCE(v_user->>'nik', v_user->>'sobatid'), extensions.gen_salt('bf', 10));
 
         -- Insert into auth.users
         INSERT INTO auth.users (
@@ -473,6 +570,7 @@ BEGIN
         INSERT INTO public.profiles (
           id,
           sobatid,
+          nik,
           nama,
           role,
           email_ref,
@@ -480,6 +578,7 @@ BEGIN
         ) VALUES (
           v_user_id,
           v_user->>'sobatid',
+          v_user->>'nik',
           v_user->>'nama',
           v_user->>'role',
           NULLIF(v_user->>'email', ''),
@@ -490,7 +589,7 @@ BEGIN
       v_success_count := v_success_count + 1;
     EXCEPTION WHEN OTHERS THEN
       v_fail_count := v_fail_count + 1;
-      v_errors := array_append(v_errors, (v_user->>'nama') || ': ' || SQLERRM);
+      v_errors := array_append(v_errors, (v_user->>'sobatid') || ': ' || SQLERRM);
     END;
   END LOOP;
 
@@ -1463,6 +1562,311 @@ DROP POLICY IF EXISTS "dokumen_ub_config_update_public" ON public.dokumen_ub_con
 CREATE POLICY "dokumen_ub_config_select_all" ON public.dokumen_ub_config FOR SELECT USING (true);
 CREATE POLICY "dokumen_ub_config_insert_public" ON public.dokumen_ub_config FOR INSERT WITH CHECK (true);
 CREATE POLICY "dokumen_ub_config_update_public" ON public.dokumen_ub_config FOR UPDATE USING (true) WITH CHECK (true);
+
+
+-- ============================================================
+-- CONSOLIDATED RPC FUNCTIONS
+-- ============================================================
+
+-- 1. get_rekapitulasi_pml: Dapatkan rekap target & capaian PPL per gelombang
+CREATE OR REPLACE FUNCTION public.get_rekapitulasi_pml(p_pml_id UUID)
+RETURNS TABLE(
+  nama_ppl              VARCHAR,
+  sobatid_ppl           VARCHAR,
+  total_target          BIGINT,
+  total_capaian1        BIGINT,
+  total_capaian1_pml    BIGINT,
+  total_capaian1_pml_g2 BIGINT,
+  total_capaian1_pml_g3 BIGINT,
+  total_capaian1_pml_g4 BIGINT
+)
+LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$
+  SELECT
+    p.nama::VARCHAR,
+    p.sobatid::VARCHAR,
+    COALESCE(SUM(ws.target),                 0)::BIGINT AS total_target,
+    COALESCE(SUM(c.capaian1),                0)::BIGINT AS total_capaian1,
+    COALESCE(SUM(c.capaian1_pml),            0)::BIGINT AS total_capaian1_pml,
+    COALESCE(SUM(c.capaian1_pml_g2),           0)::BIGINT AS total_capaian1_pml_g2,
+    COALESCE(SUM(c.capaian1_pml_g3),           0)::BIGINT AS total_capaian1_pml_g3,
+    COALESCE(SUM(c.capaian1_pml_g4),           0)::BIGINT AS total_capaian1_pml_g4
+  FROM public.pml_ppl mp
+  JOIN public.profiles p  ON p.id = mp.ppl_id
+  JOIN public.user_sls us ON us.user_id = mp.ppl_id AND us.status = 'aktif'
+  JOIN public.wilayah_subsls ws ON ws.kode_sls_gabungan = us.kode_sls
+  LEFT JOIN public.capaian c ON c.kode_sls_gabungan = us.kode_sls
+  WHERE mp.pml_id = p_pml_id
+  GROUP BY p.id, p.nama, p.sobatid
+  ORDER BY p.nama;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_rekapitulasi_pml(UUID) TO anon, authenticated;
+
+-- 2. get_public_petugas_list: Mendapatkan daftar petugas secara publik (bypass RLS)
+CREATE OR REPLACE FUNCTION public.get_public_petugas_list()
+RETURNS TABLE (
+  id UUID,
+  nama VARCHAR,
+  role VARCHAR,
+  kode_kec VARCHAR
+) AS $$
+BEGIN
+  RETURN QUERY
+  -- Semua PPL (beserta kecamatan dari SLS aktifnya jika ada)
+  SELECT DISTINCT p.id, p.nama, p.role, substring(us.kode_sls from 1 for 7)::VARCHAR as kode_kec
+  FROM public.profiles p
+  LEFT JOIN public.user_sls us ON p.id = us.user_id AND us.status = 'aktif'
+  WHERE p.is_active = true 
+    AND p.role = 'ppl'
+    
+  UNION
+  
+  -- Semua PML (beserta kecamatan dari PPL bawahannya atau SLS aktifnya jika ada)
+  SELECT DISTINCT p.id, p.nama, p.role, COALESCE(substring(us_direct.kode_sls from 1 for 7), substring(us_ppl.kode_sls from 1 for 7))::VARCHAR as kode_kec
+  FROM public.profiles p
+  LEFT JOIN public.user_sls us_direct ON p.id = us_direct.user_id AND us_direct.status = 'aktif'
+  LEFT JOIN public.pml_ppl pm ON p.id = pm.pml_id
+  LEFT JOIN public.user_sls us_ppl ON pm.ppl_id = us_ppl.user_id AND us_ppl.status = 'aktif'
+  WHERE p.is_active = true 
+    AND p.role = 'pml'
+  ORDER BY nama;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 3. search_petugas_by_kec: Pencarian petugas dengan filter kecamatan secara publik
+CREATE OR REPLACE FUNCTION public.search_petugas_by_kec(
+  p_query TEXT, 
+  p_kode_kec TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+  id UUID,
+  nama VARCHAR,
+  role VARCHAR,
+  kode_kec VARCHAR,
+  email_ref VARCHAR
+) AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT 
+    p.id, 
+    p.nama, 
+    p.role, 
+    COALESCE(substring(us_direct.kode_sls from 1 for 7), substring(us_ppl.kode_sls from 1 for 7))::VARCHAR as kode_kec, 
+    p.email_ref
+  FROM public.profiles p
+  LEFT JOIN public.user_sls us_direct ON p.id = us_direct.user_id AND us_direct.status = 'aktif'
+  LEFT JOIN public.pml_ppl pm ON p.id = pm.pml_id
+  LEFT JOIN public.user_sls us_ppl ON pm.ppl_id = us_ppl.user_id AND us_ppl.status = 'aktif'
+  WHERE p.is_active = true 
+    AND p.role IN ('ppl', 'pml')
+    AND (p.nama ILIKE '%' || p_query || '%' OR p.email_ref ILIKE '%' || p_query || '%')
+    AND (
+      p_kode_kec IS NULL 
+      OR p_kode_kec = '' 
+      OR COALESCE(substring(us_direct.kode_sls from 1 for 7), substring(us_ppl.kode_sls from 1 for 7)) = p_kode_kec
+    )
+  ORDER BY p.nama;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 4. get_all_subsls_petugas_list: Mendapatkan daftar seluruh Sub-SLS beserta email PML & PPL
+CREATE OR REPLACE FUNCTION public.get_all_subsls_petugas_list()
+RETURNS TABLE (
+  kode_sls_gabungan VARCHAR,
+  kdprov VARCHAR,
+  kdkab VARCHAR,
+  kdkec VARCHAR,
+  kddesa VARCHAR,
+  kdsls VARCHAR,
+  kdsubsls VARCHAR,
+  nmkec VARCHAR,
+  nmdesaAllocation VARCHAR,
+  nmsls VARCHAR,
+  nmsubsls VARCHAR,
+  emailppl VARCHAR,
+  namappl VARCHAR,
+  emailpml VARCHAR,
+  namapml VARCHAR
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN QUERY
+  SELECT DISTINCT ON (sub.kode_sls_gabungan)
+    sub.kode_sls_gabungan::VARCHAR,
+    substring(sub.kode_sls_gabungan from 1 for 2)::VARCHAR as kdprov,
+    substring(sub.kode_sls_gabungan from 3 for 2)::VARCHAR as kdkab,
+    substring(sub.kode_sls_gabungan from 5 for 3)::VARCHAR as kdkec,
+    substring(sub.kode_sls_gabungan from 8 for 3)::VARCHAR as kddesa,
+    substring(sub.kode_sls_gabungan from 11 for 4)::VARCHAR as kdsls,
+    substring(sub.kode_sls_gabungan from 15 for 2)::VARCHAR as kdsubsls,
+    COALESCE(kec.nmkec, 'Lainnya')::VARCHAR as nmkec,
+    COALESCE(des.nmdesa, '')::VARCHAR as nmdesaAllocation,
+    COALESCE(sub.nmsls, '')::VARCHAR as nmsls,
+    COALESCE(sub.nmsubsls, '')::VARCHAR as nmsubsls,
+    COALESCE(p_ppl.email_ref, p_ppl.sobatid, '')::VARCHAR as emailppl,
+    COALESCE(p_ppl.nama, '')::VARCHAR as namappl,
+    COALESCE(p_pml.email_ref, p_pml.sobatid, '')::VARCHAR as emailpml,
+    COALESCE(p_pml.nama, '')::VARCHAR as namapml
+  FROM public.wilayah_subsls sub
+  LEFT JOIN public.wilayah_sls sls ON sub.kode_sls = sls.kode_sls
+  LEFT JOIN public.wilayah_desa des ON sls.kode_desa = des.kode_desa
+  LEFT JOIN public.wilayah_kec kec ON des.kode_kec = kec.kode_kec
+  -- Join PPL (Mencakup kode 14 digit & 16 digit)
+  LEFT JOIN public.user_sls us_ppl ON (us_ppl.kode_sls = sub.kode_sls OR us_ppl.kode_sls = sub.kode_sls_gabungan OR us_ppl.kode_sls = substring(sub.kode_sls_gabungan from 1 for 14)) AND us_ppl.status = 'aktif'
+  LEFT JOIN public.profiles p_ppl ON us_ppl.user_id = p_ppl.id AND p_ppl.role = 'ppl'
+  -- Join PML via pml_ppl
+  LEFT JOIN public.pml_ppl rel ON rel.ppl_id = p_ppl.id
+  LEFT JOIN public.profiles p_pml ON rel.pml_id = p_pml.id AND p_pml.role = 'pml'
+  ORDER BY sub.kode_sls_gabungan ASC, (p_ppl.id IS NOT NULL) DESC, (p_pml.id IS NOT NULL) DESC;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_all_subsls_petugas_list() TO authenticated, anon;
+
+-- 5. update_subsls_petugas: Assign / Update Email PPL dan PML untuk Sub-SLS
+CREATE OR REPLACE FUNCTION public.update_subsls_petugas(
+  p_kode_subsls TEXT,
+  p_email_ppl TEXT,
+  p_email_pml TEXT
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ppl_id UUID;
+  v_pml_id UUID;
+BEGIN
+  -- Cari user PPL berdasarkan email, sobatid, nama, atau username
+  IF p_email_ppl IS NOT NULL AND trim(p_email_ppl) <> '' THEN
+    SELECT id INTO v_ppl_id 
+    FROM public.profiles 
+    WHERE (
+      lower(trim(email_ref)) = lower(trim(p_email_ppl)) OR 
+      lower(trim(sobatid)) = lower(trim(p_email_ppl)) OR
+      lower(trim(nama)) = lower(trim(p_email_ppl)) OR
+      lower(trim(username)) = lower(trim(p_email_ppl))
+    )
+    ORDER BY (role = 'ppl') DESC
+    LIMIT 1;
+
+    -- Jika profil PPL belum ada di database, buat profil baru secara otomatis
+    IF v_ppl_id IS NULL THEN
+      INSERT INTO public.profiles (id, nama, email_ref, role)
+      VALUES (
+        gen_random_uuid(),
+        trim(p_email_ppl),
+        lower(trim(p_email_ppl)),
+        'ppl'
+      )
+      RETURNING id INTO v_ppl_id;
+    ELSE
+      -- Auto update role ke 'ppl' jika role belum di-set
+      UPDATE public.profiles SET role = 'ppl' WHERE id = v_ppl_id AND (role IS NULL OR role = 'user');
+    END IF;
+
+    -- Assign ke user_sls (upsert status = 'aktif') menggunakan kode 16-digit penuh
+    IF v_ppl_id IS NOT NULL THEN
+      INSERT INTO public.user_sls (user_id, kode_sls, status)
+      VALUES (v_ppl_id, p_kode_subsls, 'aktif')
+      ON CONFLICT (user_id, kode_sls) DO UPDATE SET status = 'aktif';
+    END IF;
+  END IF;
+
+  -- Cari user PML berdasarkan email, sobatid, nama, atau username
+  IF p_email_pml IS NOT NULL AND trim(p_email_pml) <> '' THEN
+    SELECT id INTO v_pml_id 
+    FROM public.profiles 
+    WHERE (
+      lower(trim(email_ref)) = lower(trim(p_email_pml)) OR 
+      lower(trim(sobatid)) = lower(trim(p_email_pml)) OR
+      lower(trim(nama)) = lower(trim(p_email_pml)) OR
+      lower(trim(username)) = lower(trim(p_email_pml))
+    )
+    ORDER BY (role = 'pml') DESC
+    LIMIT 1;
+
+    -- Jika profil PML belum ada di database, buat profil baru secara otomatis
+    IF v_pml_id IS NULL THEN
+      INSERT INTO public.profiles (id, nama, email_ref, role)
+      VALUES (
+        gen_random_uuid(),
+        trim(p_email_pml),
+        lower(trim(p_email_pml)),
+        'pml'
+      )
+      RETURNING id INTO v_pml_id;
+    ELSE
+      UPDATE public.profiles SET role = 'pml' WHERE id = v_pml_id AND (role IS NULL OR role = 'user');
+    END IF;
+
+    IF v_ppl_id IS NOT NULL AND v_pml_id IS NOT NULL THEN
+      -- Assign relasi PML-PPL
+      INSERT INTO public.pml_ppl (pml_id, ppl_id)
+      VALUES (v_pml_id, v_ppl_id)
+      ON CONFLICT (pml_id, ppl_id) DO NOTHING;
+    END IF;
+  END IF;
+
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_subsls_petugas(TEXT, TEXT, TEXT) TO authenticated, anon;
+
+-- 6. update_subsls_petugas_batch: Batch Assign / Update Petugas Sub-SLS
+CREATE OR REPLACE FUNCTION public.update_subsls_petugas_batch(p_rows JSONB)
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  elem JSONB;
+  v_count INTEGER := 0;
+BEGIN
+  FOR elem IN SELECT * FROM jsonb_array_elements(p_rows)
+  LOOP
+    PERFORM public.update_subsls_petugas(
+      elem->>'kode_sub_sls',
+      elem->>'emailppl',
+      elem->>'emailpml'
+    );
+    v_count := v_count + 1;
+  END LOOP;
+
+  RETURN v_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_subsls_petugas_batch(JSONB) TO authenticated, anon;
+
+-- 7. get_all_pml_capaian: Dapatkan target & capaian total dari semua PML
+CREATE OR REPLACE FUNCTION public.get_all_pml_capaian()
+RETURNS TABLE(
+  pml_id              UUID,
+  total_target        BIGINT,
+  total_capaian       BIGINT
+)
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT 
+    mp.pml_id,
+    COALESCE(SUM(ws.target), 0)::BIGINT AS total_target,
+    COALESCE(SUM(c.capaian1_pml), 0)::BIGINT AS total_capaian
+  FROM public.pml_ppl mp
+  JOIN public.user_sls us ON us.user_id = mp.ppl_id AND us.status = 'aktif'
+  JOIN public.wilayah_subsls ws ON ws.kode_sls_gabungan = us.kode_sls
+  LEFT JOIN public.capaian c ON c.kode_sls_gabungan = us.kode_sls
+  GROUP BY mp.pml_id;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.get_all_pml_capaian() TO anon, authenticated;
 
 
 
