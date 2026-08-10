@@ -7919,5 +7919,325 @@ async function downloadSuperKepalaDoc_UB() {
 
 
 
+// =====================================================
+// CUSTOM SUPER PPL GENERATOR
+// Allows selecting a single PPL, manually entering
+// capaian and tanggal surat, then generating a PDF.
+// =====================================================
 
+let _customPPLList = []; // cache of all active PPLs with no_surat data
+
+async function openCustomSuperPPLModal() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan menggunakan fitur ini.', 'warning');
+    return;
+  }
+
+  const modal = document.getElementById('customSuperPPLModal');
+  if (!modal) return;
+
+  // Reset form
+  document.getElementById('customPPLSelect').value = '';
+  document.getElementById('customPPLInfoBox').style.display = 'none';
+  document.getElementById('customPPLNIK').textContent = '—';
+  document.getElementById('customPPLSobatID').textContent = '—';
+  document.getElementById('customPPLNoSPK').textContent = '—';
+  document.getElementById('customPPLNoSP').textContent = '—';
+  document.getElementById('customPPLTarget').value = '';
+  document.getElementById('customPPLRealisasi').value = '';
+  document.getElementById('customPPLPctPreview').style.display = 'none';
+  document.getElementById('customPPLTanggal').value = '';
+
+  modal.classList.add('open');
+
+  // Populate dropdown if not yet loaded
+  const select = document.getElementById('customPPLSelect');
+  if (select.options.length <= 1) {
+    select.innerHTML = '<option value="">⏳ Memuat daftar PPL...</option>';
+    try {
+      // Fetch all active PPL profiles
+      let profiles = [];
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await db.from('profiles')
+          .select('id, sobatid, nama, nik, email_ref')
+          .eq('role', 'ppl')
+          .eq('is_active', true)
+          .order('nama', { ascending: true })
+          .range(from, from + 999);
+        if (error) throw error;
+        if (!data || data.length === 0) {
+          hasMore = false;
+        } else {
+          profiles = profiles.concat(data);
+          if (data.length < 1000) hasMore = false;
+          else from += 1000;
+        }
+      }
+
+      // Fetch no_surat_se for all PPLs
+      const sobatids = profiles.map(p => String(p.sobatid || '').trim()).filter(Boolean);
+      let noSuratMap = {};
+      const chunk = 500;
+      for (let i = 0; i < sobatids.length; i += chunk) {
+        const sl = sobatids.slice(i, i + chunk);
+        const { data, error } = await db.from('no_surat_se')
+          .select('sobatid, no_spk, no_sp_pemeriksaan_t1')
+          .in('sobatid', sl);
+        if (error) throw error;
+        if (data) {
+          data.forEach(n => {
+            noSuratMap[String(n.sobatid).trim()] = n;
+          });
+        }
+      }
+
+      // Also use allUsers kecamatan info
+      const kecMap = {};
+      (allUsers || []).forEach(u => {
+        if (u.role === 'ppl') kecMap[u.id] = u.kecamatan || '—';
+      });
+
+      _customPPLList = profiles.map(p => {
+        const key = String(p.sobatid || '').trim();
+        return {
+          id: p.id,
+          nama: p.nama || '',
+          sobatid: p.sobatid || '',
+          nik: p.nik || '',
+          kecamatan: kecMap[p.id] || '—',
+          no_spk: noSuratMap[key]?.no_spk || '',
+          no_sp_pemeriksaan_t1: noSuratMap[key]?.no_sp_pemeriksaan_t1 || ''
+        };
+      });
+
+      select.innerHTML = '<option value="">-- Pilih PPL --</option>' +
+        _customPPLList.map((p, i) =>
+          `<option value="${i}">${escHtml(p.nama)}${p.kecamatan && p.kecamatan !== '—' ? ' — ' + escHtml(p.kecamatan) : ''}</option>`
+        ).join('');
+    } catch (err) {
+      console.error('Gagal memuat daftar PPL:', err);
+      select.innerHTML = '<option value="">-- Gagal memuat, coba lagi --</option>';
+      showToast('Gagal memuat daftar PPL: ' + err.message, 'error');
+    }
+  }
+}
+
+function onCustomPPLSelectChange() {
+  const select = document.getElementById('customPPLSelect');
+  const idx = select.value;
+  const infoBox = document.getElementById('customPPLInfoBox');
+
+  if (idx === '' || _customPPLList.length === 0) {
+    infoBox.style.display = 'none';
+    return;
+  }
+
+  const ppl = _customPPLList[parseInt(idx)];
+  if (!ppl) { infoBox.style.display = 'none'; return; }
+
+  document.getElementById('customPPLNIK').textContent = ppl.nik || '—';
+  document.getElementById('customPPLSobatID').textContent = ppl.sobatid || '—';
+  document.getElementById('customPPLNoSPK').textContent = ppl.no_spk || '(belum diisi)';
+  document.getElementById('customPPLNoSP').textContent = ppl.no_sp_pemeriksaan_t1 || '(belum diisi)';
+  infoBox.style.display = '';
+}
+
+function updateCustomPPLPct() {
+  const target = parseInt(document.getElementById('customPPLTarget').value) || 0;
+  const real = parseInt(document.getElementById('customPPLRealisasi').value) || 0;
+  const pctPreview = document.getElementById('customPPLPctPreview');
+  const pctVal = document.getElementById('customPPLPctValue');
+
+  if (target > 0 || real > 0) {
+    const pct = target > 0 ? ((real / target) * 100).toFixed(2) : '0.00';
+    pctVal.textContent = pct + '%';
+    pctPreview.style.display = '';
+  } else {
+    pctPreview.style.display = 'none';
+  }
+}
+
+function closeCustomSuperPPLModal() {
+  const modal = document.getElementById('customSuperPPLModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function generateCustomSuperPPL(isDownload = false) {
+  const select = document.getElementById('customPPLSelect');
+  const idx = select.value;
+
+  if (idx === '') {
+    showToast('Pilih PPL terlebih dahulu.', 'warning');
+    return;
+  }
+
+  const ppl = _customPPLList[parseInt(idx)];
+  if (!ppl) {
+    showToast('PPL tidak ditemukan, coba muat ulang.', 'error');
+    return;
+  }
+
+  const target = parseInt(document.getElementById('customPPLTarget').value) || 0;
+  const realisasi = parseInt(document.getElementById('customPPLRealisasi').value) || 0;
+  const tanggal = (document.getElementById('customPPLTanggal').value || '').trim();
+
+  if (!tanggal) {
+    showToast('Masukkan tanggal surat terlebih dahulu.', 'warning');
+    return;
+  }
+
+  // Build ppl-like object for buildSuperPPLDocument
+  const pplObj = {
+    nama: ppl.nama,
+    sobatid: ppl.sobatid,
+    nik: ppl.nik,
+    no_spk: ppl.no_spk,
+    no_sp_pemeriksaan_t1: ppl.no_sp_pemeriksaan_t1,
+    target,
+    realisasi,
+    capaian_pct: target > 0 ? (realisasi / target) * 100 : 0
+  };
+
+  const safeNama = (ppl.nama || 'custom_ppl').toLowerCase().replace(/\s+/g, '_');
+
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `
+        position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #7c3aed;
+        color: #f8fafc; padding: 14px 20px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;
+        font-family: system-ui, sans-serif; font-weight: 500; transition: all 0.3s ease;
+      `;
+      document.body.appendChild(indicator);
+    }
+
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat PDF Custom Super PPL...`;
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      // Use a special wrapper that passes custom tanggal
+      buildSuperPPLDocumentCustom(pdf, pplObj, ttdYulianBase64, tanggal);
+
+      indicator.style.borderColor = '#7c3aed';
+      indicator.style.color = '#a855f7';
+      indicator.innerHTML = '✓ PDF Custom Super PPL siap!';
+
+      if (isDownload) {
+        pdf.save(`custom_super_ppl_${safeNama}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+
+      setTimeout(() => { indicator.remove(); }, 2500);
+    } catch (err) {
+      console.error('Gagal generate Custom Super PPL:', err);
+      indicator.style.borderColor = '#ef4444';
+      indicator.style.color = '#ef4444';
+      indicator.innerHTML = 'Gagal membuat PDF: ' + err.message;
+      setTimeout(() => { indicator.remove(); }, 4000);
+    }
+  });
+}
+
+/**
+ * Identical to buildSuperPPLDocument but accepts a custom tanggal string
+ * instead of deriving it from gelombang number.
+ */
+function buildSuperPPLDocumentCustom(pdf, ppl, ttdYulianBase64, tanggalStr) {
+  // Normalize tanggal: prepend "Lebak, " if not already present
+  const dateStr = tanggalStr.startsWith('Lebak')
+    ? tanggalStr
+    : `Lebak, ${tanggalStr}`;
+
+  pdf.setFont('Bookman', 'bold');
+  pdf.setFontSize(12);
+  pdf.text('SURAT PERNYATAAN PENYELESAIAN', 105, 25, { align: 'center' });
+  pdf.text('PETUGAS LAPANGAN SENSUS EKONOMI 2026 TERMIN I', 105, 31, { align: 'center' });
+
+  pdf.setFont('Bookman', 'normal');
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${ppl.no_sp_pemeriksaan_t1 || '......./SE2026/.../.../2026'}`, 105, 38, { align: 'center' });
+
+  let y = 48;
+  pdf.text('Yang bertanda tangan di bawah ini:', 25, y);
+
+  y += 7;
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+  const lh = 5;
+
+  const identitas = [
+    ['Nama', (ppl.nama || '').toUpperCase()],
+    ['NIK', ppl.nik || '.....................................'],
+    ['Jabatan', 'Petugas Lapangan Sensus Ekonomi 2026']
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(':', colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+
+  y += 2;
+  pdf.text('Dengan ini menyatakan:', 25, y);
+  y += 6;
+
+  const poin = [
+    `bahwa telah melaksanakan pekerjaan Petugas Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Petugas Nomor: ${ppl.no_spk || '.....................................'}, sesuai dengan target pekerjaan termin I;`,
+    `bahwa hasil pekerjaan Petugas Lapangan Sensus Ekonomi 2026 termin I yang telah diselesaikan sebanyak ${ppl.realisasi} usaha dan keluarga dengan presentase sebesar ${ppl.capaian_pct.toFixed(2)} persen dari ${ppl.target} usaha dan keluarga target prelist;`,
+    `bahwa seluruh hasil pekerjaan termin I adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
+    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
+  ];
+
+  const textWidth = 185 - 33;
+  poin.forEach((teks, idx) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${idx + 1}.`, 25, y);
+    drawJustifiedText(pdf, teks, 33, y, textWidth, 5);
+    y += lines.length * 5;
+  });
+
+  y += 2;
+  const penutup = 'Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.';
+  const penutupLines = pdf.splitTextToSize(penutup, 160);
+  drawJustifiedText(pdf, penutup, 25, y, 160, 5);
+  y += penutupLines.length + 6;
+
+  // Tanda Tangan
+  const ttdY = y + 15;
+  pdf.setFont('Bookman', 'normal');
+  pdf.setFontSize(12);
+
+  const ttdX = 155;
+  pdf.text(dateStr, ttdX, ttdY, { align: 'center' });
+  pdf.text('Yang membuat pernyataan,', ttdX, ttdY + 5, { align: 'center' });
+  pdf.text((ppl.nama || '').toUpperCase(), ttdX, ttdY + 33, { align: 'center' });
+
+  pdf.text('Mengetahui,', 25, ttdY + 40);
+  pdf.text('Ketua Tim Pelaksana Sensus Ekonomi', 25, ttdY + 45);
+  pdf.text('2026', 25, ttdY + 50);
+  pdf.text('Kabupaten Lebak', 25, ttdY + 55);
+
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', 30, ttdY + 56, 18, 25);
+  }
+
+  pdf.text('YULIAN SARWO EDI', 25, ttdY + 80);
+  pdf.text('NIP. 197707101999121001', 25, ttdY + 85);
+}
 

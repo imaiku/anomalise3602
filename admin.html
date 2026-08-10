@@ -1779,14 +1779,26 @@
                     </svg>
                     Super PPL
                   </div>
-                  <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPplNoSuratModal(1)"
-                    style="font-size:0.7rem; padding:0.2rem 0.45rem">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" stroke-width="2">
-                      <path d="M12 20h9" />
-                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                    </svg> Nomor Surat
-                  </button>
+                  <div style="display:flex; gap:0.3rem; flex-wrap:wrap">
+                    <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPplNoSuratModal(1)"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg> Nomor Surat
+                    </button>
+                    <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openCustomSuperPPLModal()"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem; background: linear-gradient(135deg, #7c3aed, #a855f7); border-color: #7c3aed">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 1 0 10 10" />
+                        <path d="M12 8v4l2 2" />
+                        <path d="M17 2l5 5-5 5" />
+                        <path d="M22 7H12" />
+                      </svg> Custom
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="berkas-card-body">
@@ -2981,6 +2993,97 @@
       <div class="modal-footer" style="display: flex; gap: 0.5rem; justify-content: flex-end;">
         <button class="btn btn-secondary" onclick="closeImportModal()">Batal</button>
         <button class="btn btn-primary" id="btnProsesImport" onclick="processImportFile()">Proses Impor</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Generate Custom Super PPL -->
+  <div class="modal-overlay" id="customSuperPPLModal" onclick="if(event.target===this)closeCustomSuperPPLModal()">
+    <div class="bottom-sheet" style="max-width:560px; border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="border-bottom:2px solid rgba(124,58,237,0.2)">
+        <div class="bottom-sheet-title" style="display:flex;align-items:center;gap:0.5rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="#7c3aed" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+          Generate Custom Super PPL
+        </div>
+      </div>
+      <div class="bottom-sheet-body">
+        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.25rem;padding:0.75rem;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.15);border-radius:var(--radius-md)">
+          Pilih PPL dari daftar, isi capaian dan tanggal surat secara manual, lalu generate PDF Surat Pernyataan Penyelesaian Petugas Lapangan.
+        </div>
+
+        <!-- Dropdown PPL -->
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label" style="font-weight:600">Nama PPL</label>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Pilih PPL dari daftar — data diri (NIK, Sobat ID, No. SPK, No. SP) akan otomatis terisi.</div>
+          <select id="customPPLSelect" class="form-select" onchange="onCustomPPLSelectChange()" style="font-size:0.875rem">
+            <option value="">-- Pilih PPL --</option>
+          </select>
+        </div>
+
+        <!-- Info Data Diri PPL (readonly) -->
+        <div id="customPPLInfoBox" style="display:none; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem; margin-bottom:1rem; font-size:0.82rem">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem">
+            <div><span style="color:var(--text-muted)">NIK:</span> <strong id="customPPLNIK">—</strong></div>
+            <div><span style="color:var(--text-muted)">Sobat ID:</span> <strong id="customPPLSobatID">—</strong></div>
+            <div><span style="color:var(--text-muted)">No. SPK:</span> <strong id="customPPLNoSPK">—</strong></div>
+            <div><span style="color:var(--text-muted)">No. SP PPL:</span> <strong id="customPPLNoSP">—</strong></div>
+          </div>
+        </div>
+
+        <!-- Capaian Manual -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Target Prelist</label>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah target (usaha + keluarga)</div>
+            <input type="number" id="customPPLTarget" class="form-input" min="0" placeholder="Contoh: 250" oninput="updateCustomPPLPct()">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Realisasi</label>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah yang telah diselesaikan</div>
+            <input type="number" id="customPPLRealisasi" class="form-input" min="0" placeholder="Contoh: 200" oninput="updateCustomPPLPct()">
+          </div>
+        </div>
+
+        <!-- Preview Persentase -->
+        <div id="customPPLPctPreview" style="display:none; margin-bottom:1rem; padding:0.5rem 0.75rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:var(--radius-md); font-size:0.84rem; color:#065f46">
+          Persentase capaian: <strong id="customPPLPctValue">0.00%</strong>
+        </div>
+
+        <!-- Tanggal Surat -->
+        <div class="form-group" style="margin-bottom:0.5rem">
+          <label class="form-label" style="font-weight:600">Tanggal Surat</label>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Format bebas, contoh: "16 Juli 2026" atau "Lebak, 16 Juli 2026"</div>
+          <input type="text" id="customPPLTanggal" class="form-input" placeholder="Contoh: 16 Juli 2026">
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeCustomSuperPPLModal()">Batal</button>
+        <button class="btn btn-primary" id="customPPLPreviewBtn" onclick="generateCustomSuperPPL(false)"
+          style="background:linear-gradient(135deg,#7c3aed,#a855f7);border-color:#7c3aed;display:flex;align-items:center;gap:0.35rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          Preview PDF
+        </button>
+        <button class="btn btn-secondary" onclick="generateCustomSuperPPL(true)"
+          style="display:flex;align-items:center;gap:0.35rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Unduh PDF
+        </button>
       </div>
     </div>
   </div>
