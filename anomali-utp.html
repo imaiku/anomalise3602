@@ -1,0 +1,1875 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Anomali UTP — SE2026 Kab. Lebak</title>
+  <meta name="description" content="Dashboard monitoring anomali data UTP Sensus Ekonomi 2026 Kabupaten Lebak">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    /* Card Grid Responsif Seimbang */
+    .stat-grid-utp {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .sls-code {
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+
+    .assignment-id-cell {
+      font-family: monospace;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary);
+    }
+
+    .utp-card-accent {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .utp-card-accent::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--primary);
+    }
+
+    .utp-card-accent.imported::before {
+      background: var(--text-subtle);
+    }
+
+    .utp-card-accent.pending::before {
+      background: var(--warning);
+    }
+
+    .utp-card-accent.processing::before {
+      background: var(--info);
+    }
+
+    .utp-card-accent.success::before {
+      background: var(--success);
+    }
+
+    .utp-card-accent.failed::before {
+      background: var(--error);
+    }
+
+    .utp-card-accent.skipped::before {
+      background: #F97316;
+    }
+
+    /* Custom UTP Badge styling */
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.55rem;
+      border-radius: 9999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .badge-imported {
+      background: var(--bg-card-2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .badge-pending {
+      background: var(--warning-bg);
+      color: #92400e;
+      border: 1px solid rgba(245, 158, 11, 0.3);
+    }
+
+    .badge-processing {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-success {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .badge-failed {
+      background: var(--error-bg);
+      color: var(--error);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+
+    .badge-skipped {
+      background: rgba(249, 115, 22, 0.15);
+      color: var(--primary);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+    }
+
+    .dark .badge-pending {
+      color: #fde68a;
+    }
+
+    .dark .badge-skipped {
+      color: #fdba74;
+    }
+
+    /* Desa Priority Expandable Progress Grid (Persis Dashboard Utama) */
+    .kec-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      transition: all 0.3s ease;
+      margin-top: 0.75rem;
+    }
+
+    .kec-progress-grid.collapsed {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .kec-progress-card {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.6rem 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .kec-progress-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .kec-progress-card.active-filter {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.08);
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.75rem;
+    }
+
+    .kec-progress-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kec-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.725rem;
+      color: var(--text-muted);
+      margin: 0.25rem 0 0.35rem 0;
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-meta {
+      margin: 0;
+      gap: 1rem;
+    }
+
+    .kec-progress-bar {
+      height: 5px;
+      background: var(--border);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-bar {
+      display: none;
+    }
+
+    .kec-progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      background: var(--error);
+      transition: width 0.3s ease;
+    }
+
+    .sort-btn {
+      background: transparent;
+      border: none;
+      color: inherit;
+      font: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+
+    /* Modal Detail Style */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      max-width: 520px;
+      width: 92%;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .modal-detail-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.825rem;
+    }
+
+    .modal-detail-label {
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .modal-detail-val {
+      font-weight: 600;
+      text-align: right;
+      word-break: break-all;
+    }
+
+    /* Responsive Rules (Sesuai Dashboard Utama) */
+    @media (max-width: 768px) {
+      .table-wrapper {
+        display: none;
+      }
+
+      .mobile-card-list {
+        display: block !important;
+      }
+
+      .filter-bar .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .filter-bar input,
+      .filter-bar select,
+      .filter-bar button {
+        width: 100% !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="navbar-brand">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          style="color:var(--primary)">
+          <path d="M3 3v18h18" />
+          <path d="m19 9-5 5-4-4-3 3" />
+        </svg>
+        Dashboard <span>Anomali UTP</span>
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab.
+          Lebak</span>
+      </div>
+      <div class="navbar-actions">
+
+        <!-- Tombol Import Data UTP (Admin / Superadmin) -->
+        <button id="superadminUploadBtn" class="btn btn-primary btn-sm hidden" onclick="openImportDialogModal()"
+          style="color:white; align-items:center; gap:0.35rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Import Data UTP
+        </button>
+
+        <!-- Profile Dropdown -->
+        <div class="profile-dropdown hidden" id="profileDropdown">
+          <div class="profile-trigger" onclick="toggleProfileDropdown(event)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="5" />
+              <path d="M20 21a8 8 0 1 0-16 0" />
+            </svg>
+            <span id="userDisplayName">Memuat...</span>
+            <span id="userRoleBadge" class="type-badge" style="font-size:0.65rem;padding:0.15rem 0.4rem;"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="dropdown-chevron">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+          <div class="dropdown-menu" id="profileDropdownMenu">
+            <!-- Navigasi ke Dashboard Utama & Admin -->
+            <a href="/dashboard.html" class="dropdown-item" style="text-decoration:none;color:inherit">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 3v18h18" />
+                  <path d="m19 9-5 5-4-4-3 3" />
+                </svg>
+              </span>
+              Dashboard Utama
+            </a>
+            <a href="/admin.html" class="dropdown-item hidden" id="adminNavBtn"
+              style="text-decoration:none;color:inherit">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                  <line x1="9" y1="9" x2="21" y2="9" />
+                  <line x1="9" y1="15" x2="21" y2="15" />
+                </svg>
+              </span>
+              Panel Admin
+            </a>
+            <div class="dropdown-divider"></div>
+
+            <button class="dropdown-item" onclick="toggleTheme(); event.stopPropagation();">
+              <span class="dropdown-item-icon">
+                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="hidden">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </svg>
+                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
+                </svg>
+              </span>
+              Mode Gelap / Terang
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item text-error" onclick="logout()">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+              </span>
+              Keluar
+            </button>
+          </div>
+        </div>
+
+        <!-- Login Button (shown only when guest) -->
+        <a href="/login.html" class="btn btn-primary btn-sm hidden" id="loginNavBtn" style="color:white;">
+          Masuk
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-content">
+
+    <!-- Modal Dialog Import Data UTP -->
+    <div id="importDialogModal" class="modal-backdrop" style="display:none;">
+      <div class="modal-box" style="max-width: 580px;">
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+          <div>
+            <h3 style="margin:0; font-size:1.1rem; font-weight:700;">Import Data Anomali UTP</h3>
+            <p style="margin:0.2rem 0 0; font-size:0.78rem; color:var(--text-muted);">Upload file Excel untuk memproses
+              dan mengantrikan data UTP ke database.</p>
+          </div>
+          <button class="btn btn-secondary btn-xs" onclick="closeImportDialogModal()">Tutup</button>
+        </div>
+
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem 1rem; margin-bottom:1.25rem;">
+          <div style="font-size:0.825rem; font-weight:500;">Format File Excel</div>
+          <button id="btnDownloadTemplateInModal" class="btn btn-secondary btn-sm"
+            style="align-items:center; gap:0.35rem; font-size:0.78rem;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Unduh Template UTP (.xlsx)
+          </button>
+        </div>
+
+        <!-- Drag and Drop Upload Area -->
+        <div id="modalDropzone"
+          style="border:2px dashed var(--border); border-radius:var(--radius-md); padding:1.75rem; text-align:center; background:var(--bg-card); cursor:pointer; transition:all 0.2s;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" style="margin-bottom:0.5rem; color:var(--primary);">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+          <div style="font-size:0.875rem; font-weight:600;" id="modalDropzoneLabel">Klik atau seret file Excel UTP ke
+            sini</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Format .xlsx atau .xls</div>
+          <input type="file" id="fileExcelHiddenModal" accept=".xlsx, .xls" style="display: none;">
+        </div>
+
+        <!-- Preview Statistik Data Upload -->
+        <div id="uploadPreviewStatArea"
+          style="display:none; margin-top:1.25rem; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem;">
+          <div style="font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">Ringkasan Statistik Data Upload
+          </div>
+          <div
+            style="display:grid; grid-template-columns:repeat(2, 1fr); gap:0.75rem; font-size:0.8rem; margin-bottom:1rem;">
+            <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+              <div style="color:var(--text-muted); font-size:0.7rem;">TOTAL DATA EXCEL</div>
+              <div style="font-size:1.1rem; font-weight:700;" id="previewTotalBaris">0</div>
+            </div>
+            <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+              <div style="color:var(--text-muted); font-size:0.7rem;">ASSIGNMENT UNIK (VALID)</div>
+              <div style="font-size:1.1rem; font-weight:700; color:var(--primary);" id="previewTotalUnik">0</div>
+            </div>
+            <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+              <div style="color:var(--text-muted); font-size:0.7rem;">UTP TIDAK DITEMUKAN</div>
+              <div style="font-size:1.1rem; font-weight:700; color:var(--error);" id="previewTotalUtpTidak">0</div>
+            </div>
+            <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+              <div style="color:var(--text-muted); font-size:0.7rem;">BARIS CACAT/DI-SKIP</div>
+              <div style="font-size:1.1rem; font-weight:700; color:var(--warning);" id="previewTotalSkip">0</div>
+            </div>
+          </div>
+
+          <button id="btnConfirmImport" class="btn btn-primary btn-sm"
+            style="width:100%; color:white; justify-content: center; height:38px; font-weight:600;">
+            Simpan Data ke Database
+          </button>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Modal Progress Import (Hanya muncul saat menyimpan) -->
+    <div id="importModal" class="modal-overlay hidden"
+      style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+      <div
+        style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.5rem; max-width:420px; width:90%; text-align:center; box-shadow:var(--shadow-lg);">
+        <h3 style="margin-top:0; font-size:1.1rem; font-weight:600;">Mengunggah Data UTP...</h3>
+        <p style="font-size:0.85rem; color:var(--text-muted);" id="importModalStatus">Membaca file Excel...</p>
+        <div class="progress-bar mb-1" style="margin-top:1rem;">
+          <div class="progress-fill" id="importProgressFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Filter Wilayah (Copied 100% dari Dashboard Utama) -->
+    <div class="modal-overlay" id="wilayahFilterModal" onclick="if(event.target===this)closeWilayahFilterModal()">
+      <div class="bottom-sheet" style="max-width:500px;border-radius:var(--radius-xl)">
+        <div class="bottom-sheet-handle"></div>
+        <div class="bottom-sheet-header">
+          <div class="bottom-sheet-title">Filter Wilayah</div>
+        </div>
+        <div class="bottom-sheet-body" style="display:flex;flex-direction:column;gap:0.75rem;padding-bottom:1.5rem">
+          <!-- Lvl 1: Provinsi -->
+          <div class="filter-group w-full">
+            <label class="filter-label">Provinsi (Lvl 1)</label>
+            <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+              <option>[36] BANTEN</option>
+            </select>
+          </div>
+          <!-- Lvl 2: Kabupaten -->
+          <div class="filter-group w-full">
+            <label class="filter-label">Kabupaten/Kota (Lvl 2)</label>
+            <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+              <option>[02] LEBAK</option>
+            </select>
+          </div>
+          <!-- Lvl 3: Kecamatan -->
+          <div class="filter-group w-full">
+            <label class="filter-label">Kecamatan (Lvl 3)</label>
+            <select class="filter-select w-full" id="filterKecamatan">
+              <option value="">Semua Kecamatan</option>
+            </select>
+          </div>
+          <!-- Lvl 4: Desa -->
+          <div class="filter-group w-full">
+            <label class="filter-label">Desa / Kelurahan (Lvl 4)</label>
+            <select class="filter-select w-full" id="filterDesa">
+              <option value="">Semua Desa</option>
+            </select>
+          </div>
+          <!-- Lvl 5: SLS -->
+          <div class="filter-group w-full">
+            <label class="filter-label">SLS / RT (Lvl 5)</label>
+            <select class="filter-select w-full" id="filterSls">
+              <option value="">Semua SLS</option>
+            </select>
+          </div>
+          <!-- Lvl 6: Sub-SLS -->
+          <div class="filter-group w-full">
+            <label class="filter-label">Sub-SLS (Lvl 6)</label>
+            <select class="filter-select w-full" id="filterSubSls">
+              <option value="">Semua Sub-SLS</option>
+            </select>
+          </div>
+        </div>
+        <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+          <button class="btn btn-secondary" onclick="closeWilayahFilterModal()">Batal</button>
+          <button class="btn btn-primary" onclick="applyWilayahFilter()">Terapkan Filter</button>
+        </div>
+      </div>
+    </div>
+    <div id="detailModal" class="modal-backdrop hidden" style="display:none;">
+      <div class="modal-box">
+        <div
+          style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+          <h3 style="margin:0; font-size:1.05rem; font-weight:700;">Detail Assignment UTP</h3>
+          <button class="btn btn-secondary btn-xs" onclick="closeDetailModal()">Tutup</button>
+        </div>
+        <div id="detailModalBody">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats Row (5 Card Seimbang Memenuhi Halaman: Total, Imported, Pending, Success, Gagal/Skipped) -->
+    <div class="stat-grid-utp" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
+      <div class="stat-card utp-card-accent">
+        <div class="stat-label">Total Assignment</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub">assignment unik</div>
+      </div>
+      <div class="stat-card utp-card-accent imported">
+        <div class="stat-label">Imported</div>
+        <div class="stat-value" id="statImported" style="color:var(--text-muted)">—</div>
+        <div class="stat-sub">belum diantrikan</div>
+      </div>
+      <div class="stat-card utp-card-accent pending">
+        <div class="stat-label">Pending</div>
+        <div class="stat-value" id="statPending" style="color:var(--warning)">—</div>
+        <div class="stat-sub">dalam antrian / proses</div>
+      </div>
+      <div class="stat-card utp-card-accent success">
+        <div class="stat-label">Success</div>
+        <div class="stat-value" id="statSuccess" style="color:var(--success)">—</div>
+        <div class="stat-sub">berhasil di-reject</div>
+      </div>
+      <div class="stat-card utp-card-accent failed">
+        <div class="stat-label">Gagal / Skipped</div>
+        <div class="stat-value" id="statFailed" style="color:var(--error)">—</div>
+        <div class="stat-sub">gagal reject / sudah revoke</div>
+      </div>
+    </div>
+
+    <!-- Card Rekapitulasi Wilayah Desa (Presisi Mengikuti Layout Dashboard Utama) -->
+    <div class="stat-card" style="margin-bottom:1.5rem; padding:1rem 1.25rem; display:block;">
+      <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <div class="table-title" style="font-size:1rem; font-weight:600; margin:0;">Prioritas Wilayah Desa</div>
+          <button class="btn btn-secondary btn-xs" id="btnToggleDesaExpand" onclick="toggleDesaGridExpand()"
+            style="padding:0.15rem 0.4rem; font-size:0.7rem; display:flex; align-items:center; gap:0.15rem; height:22px; cursor:pointer;">
+            <span id="txtToggleDesaExpand">Tampilkan</span>
+            <svg id="iconToggleDesaExpand" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              style="transition:transform 0.2s;">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
+        <button class="btn btn-secondary btn-xs" id="btnClearDesaFilter" style="display:none;">Semua Desa</button>
+      </div>
+      <div class="kec-progress-grid collapsed" id="desaCardGrid"
+        style="border:none; background:transparent; padding-left:0; padding-right:0; padding-bottom:0;">
+        <div style="font-size:0.8rem; color:var(--text-muted); grid-column:1/-1; padding:0.5rem;">Memuat data wilayah
+          desa...</div>
+      </div>
+    </div>
+
+    <!-- Filter Bar (Sesuai Dashboard Utama) -->
+    <div class="filter-bar">
+      <div class="filter-row">
+        <!-- Search Input -->
+        <input type="text" class="filter-select" id="searchInput"
+          placeholder="Cari SLS, Kepala Keluarga, Petugas, atau Assignment ID..."
+          style="flex:1; min-width:200px; height:38px;">
+
+        <!-- Pilih Wilayah Button (Sesuai Dashboard Utama) -->
+        <button class="btn btn-secondary" onclick="openWilayahFilterModal()"
+          style="padding:0 0.75rem; height:38px; display:flex; align-items:center; justify-content:center; border:1px solid var(--border); border-radius:var(--radius-md); background:var(--bg-card); color:var(--text); font-weight:500; font-size:0.875rem; cursor:pointer; white-space:nowrap; margin-bottom:0">
+          Pilih Wilayah
+        </button>
+
+        <!-- Status Select -->
+        <select class="filter-select" id="filterStatus" style="width:160px; height:38px;">
+          <option value="">Status: Semua</option>
+          <option value="imported">Imported (Belum diantrikan)</option>
+          <option value="pending">Pending (Mengantri System)</option>
+          <option value="processing">Processing (Sedang diproses)</option>
+          <option value="success">Success (Berhasil Reject)</option>
+          <option value="failed">Failed / Skipped (Gagal Reject)</option>
+        </select>
+
+        <!-- Refresh Button -->
+        <button id="btnRefresh" class="btn btn-secondary btn-sm"
+          style="height:38px; padding: 0 0.85rem;">Refresh</button>
+
+        <!-- Queue Action Button -->
+        <button id="btnEnqueueSelected" class="btn btn-primary btn-sm"
+          style="display: none; height:38px; padding: 0 1rem; color:white;">
+          Masukkan ke Antrian (<span id="selectedCount">0</span>)
+        </button>
+      </div>
+    </div>
+
+    <!-- Main Table (Menggunakan susunan kolom baru sesuai permintaan) -->
+    <div class="table-wrapper">
+      <div class="table-header">
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span class="table-title">Daftar Anomali UTP</span>
+          <span class="table-count" id="tableRecordCount">(0 assignment)</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <select class="filter-select" id="pageSizeSelect"
+            style="padding:0.35rem 0.6rem; font-size:0.8rem; height:32px;">
+            <option value="10" selected>10 / halaman</option>
+            <option value="25">25 / halaman</option>
+            <option value="50">50 / halaman</option>
+            <option value="100">100 / halaman</option>
+            <option value="250">250 / halaman</option>
+            <option value="500">500 / halaman</option>
+            <option value="1000">1000 / halaman</option>
+            <option value="all">Semua</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="overflow-x: auto;">
+        <table>
+          <thead>
+            <tr>
+              <th class="no-sort" style="width: 40px; text-align: center;">
+                <input type="checkbox" id="selectAllCheckbox">
+              </th>
+              <th>Kecamatan / Desa</th>
+              <th>Nama Sub-SLS</th>
+              <th>Nama Kepala Keluarga</th>
+              <th>
+                <button class="sort-btn" id="btnSortUtp">
+                  Jumlah Tidak Ditemukan
+                  <span id="sortUtpIcon" style="opacity: 0.6; margin-left: 3px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="m7 15 5 5 5-5" />
+                      <path d="m7 9 5-5 5 5" />
+                    </svg>
+                  </span>
+                </button>
+              </th>
+              <th>Status</th>
+              <th class="no-sort" style="text-align: center; width: 90px;">Detail</th>
+            </tr>
+          </thead>
+          <tbody id="utpTableBody">
+            <tr>
+              <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">Memuat data...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <!-- Pagination Controls Desktop -->
+      <div class="pagination" id="paginationControls"></div>
+    </div>
+
+    <!-- Mobile Card List (Responsive Tampilan HP/Layar Kecil Sesuai Dashboard Utama) -->
+    <div class="mobile-card-list" id="utpMobileCardList">
+      <!-- Populated dynamically by renderTable in mobile mode -->
+    </div>
+    <!-- Duplicate Pagination Controls for Mobile -->
+    <div class="pagination mobile-pagination" id="paginationControlsMobile"></div>
+
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    // Theme Manager
+    function initTheme() {
+      const saved = localStorage.getItem('theme');
+      if (saved === 'dark' || (!saved && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark');
+        document.getElementById('iconSun')?.classList.remove('hidden');
+        document.getElementById('iconMoon')?.classList.add('hidden');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('iconSun')?.classList.add('hidden');
+        document.getElementById('iconMoon')?.classList.remove('hidden');
+      }
+    }
+    function toggleTheme() {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      document.getElementById('iconSun')?.classList.toggle('hidden', !isDark);
+      document.getElementById('iconMoon')?.classList.toggle('hidden', isDark);
+    }
+    function toggleProfileDropdown(e) {
+      e.stopPropagation();
+      document.getElementById('profileDropdown')?.classList.toggle('open');
+    }
+    document.addEventListener('click', () => {
+      document.getElementById('profileDropdown')?.classList.remove('open');
+    });
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').style.display = 'none';
+    }
+
+    function openImportDialogModal() {
+      const modal = document.getElementById('importDialogModal');
+      const label = document.getElementById('modalDropzoneLabel');
+      const statArea = document.getElementById('uploadPreviewStatArea');
+      const fileInput = document.getElementById('fileExcelHiddenModal');
+      if (fileInput) fileInput.value = '';
+      if (label) label.textContent = 'Klik atau seret file Excel UTP ke sini';
+      if (statArea) statArea.style.display = 'none';
+      if (modal) modal.style.display = 'flex';
+    }
+    function closeImportDialogModal() {
+      const modal = document.getElementById('importDialogModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    (async () => {
+      initTheme();
+
+      // 1. Auth Check (Soft check to support guests + registered users)
+      const session = await getSession();
+      const profile = session?.profile || null;
+
+      const profileDropdown = document.getElementById('profileDropdown');
+      const loginNavBtn = document.getElementById('loginNavBtn');
+      const userDisplayName = document.getElementById('userDisplayName');
+      const userRoleBadge = document.getElementById('userRoleBadge');
+      const adminNavBtn = document.getElementById('adminNavBtn');
+      const superadminUploadBtn = document.getElementById('superadminUploadBtn');
+      const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+
+      let userRole = 'guest';
+      let isSuperAdmin = false;
+      let isAdminOrSuper = false;
+
+      if (profile) {
+        profileDropdown?.classList.remove('hidden');
+        loginNavBtn?.classList.add('hidden');
+
+        const name = getSessionName(profile);
+        if (userDisplayName) userDisplayName.textContent = name;
+        userRole = profile.role ? profile.role.toLowerCase() : 'guest';
+        if (userRoleBadge) {
+          userRoleBadge.textContent = userRole.toUpperCase();
+          userRoleBadge.className = `type-badge type-${userRole === 'ppl' ? 'keluarga' : userRole === 'pml' ? 'usaha' : 'keduanya'}`;
+          userRoleBadge.style.display = 'inline-block';
+        }
+
+        isSuperAdmin = (userRole === 'superadmin');
+        isAdminOrSuper = ['superadmin', 'admin'].includes(userRole);
+
+        if (isAdminOrSuper && adminNavBtn) {
+          adminNavBtn.classList.remove('hidden');
+        }
+      } else {
+        profileDropdown?.classList.add('hidden');
+        loginNavBtn?.classList.remove('hidden');
+        if (loginNavBtn) loginNavBtn.style.display = 'inline-flex';
+        selectAllCheckbox.disabled = true;
+      }
+
+      if (isAdminOrSuper && superadminUploadBtn) {
+        superadminUploadBtn.classList.remove('hidden');
+      }
+
+      const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+      let currentTableData = [];
+      let petugasMap = {}; // kode_sls -> { pplNama, pmlNama }
+      let groupedAssignmentsMap = {}; // assignment_id -> group object for modal
+      let utpSortDir = null; // null | 'asc' | 'desc'
+      let selectedDesaCard = null;
+
+      // ─── Elements ──────────────────────────────────────────────────────────
+      const fileExcelHidden = document.getElementById('fileExcelHidden');
+      const importModal = document.getElementById('importModal');
+      const importModalStatus = document.getElementById('importModalStatus');
+      const importProgressFill = document.getElementById('importProgressFill');
+
+      const utpTableBody = document.getElementById('utpTableBody');
+      const btnEnqueueSelected = document.getElementById('btnEnqueueSelected');
+      const selectedCountSpan = document.getElementById('selectedCount');
+      const filterKecamatan = document.getElementById('filterKecamatan');
+      const filterDesa = document.getElementById('filterDesa');
+      const filterStatus = document.getElementById('filterStatus');
+      const searchInput = document.getElementById('searchInput');
+      const btnRefresh = document.getElementById('btnRefresh');
+      const tableRecordCount = document.getElementById('tableRecordCount');
+      const btnSortUtp = document.getElementById('btnSortUtp');
+      const sortUtpIcon = document.getElementById('sortUtpIcon');
+      const desaCardGrid = document.getElementById('desaCardGrid');
+      const btnClearDesaFilter = document.getElementById('btnClearDesaFilter');
+      const detailModal = document.getElementById('detailModal');
+      const detailModalBody = document.getElementById('detailModalBody');
+
+      // ─── 2. Fetch Petugas Mapping (Enhanced Direct Lookup & RPC Fallback) ───
+      async function loadPetugasMap() {
+        try {
+          // 1. Fetch from RPC get_all_subsls_petugas_list
+          try {
+            const { data, error } = await db.rpc('get_all_subsls_petugas_list');
+            if (!error && Array.isArray(data) && data.length > 0) {
+              data.forEach(item => {
+                if (item.kode_sls_gabungan) {
+                  petugasMap[item.kode_sls_gabungan] = {
+                    ppl: item.namappl || null,
+                    pml: item.namapml || null
+                  };
+                }
+              });
+            }
+          } catch (eRpc) { }
+
+          // 2. Fetch directly from user_sls, profiles, and pml_ppl (to fill gaps)
+          try {
+            const { data: usData } = await db
+              .from('user_sls')
+              .select('kode_sls, user_id, profiles:user_id(id, nama, role)');
+
+            if (usData && usData.length > 0) {
+              const { data: pmlPplData } = await db
+                .from('pml_ppl')
+                .select('ppl_id, pml:pml_id(nama)');
+
+              const pmlMap = {};
+              (pmlPplData || []).forEach(pp => {
+                if (pp.ppl_id && pp.pml?.nama) {
+                  pmlMap[pp.ppl_id] = pp.pml.nama;
+                }
+              });
+
+              usData.forEach(item => {
+                const kode = item.kode_sls;
+                const prof = item.profiles;
+                if (kode && prof) {
+                  const pplNama = prof.nama || null;
+                  const pmlNama = pmlMap[prof.id] || null;
+
+                  if (!petugasMap[kode] || !petugasMap[kode].ppl) {
+                    petugasMap[kode] = { ppl: pplNama, pml: pmlNama };
+                  }
+                  if (kode.length === 14 && (!petugasMap[kode + '00'] || !petugasMap[kode + '00'].ppl)) {
+                    petugasMap[kode + '00'] = { ppl: pplNama, pml: pmlNama };
+                  }
+                }
+              });
+            }
+          } catch (eUs) { }
+
+          // 3. Additional Fallback from master_wilayah view / wilayah_subsls
+          try {
+            const { data: subSlsData } = await db.from('wilayah_subsls').select('kode_sls_gabungan, kode_sls, nmsls');
+            if (subSlsData && subSlsData.length > 0) {
+              subSlsData.forEach(ws => {
+                const kGab = ws.kode_sls_gabungan;
+                const kSls = ws.kode_sls;
+                if (kGab && !petugasMap[kGab]) {
+                  petugasMap[kGab] = { ppl: null, pml: null };
+                }
+                if (kSls && !petugasMap[kSls]) {
+                  petugasMap[kSls] = { ppl: null, pml: null };
+                }
+              });
+            }
+          } catch (errws) { }
+        } catch (e) {
+          console.warn('Gagal memuat peta petugas:', e);
+        }
+      }
+
+      // ─── 3. Import Dialog Modal & Excel Processing ────────────────────────────
+      const importDialogModal = document.getElementById('importDialogModal');
+      const modalDropzone = document.getElementById('modalDropzone');
+      const modalDropzoneLabel = document.getElementById('modalDropzoneLabel');
+      const fileExcelHiddenModal = document.getElementById('fileExcelHiddenModal');
+      const btnDownloadTemplateInModal = document.getElementById('btnDownloadTemplateInModal');
+      const uploadPreviewStatArea = document.getElementById('uploadPreviewStatArea');
+      const btnConfirmImport = document.getElementById('btnConfirmImport');
+
+      let currentParsedRowsForImport = [];
+
+      window.closeImportDialogModal = function () {
+        if (importDialogModal) importDialogModal.style.display = 'none';
+        resetImportModalState();
+      };
+
+      function resetImportModalState() {
+        currentParsedRowsForImport = [];
+        if (fileExcelHiddenModal) fileExcelHiddenModal.value = '';
+        if (modalDropzoneLabel) modalDropzoneLabel.textContent = 'Klik atau seret file Excel UTP ke sini';
+        if (uploadPreviewStatArea) uploadPreviewStatArea.style.display = 'none';
+      }
+
+      window.openImportDialogModal = function () {
+        resetImportModalState();
+        if (importDialogModal) importDialogModal.style.display = 'flex';
+      };
+
+      superadminUploadBtn?.addEventListener('click', () => {
+        window.openImportDialogModal();
+      });
+
+      const downloadTemplateFn = () => {
+        const headers = [
+          ['nama kecamatan', 'nama desa/kelurahan', 'kode subsls (kode sls gabungan)', 'nama sls', 'nama kepala keluarga', 'Jasa pertanian \n1.Ya \n2.Tidak', 'Jenis SubSektor\nkehutanan \n1.Ya \n2.Tidak', 'Jenis SubSektor\nperikanan \n1.Ya\n2.Tidak', 'Jenis SubSektor\nperkebunan \n1.Ya\n2.Tidak', 'Jenis SubSektor\npeternakan \n1.Ya\n2.Tidak', 'Jenis SubSektor\ntanaman pangan\n1.Ya\n2.Tidak', 'Jenis SubSektor\nhortikultura\n1.Ya\n2.Tidak', 'Jenis Subsektor di Prelist Awal', 'Jumlah Jenis Subsektor di Prelist Awal', 'Jenis Subsektor Selain Ditemukan', 'Jumlah Jenis Subsektor Selain Ditemukan', 'Jenis Subsektor yang ditemukan saat pendataan (SE2026 - P)', 'Jumlah Jenis Subsektor ditemukan saat pendataan\n(SE2026-P)', 'Link_assignment'],
+          ['MALINGPING', 'SUKAMANAH', '3602010004000100', 'RT 001 RW 001', 'AWING SAMLAWI', 2, 2, 2, 2, 2, 2, 2, 'TANAMAN PANGAN', 1, 'TANAMAN PANGAN', 1, '', 0, 'https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/cd0f7ff9-131d-43d2-bb32-bc0337c7cc3a']
+        ];
+        const ws = XLSX.utils.aoa_to_sheet(headers);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template Reject UTP');
+        XLSX.writeFile(wb, 'Template_Reject_UTP_SE2026.xlsx');
+      };
+
+      btnDownloadTemplateInModal?.addEventListener('click', downloadTemplateFn);
+
+      // Drag and drop event listeners
+      modalDropzone?.addEventListener('click', () => fileExcelHiddenModal.click());
+
+      ['dragenter', 'dragover'].forEach(evtName => {
+        modalDropzone?.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          modalDropzone.style.borderColor = 'var(--primary)';
+          modalDropzone.style.background = 'var(--bg-card-2)';
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(evtName => {
+        modalDropzone?.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          modalDropzone.style.borderColor = 'var(--border)';
+          modalDropzone.style.background = 'var(--bg-card)';
+        });
+      });
+
+      modalDropzone?.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files && files.length) processExcelFileForPreview(files[0]);
+      });
+
+      fileExcelHiddenModal?.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files.length) processExcelFileForPreview(e.target.files[0]);
+      });
+
+      function extractAssignmentId(linkStr) {
+        if (!linkStr) return null;
+        const str = String(linkStr).trim();
+
+        const paramMatch = str.match(/assignmentId=([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+        if (paramMatch) return paramMatch[1];
+
+        const allUuids = str.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g);
+        if (allUuids && allUuids.length > 0) {
+          return allUuids[allUuids.length - 1];
+        }
+
+        return str;
+      }
+
+      function processExcelFileForPreview(file) {
+        modalDropzoneLabel.textContent = `📄 ${file.name}`;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try {
+            const data = new Uint8Array(e.target.result);
+            const workbook = XLSX.read(data, { type: 'array' });
+            const firstSheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[firstSheetName];
+            const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+            if (!jsonRows || jsonRows.length === 0) {
+              alert('⚠️ Validasi Gagal: File Excel kosong atau tidak berisi data.');
+              resetImportModalState();
+              return;
+            }
+
+            // Validasi Header Kunci
+            const sampleRowKeys = Object.keys(jsonRows[0] || {}).map(k => k.toLowerCase().trim());
+            const hasLinkCol = sampleRowKeys.some(k => k.includes('link_assignment') || k.includes('link'));
+
+            if (!hasLinkCol) {
+              alert('⚠️ Validasi Gagal: Kolom "Link_assignment" tidak ditemukan dalam file Excel.');
+              resetImportModalState();
+              return;
+            }
+
+            const parsedMap = new Map();
+            let invalidUuidCount = 0;
+            let duplicateSkippedCount = 0;
+            let totalUtpTidakCount = 0;
+
+            jsonRows.forEach(row => {
+              const getCol = (keySubstring) => {
+                const foundKey = Object.keys(row).find(k => k.toLowerCase().includes(keySubstring.toLowerCase()));
+                return foundKey ? row[foundKey] : '';
+              };
+
+              const linkVal = getCol('link_assignment') || getCol('link') || getCol('assignment');
+              const assignmentId = extractAssignmentId(linkVal);
+              const isUuidValid = assignmentId && /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(assignmentId);
+
+              if (isUuidValid) {
+                const countTidak = parseInt(getCol('jumlah jenis subsektor selain ditemukan'), 10) || 0;
+                const countAda = parseInt(getCol('jumlah jenis subsektor ditemukan saat pendataan'), 10) || 0;
+
+                if (!parsedMap.has(assignmentId)) {
+                  totalUtpTidakCount += countTidak;
+                  parsedMap.set(assignmentId, {
+                    assignment_id: assignmentId,
+                    nama_kecamatan: String(getCol('kecamatan')).trim(),
+                    nama_desa: String(getCol('desa')).trim(),
+                    kode_subsls: String(getCol('subsls')).trim(),
+                    nama_sls: String(getCol('nama sls')).trim(),
+                    nama_kk: String(getCol('kepala keluarga')).trim(),
+                    jumlah_ditemukan: countAda,
+                    jumlah_tidak_ditemukan: countTidak,
+                    link_assignment: String(linkVal).trim(),
+                    raw_data: row,
+                    status: 'imported',
+                    imported_by_id: profile.id,
+                    imported_by_nama: profile.nama
+                  });
+                } else {
+                  // Baris dengan assignment_id yang sama dalam file Excel DI-SKIP
+                  duplicateSkippedCount++;
+                }
+              } else if (linkVal) {
+                invalidUuidCount++;
+              }
+            });
+
+            currentParsedRowsForImport = Array.from(parsedMap.values());
+
+            if (currentParsedRowsForImport.length === 0) {
+              alert('⚠️ Validasi Gagal: Tidak ada assignment_id berformat UUID valid yang dapat diekstrak.');
+              resetImportModalState();
+              return;
+            }
+
+            // Tampilkan Ringkasan Statistik Preview (Menampilkan detail duplicate yang di-skip)
+            document.getElementById('previewTotalBaris').textContent = jsonRows.length;
+            document.getElementById('previewTotalUnik').textContent = currentParsedRowsForImport.length;
+            document.getElementById('previewTotalUtpTidak').textContent = totalUtpTidakCount;
+            document.getElementById('previewTotalSkip').textContent = `${duplicateSkippedCount} (Duplikat) + ${invalidUuidCount} (Cacat)`;
+
+            uploadPreviewStatArea.style.display = 'block';
+
+          } catch (err) {
+            alert('Gagal membaca file Excel: ' + err.message);
+            resetImportModalState();
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      // Konfirmasi Simpan Data ke Database (High-Speed RPC Batching)
+      btnConfirmImport?.addEventListener('click', async () => {
+        if (!currentParsedRowsForImport || currentParsedRowsForImport.length === 0) return;
+
+        btnConfirmImport.disabled = true;
+        btnConfirmImport.textContent = 'Menyimpan ke Database...';
+
+        importDialogModal.style.display = 'none';
+        importModal.style.display = 'flex';
+        importModalStatus.textContent = `Menyimpan ${currentParsedRowsForImport.length} assignment unik...`;
+        importProgressFill.style.width = '10%';
+
+        try {
+          const chunkSize = 500;
+          let totalInserted = 0;
+          let totalUpdated = 0;
+
+          for (let i = 0; i < currentParsedRowsForImport.length; i += chunkSize) {
+            const chunk = currentParsedRowsForImport.slice(i, i + chunkSize);
+            const { data: rpcRes, error } = await db.rpc('merge_reject_utp_batch', { p_records: chunk });
+            if (error) throw error;
+
+            if (rpcRes) {
+              totalInserted += (rpcRes.inserted || 0);
+              totalUpdated += (rpcRes.updated || 0);
+            }
+
+            const percent = 10 + Math.round(((i + chunk.length) / currentParsedRowsForImport.length) * 90);
+            importProgressFill.style.width = `${percent}%`;
+            importModalStatus.textContent = `Memproses batch ${Math.min(i + chunkSize, currentParsedRowsForImport.length)} / ${currentParsedRowsForImport.length}...`;
+          }
+
+          importProgressFill.style.width = '100%';
+          importModalStatus.textContent = 'Selesai!';
+
+          setTimeout(() => {
+            importModal.style.display = 'none';
+            resetImportModalState();
+            alert(`Berhasil mengimpor ${currentParsedRowsForImport.length} data UTP!\n- Baru ditambahkan: ${totalInserted}\n- Diperbarui: ${totalUpdated}`);
+            loadDashboardData();
+          }, 500);
+
+        } catch (err) {
+          importModal.style.display = 'none';
+          alert('Gagal mengimpor data ke database: ' + err.message);
+        } finally {
+          btnConfirmImport.disabled = false;
+          btnConfirmImport.textContent = 'Simpan Data ke Database';
+        }
+      });
+
+      // ─── 4. Fetch & Render Dashboard Data (Loop-based Batch Read + Skeleton UI) ───
+      let currentPage = 1;
+      let pageSize = 10;
+
+      function renderSkeletonRows() {
+        let skelHtml = '';
+        for (let i = 0; i < 5; i++) {
+          skelHtml += `
+            <tr>
+              <td style="text-align:center;"><div class="skeleton" style="width:16px; height:16px; border-radius:3px;"></div></td>
+              <td>
+                <div class="skeleton" style="width:90px; height:14px; margin-bottom:4px;"></div><br>
+                <div class="skeleton" style="width:70px; height:11px;"></div>
+              </td>
+              <td><div class="skeleton" style="width:110px; height:14px;"></div></td>
+              <td><div class="skeleton" style="width:130px; height:14px;"></div></td>
+              <td style="text-align:center;"><div class="skeleton" style="width:50px; height:14px;"></div></td>
+              <td><div class="skeleton" style="width:100px; height:14px;"></div></td>
+              <td><div class="skeleton" style="width:75px; height:20px; border-radius:12px;"></div></td>
+              <td style="text-align:center;"><div class="skeleton" style="width:55px; height:24px; border-radius:4px;"></div></td>
+            </tr>
+          `;
+        }
+        utpTableBody.innerHTML = skelHtml;
+      }
+
+      async function loadDashboardData() {
+        renderSkeletonRows();
+
+        try {
+          await loadPetugasMap();
+
+          let allFetchedRows = [];
+          let from = 0;
+          const fetchChunkSize = 1000;
+          let hasMore = true;
+
+          while (hasMore) {
+            const { data, error } = await db
+              .from('reject_utp_queue')
+              .select('*')
+              .order('created_at', { ascending: false })
+              .range(from, from + fetchChunkSize - 1);
+
+            if (error) throw error;
+
+            if (data && data.length > 0) {
+              allFetchedRows = allFetchedRows.concat(data);
+              from += fetchChunkSize;
+
+              // Inform user real-time of progress
+              tableRecordCount.textContent = `(Memuat ${allFetchedRows.length} data...)`;
+
+              if (data.length < fetchChunkSize) {
+                hasMore = false;
+              }
+            } else {
+              hasMore = false;
+            }
+          }
+
+          currentTableData = allFetchedRows;
+          populateWilayahFilters(currentTableData);
+          renderDesaPriorityCards(currentTableData);
+          renderStats(currentTableData);
+          currentPage = 1;
+          renderTable();
+        } catch (err) {
+          utpTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--error);">Gagal memuat data: ${err.message}</td></tr>`;
+        }
+      }
+
+      function renderStats(rows) {
+        document.getElementById('statTotal').textContent = rows.length;
+        document.getElementById('statImported').textContent = rows.filter(r => r.status === 'imported').length;
+        const pendingCount = rows.filter(r => ['pending', 'processing'].includes(r.status)).length;
+        document.getElementById('statPending').textContent = pendingCount;
+        document.getElementById('statSuccess').textContent = rows.filter(r => r.status === 'success').length;
+        const failedCount = rows.filter(r => ['failed', 'skipped_unapproved'].includes(r.status)).length;
+        document.getElementById('statFailed').textContent = failedCount;
+      }
+
+      // ─── Populating Cascading Multi-Level Filters (Kecamatan -> Desa -> SLS -> Sub-SLS) ───
+      const filterSls = document.getElementById('filterSls');
+      const filterSubSls = document.getElementById('filterSubSls');
+
+      function populateWilayahFilters(rows) {
+        const selectedKec = filterKecamatan.value;
+        const selectedDesa = filterDesa.value;
+        const selectedSls = filterSls?.value || '';
+        const selectedSubSls = filterSubSls?.value || '';
+
+        // 1. Level Kecamatan
+        const kecs = Array.from(new Set(rows.map(r => r.nama_kecamatan).filter(Boolean))).sort();
+        filterKecamatan.innerHTML = '<option value="">Kecamatan: Semua</option>' +
+          kecs.map(k => `<option value="${k}" ${k === selectedKec ? 'selected' : ''}>${k}</option>`).join('');
+
+        // 2. Level Desa
+        let desasRows = rows;
+        if (filterKecamatan.value) {
+          desasRows = desasRows.filter(r => r.nama_kecamatan === filterKecamatan.value);
+        }
+        const desas = Array.from(new Set(desasRows.map(r => r.nama_desa).filter(Boolean))).sort();
+        filterDesa.innerHTML = '<option value="">Desa: Semua</option>' +
+          desas.map(d => `<option value="${d}" ${d === selectedDesa ? 'selected' : ''}>${d}</option>`).join('');
+
+        // 3. Level SLS
+        let slsRows = desasRows;
+        if (filterDesa.value) {
+          slsRows = slsRows.filter(r => r.nama_desa === filterDesa.value);
+        }
+        const slses = Array.from(new Set(slsRows.map(r => r.nama_sls).filter(Boolean))).sort();
+        if (filterSls) {
+          filterSls.innerHTML = '<option value="">SLS: Semua</option>' +
+            slses.map(s => `<option value="${s}" ${s === selectedSls ? 'selected' : ''}>${s}</option>`).join('');
+        }
+
+        // 4. Level Sub-SLS (Terkecil - Kode Sub-SLS)
+        let subSlsRows = slsRows;
+        if (filterSls?.value) {
+          subSlsRows = subSlsRows.filter(r => r.nama_sls === filterSls.value);
+        }
+        const subSlses = Array.from(new Set(subSlsRows.map(r => r.kode_subsls).filter(Boolean))).sort();
+        if (filterSubSls) {
+          filterSubSls.innerHTML = '<option value="">Sub-SLS: Semua</option>' +
+            subSlses.map(ss => `<option value="${ss}" ${ss === selectedSubSls ? 'selected' : ''}>${ss}</option>`).join('');
+        }
+      }
+
+      // ─── Wilayah Filter Modal Functions (Copied & adapted from Dashboard Utama) ───
+      window.openWilayahFilterModal = function () {
+        const modal = document.getElementById('wilayahFilterModal');
+        if (modal) modal.classList.add('open');
+      };
+
+      window.closeWilayahFilterModal = function () {
+        const modal = document.getElementById('wilayahFilterModal');
+        if (modal) modal.classList.remove('open');
+      };
+
+      window.applyWilayahFilter = function () {
+        window.closeWilayahFilterModal();
+        selectedDesaCard = filterDesa.value || null;
+        highlightActiveDesaCard();
+        currentPage = 1;
+        renderTable();
+      };
+
+      filterKecamatan?.addEventListener('change', () => {
+        populateWilayahFilters(currentTableData);
+        renderDesaPriorityCards(currentTableData);
+      });
+
+      filterDesa?.addEventListener('change', () => {
+        selectedDesaCard = filterDesa.value;
+        populateWilayahFilters(currentTableData);
+      });
+
+      filterSls?.addEventListener('change', () => {
+        populateWilayahFilters(currentTableData);
+        currentPage = 1;
+        renderTable();
+      });
+
+      filterSubSls?.addEventListener('change', () => {
+        currentPage = 1;
+        renderTable();
+      });
+
+      // ─── 5. Render Priority Cards ───────────────────────────────────────────
+      function renderDesaPriorityCards(rows) {
+        let targetRows = rows;
+        if (filterKecamatan.value) {
+          targetRows = targetRows.filter(r => r.nama_kecamatan === filterKecamatan.value);
+        }
+
+        const desaStats = {};
+        targetRows.forEach(r => {
+          const desa = r.nama_desa || 'Tidak Diketahui';
+          if (!desaStats[desa]) {
+            desaStats[desa] = {
+              nama_desa: desa,
+              nama_kecamatan: r.nama_kecamatan,
+              total_tidak: 0,
+              total_ditemukan: 0,
+              total_assignment: 0
+            };
+          }
+          desaStats[desa].total_tidak += (r.jumlah_tidak_ditemukan || 0);
+          desaStats[desa].total_ditemukan += (r.jumlah_ditemukan || 0);
+          desaStats[desa].total_assignment += 1;
+        });
+
+        const list = Object.values(desaStats).map(d => {
+          const totalUtp = d.total_tidak + d.total_ditemukan;
+          const pct = totalUtp > 0 ? (d.total_tidak / totalUtp) * 100 : 0;
+          return { ...d, pct: parseFloat(pct.toFixed(1)) };
+        });
+
+        // SORT BY JUMLAH UTP TIDAK DITEMUKAN (JUMLAH PERTAMA, BUKAN PERSENTASE)
+        list.sort((a, b) => b.total_tidak - a.total_tidak || b.pct - a.pct);
+
+        if (list.length === 0) {
+          desaCardGrid.innerHTML = '<div style="font-size:0.8rem; color:var(--text-muted); grid-column:1/-1;">Tidak ada data desa.</div>';
+          return;
+        }
+
+        desaCardGrid.innerHTML = list.map(d => `
+          <div class="kec-progress-card ${selectedDesaCard === d.nama_desa ? 'active-filter' : ''}" data-desa="${d.nama_desa}">
+            <div class="kec-progress-name" title="${d.nama_desa}">${d.nama_desa}</div>
+            <div class="kec-progress-meta">
+              <span>${d.total_tidak} Subsektor Tidak Ditemukan</span>
+              <span>${d.pct}%</span>
+            </div>
+            <div class="kec-progress-bar">
+              <div class="kec-progress-fill" style="width: ${Math.min(100, d.pct)}%"></div>
+            </div>
+          </div>
+        `).join('');
+
+        document.querySelectorAll('.kec-progress-card').forEach(card => {
+          card.addEventListener('click', () => {
+            const desa = card.getAttribute('data-desa');
+            if (selectedDesaCard === desa) {
+              selectedDesaCard = null;
+              filterDesa.value = '';
+            } else {
+              selectedDesaCard = desa;
+              filterDesa.value = desa;
+            }
+            highlightActiveDesaCard();
+            currentPage = 1;
+            renderTable();
+          });
+        });
+      }
+
+      window.toggleDesaGridExpand = function () {
+        const grid = document.getElementById('desaCardGrid');
+        const txt = document.getElementById('txtToggleDesaExpand');
+        const icon = document.getElementById('iconToggleDesaExpand');
+        if (!grid) return;
+
+        const isCollapsed = grid.classList.toggle('collapsed');
+        if (txt) txt.textContent = isCollapsed ? 'Tampilkan' : 'Sembunyikan';
+        if (icon) icon.style.transform = isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)';
+      };
+
+      function highlightActiveDesaCard() {
+        document.querySelectorAll('.kec-progress-card').forEach(card => {
+          if (card.getAttribute('data-desa') === selectedDesaCard) {
+            card.classList.add('active-filter');
+          } else {
+            card.classList.remove('active-filter');
+          }
+        });
+        btnClearDesaFilter.style.display = selectedDesaCard ? 'inline-flex' : 'none';
+      }
+
+      btnClearDesaFilter.addEventListener('click', () => {
+        selectedDesaCard = null;
+        filterDesa.value = '';
+        highlightActiveDesaCard();
+        renderTable();
+      });
+
+      // ─── 6. Grouping & Modal Detail Logic ────────────────────────────────────
+      function groupDataByAssignmentId(rows) {
+        const groups = {};
+        rows.forEach(r => {
+          if (!groups[r.assignment_id]) {
+            const code = String(r.kode_subsls || '').trim();
+            let petInfo = petugasMap[code];
+            if (!petInfo && code.length >= 10) {
+              const prefix = code.substring(0, 10);
+              const found = Object.entries(petugasMap).find(pair => pair[0].startsWith(prefix));
+              if (found) petInfo = found[1];
+            }
+            if (!petInfo) petInfo = {};
+
+            const pplVal = petInfo.ppl || (r.raw_data && (r.raw_data.nama_ppl || r.raw_data.ppl)) || null;
+            const pmlVal = petInfo.pml || (r.raw_data && (r.raw_data.nama_pml || r.raw_data.pml)) || null;
+
+            groups[r.assignment_id] = {
+              assignment_id: r.assignment_id,
+              nama_kecamatan: r.nama_kecamatan,
+              nama_desa: r.nama_desa,
+              kode_subsls: r.kode_subsls,
+              nama_sls: r.nama_sls,
+              nama_kk: r.nama_kk,
+              jumlah_ditemukan: r.jumlah_ditemukan || 0,
+              jumlah_tidak_ditemukan: r.jumlah_tidak_ditemukan || 0,
+              ppl_nama: pplVal || '—',
+              pml_nama: pmlVal || '—',
+              status: r.status,
+              reject_note: r.reject_note,
+              link_assignment: r.link_assignment,
+              raw_data: r.raw_data
+            };
+          } else {
+            if (r.status !== 'imported') groups[r.assignment_id].status = r.status;
+            if (r.reject_note) groups[r.assignment_id].reject_note = r.reject_note;
+          }
+        });
+        return Object.values(groups);
+      }
+
+      function getBadgeHtml(status) {
+        switch (status) {
+          case 'imported': return '<span class="badge-status badge-imported">Imported</span>';
+          case 'pending': return '<span class="badge-status badge-pending">Pending</span>';
+          case 'processing': return '<span class="badge-status badge-processing">Processing</span>';
+          case 'success': return '<span class="badge-status badge-success">Success</span>';
+          case 'failed': return '<span class="badge-status badge-failed">Failed</span>';
+          case 'skipped_unapproved': return '<span class="badge-status badge-skipped">Skipped (Revoked)</span>';
+          default: return `<span class="badge-status">${status}</span>`;
+        }
+      }
+
+      // Open Modal Detail Handler (Live On-Demand Petugas Lookup)
+      window.openDetailModal = async function (assignmentId) {
+        const item = groupedAssignmentsMap[assignmentId];
+        if (!item) return;
+
+        // Display Modal initially with loading state for petugas
+        detailModalBody.innerHTML = `
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Assignment ID</span>
+            <span class="modal-detail-val" style="color:var(--primary); font-family:monospace;">${item.assignment_id}</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Kode Sub-SLS</span>
+            <span class="modal-detail-val" style="font-family:monospace;">${item.kode_subsls || '—'}</span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Nama Petugas PPL</span>
+            <span class="modal-detail-val" id="modalPplVal"><span style="color:var(--text-muted)">Mencari data...</span></span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Nama Petugas PML</span>
+            <span class="modal-detail-val" id="modalPmlVal"><span style="color:var(--text-muted)">Mencari data...</span></span>
+          </div>
+          <div class="modal-detail-row">
+            <span class="modal-detail-label">Status Antrian</span>
+            <span class="modal-detail-val">${getBadgeHtml(item.status)}</span>
+          </div>
+          <div style="margin-top:1rem; padding-top:0.75rem; border-top:1px solid var(--border);">
+            <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:0.35rem;">Catatan / Alasan Gagal:</div>
+            <div style="font-size:0.825rem; background:var(--bg-card-2); padding:0.6rem 0.75rem; border-radius:6px; border:1px solid var(--border); color:${item.status === 'failed' ? 'var(--error)' : 'var(--text)'};">
+              ${item.reject_note || 'Tidak ada catatan khusus.'}
+            </div>
+          </div>
+          ${item.link_assignment ? `
+            <div style="margin-top:1rem; text-align:right;">
+              <a href="${item.link_assignment}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none;">Buka Link Assignment Fasih-SM ↗</a>
+            </div>
+          ` : ''}
+        `;
+
+        detailModal.classList.remove('hidden');
+        detailModal.style.display = 'flex';
+
+        // Live On-Demand Database Query for Petugas
+        try {
+          const code = String(item.kode_subsls || '').trim();
+          let pplNama = item.ppl_nama !== '—' ? item.ppl_nama : null;
+          let pmlNama = item.pml_nama !== '—' ? item.pml_nama : null;
+
+          if ((!pplNama || pplNama === '—') && code) {
+            const { data: qData } = await db
+              .from('user_sls')
+              .select('user_id, profiles:user_id(nama)')
+              .in('kode_sls', [code, code.substring(0, 14)]);
+
+            if (qData && qData.length > 0) {
+              const matchedProf = qData[0].profiles;
+              if (matchedProf?.nama) {
+                pplNama = matchedProf.nama;
+
+                // Lookup PML relation
+                const { data: pmlData } = await db
+                  .from('pml_ppl')
+                  .select('pml:pml_id(nama)')
+                  .eq('ppl_id', qData[0].user_id)
+                  .single();
+                if (pmlData?.pml?.nama) pmlNama = pmlData.pml.nama;
+              }
+            }
+          }
+
+          const modalPplVal = document.getElementById('modalPplVal');
+          const modalPmlVal = document.getElementById('modalPmlVal');
+          if (modalPplVal) modalPplVal.textContent = pplNama || '—';
+          if (modalPmlVal) modalPmlVal.textContent = pmlNama || '—';
+        } catch (eErr) {
+          const modalPplVal = document.getElementById('modalPplVal');
+          const modalPmlVal = document.getElementById('modalPmlVal');
+          if (modalPplVal && modalPplVal.textContent.includes('Mencari')) modalPplVal.textContent = item.ppl_nama;
+          if (modalPmlVal && modalPmlVal.textContent.includes('Mencari')) modalPmlVal.textContent = item.pml_nama;
+        }
+      };
+
+      window.closeDetailModal = function () {
+        if (detailModal) {
+          detailModal.classList.add('hidden');
+          detailModal.style.display = 'none';
+        }
+      };
+
+      btnSortUtp.addEventListener('click', () => {
+        if (!utpSortDir) utpSortDir = 'desc';
+        else if (utpSortDir === 'desc') utpSortDir = 'asc';
+        else utpSortDir = null;
+
+        if (utpSortDir === 'desc') {
+          sortUtpIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>';
+          sortUtpIcon.style.opacity = '1';
+        } else if (utpSortDir === 'asc') {
+          sortUtpIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m18 15-6-6-6 6"/></svg>';
+          sortUtpIcon.style.opacity = '1';
+        } else {
+          sortUtpIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>';
+          sortUtpIcon.style.opacity = '0.6';
+        }
+        renderTable();
+      });
+
+      function renderTable() {
+        const filterStatusVal = filterStatus.value;
+        const filterKecVal = filterKecamatan.value;
+        const filterDesaVal = filterDesa.value;
+        const searchVal = searchInput.value.toLowerCase().trim();
+
+        const filterSlsVal = filterSls?.value || '';
+        const filterSubSlsVal = filterSubSls?.value || '';
+
+        let filtered = currentTableData.filter(r => {
+          let matchStatus = true;
+          if (filterStatusVal) {
+            if (filterStatusVal === 'failed') {
+              // Failed & Skipped dihitung sama sebagai Gagal
+              matchStatus = ['failed', 'skipped_unapproved'].includes(r.status);
+            } else {
+              matchStatus = r.status === filterStatusVal;
+            }
+          }
+          const matchKec = !filterKecVal || r.nama_kecamatan === filterKecVal;
+          const matchDesa = !filterDesaVal || r.nama_desa === filterDesaVal;
+          const matchSls = !filterSlsVal || r.nama_sls === filterSlsVal;
+          const matchSubSls = !filterSubSlsVal || r.kode_subsls === filterSubSlsVal;
+
+          const petInfo = petugasMap[r.kode_subsls] || {};
+          const matchSearch = !searchVal ||
+            (r.assignment_id || '').toLowerCase().includes(searchVal) ||
+            (r.nama_kk || '').toLowerCase().includes(searchVal) ||
+            (r.nama_sls || '').toLowerCase().includes(searchVal) ||
+            (r.kode_subsls || '').toLowerCase().includes(searchVal) ||
+            (petInfo.ppl || '').toLowerCase().includes(searchVal) ||
+            (petInfo.pml || '').toLowerCase().includes(searchVal);
+
+          return matchStatus && matchKec && matchDesa && matchSls && matchSubSls && matchSearch;
+        });
+
+        let grouped = groupDataByAssignmentId(filtered);
+
+        // Map for modal
+        groupedAssignmentsMap = {};
+        grouped.forEach(g => groupedAssignmentsMap[g.assignment_id] = g);
+
+        if (utpSortDir === 'desc') {
+          grouped.sort((a, b) => b.jumlah_tidak_ditemukan - a.jumlah_tidak_ditemukan);
+        } else if (utpSortDir === 'asc') {
+          grouped.sort((a, b) => a.jumlah_tidak_ditemukan - b.jumlah_tidak_ditemukan);
+        }
+
+        tableRecordCount.textContent = `(${grouped.length} assignment)`;
+
+        const paginationControls = document.getElementById('paginationControls');
+
+        const mobileCardContainer = document.getElementById('utpMobileCardList');
+
+        if (grouped.length === 0) {
+          utpTableBody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">Tidak ada data yang sesuai.</td></tr>';
+          if (mobileCardContainer) {
+            mobileCardContainer.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-muted);">Tidak ada data yang sesuai.</div>';
+          }
+          if (paginationControls) paginationControls.innerHTML = '';
+          return;
+        }
+
+        // Pagination slicing
+        const totalPages = Math.ceil(grouped.length / pageSize);
+        if (currentPage > totalPages) currentPage = totalPages;
+        if (currentPage < 1) currentPage = 1;
+
+        const startIndex = (currentPage - 1) * pageSize;
+        const pageItems = grouped.slice(startIndex, startIndex + pageSize);
+
+        let tableHtml = '';
+        let mobileHtml = '';
+
+        pageItems.forEach((g) => {
+          const isSelectable = isAdminOrSuper && (g.status === 'imported' || g.status === 'failed');
+
+          // Desktop Table Row
+          tableHtml += `
+            <tr>
+              <td style="text-align: center;">
+                <input type="checkbox" class="rowCheckbox" data-assignment-id="${g.assignment_id}" ${isSelectable ? '' : 'disabled'}>
+              </td>
+              <td>
+                <div style="font-weight: 500;">${g.nama_kecamatan || '—'}</div>
+                <div class="text-xs text-muted">${g.nama_desa || ''}</div>
+              </td>
+              <td style="font-weight: 500;">
+                ${g.nama_sls || '—'}
+              </td>
+              <td style="font-weight: 500;">
+                ${g.nama_kk || '—'}
+              </td>
+              <td style="text-align: center; font-weight: 700; color: ${g.jumlah_tidak_ditemukan > 0 ? 'var(--error)' : 'var(--text-muted)'};">
+                ${g.jumlah_tidak_ditemukan} <span class="text-xs text-muted" style="font-weight:400;">Subsektor</span>
+              </td>
+              <td>
+                ${getBadgeHtml(g.status)}
+              </td>
+              <td style="text-align: center;">
+                <button class="btn btn-secondary btn-xs" onclick="window.openDetailModal('${g.assignment_id}')">Detail</button>
+              </td>
+            </tr>
+          `;
+
+          // Mobile Card Row (Persis Dashboard Utama)
+          mobileHtml += `
+            <div class="mobile-card">
+              <div class="mobile-card-header">
+                <div>
+                  <div style="font-size:0.75rem; color:var(--text-muted); font-weight:500;">${g.nama_kecamatan || ''} • ${g.nama_desa || ''}</div>
+                  <div class="mobile-card-name">${g.nama_kk || '—'}</div>
+                  <div style="font-size:0.8rem; color:var(--text-muted);">${g.nama_sls || '—'}</div>
+                </div>
+                <div>${getBadgeHtml(g.status)}</div>
+              </div>
+              <div class="mobile-card-meta">
+                <span style="font-size:0.8rem; font-weight:700; color:${g.jumlah_tidak_ditemukan > 0 ? 'var(--error)' : 'var(--text-muted)'};">
+                  ${g.jumlah_tidak_ditemukan} Subsektor Tidak Ditemukan
+                </span>
+              </div>
+              <div class="mobile-card-footer">
+                <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8rem; cursor:pointer; margin:0;">
+                  <input type="checkbox" class="rowCheckbox" data-assignment-id="${g.assignment_id}" ${isSelectable ? '' : 'disabled'}>
+                  <span>Pilih</span>
+                </label>
+                <button class="btn btn-secondary btn-xs" onclick="window.openDetailModal('${g.assignment_id}')">Detail</button>
+              </div>
+            </div>
+          `;
+        });
+
+        utpTableBody.innerHTML = tableHtml;
+        if (mobileCardContainer) mobileCardContainer.innerHTML = mobileHtml;
+
+        renderPagination(totalPages);
+        updateSelectedCount();
+      }
+
+      function renderPagination(totalPages) {
+        const container = document.getElementById('paginationControls');
+        const containerMobile = document.getElementById('paginationControlsMobile');
+
+        if (totalPages <= 1) {
+          if (container) container.innerHTML = '';
+          if (containerMobile) containerMobile.innerHTML = '';
+          return;
+        }
+
+        let pages = [];
+        for (let i = 1; i <= totalPages; i++) {
+          if (i === 1 || i === totalPages || (i >= currentPage - 1 && i <= currentPage + 1)) {
+            pages.push(i);
+          } else if (pages[pages.length - 1] !== '...') {
+            pages.push('...');
+          }
+        }
+
+        let html = `
+          <button class="page-btn" ${currentPage === 1 ? 'disabled' : ''} onclick="goToUtpPage(${currentPage - 1})">
+            ‹
+          </button>
+        `;
+
+        pages.forEach(p => {
+          if (p === '...') {
+            html += `<span style="padding:0 0.4rem; color:var(--text-muted);">...</span>`;
+          } else {
+            html += `
+              <button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goToUtpPage(${p})">
+                ${p}
+              </button>
+            `;
+          }
+        });
+
+        html += `
+          <button class="page-btn" ${currentPage === totalPages ? 'disabled' : ''} onclick="goToUtpPage(${currentPage + 1})">
+            ›
+          </button>
+        `;
+
+        if (container) container.innerHTML = html;
+        if (containerMobile) containerMobile.innerHTML = html;
+      }
+
+      window.goToUtpPage = function (page) {
+        currentPage = page;
+        renderTable();
+      };
+
+      const pageSizeSelect = document.getElementById('pageSizeSelect');
+      pageSizeSelect?.addEventListener('change', () => {
+        const val = pageSizeSelect.value;
+        if (val === 'all') {
+          pageSize = 999999;
+        } else {
+          pageSize = parseInt(val, 10) || 10;
+        }
+        currentPage = 1;
+        renderTable();
+      });
+
+      // ─── 7. Checkbox & Queue Action ──────────────────────────────────────────
+      selectAllCheckbox.addEventListener('change', (e) => {
+        const checkboxes = document.querySelectorAll('.rowCheckbox:not(:disabled)');
+        checkboxes.forEach(cb => cb.checked = e.target.checked);
+        updateSelectedCount();
+      });
+
+      utpTableBody.addEventListener('change', (e) => {
+        if (e.target.classList.contains('rowCheckbox')) {
+          updateSelectedCount();
+        }
+      });
+
+      function updateSelectedCount() {
+        const selected = document.querySelectorAll('.rowCheckbox:checked');
+        const count = selected.length;
+        selectedCountSpan.textContent = count;
+
+        if (count > 0 && isAdminOrSuper) {
+          btnEnqueueSelected.style.display = 'inline-flex';
+        } else {
+          btnEnqueueSelected.style.display = 'none';
+        }
+      }
+
+      btnEnqueueSelected.addEventListener('click', async () => {
+        const selectedCbs = document.querySelectorAll('.rowCheckbox:checked');
+        const selectedIds = Array.from(selectedCbs).map(cb => cb.getAttribute('data-assignment-id'));
+
+        if (!selectedIds.length) return;
+
+        if (!confirm(`Masukkan ${selectedIds.length} assignment_id yang dipilih ke antrian reject?`)) {
+          return;
+        }
+
+        btnEnqueueSelected.disabled = true;
+        btnEnqueueSelected.textContent = 'Memproses...';
+
+        try {
+          const nowIso = new Date().toISOString();
+
+          // Batch update database tanpa perlu reload ulang 42k data
+          const { error } = await db
+            .from('reject_utp_queue')
+            .update({
+              status: 'pending',
+              queued_at: nowIso
+            })
+            .in('assignment_id', selectedIds);
+
+          if (error) throw error;
+
+          // Asynchronous local state update
+          const selectedSet = new Set(selectedIds);
+          currentTableData.forEach(row => {
+            if (selectedSet.has(row.assignment_id)) {
+              row.status = 'pending';
+              row.queued_at = nowIso;
+            }
+          });
+
+          // Render statistik dan tabel secara instan tanpa reload database
+          renderStats(currentTableData);
+          renderDesaPriorityCards(currentTableData);
+          renderTable();
+
+          selectAllCheckbox.checked = false;
+          updateSelectedCount();
+
+          alert(`Berhasil memasukkan ${selectedIds.length} assignment ke antrian!`);
+        } catch (err) {
+          alert('Gagal memperbarui antrian: ' + err.message);
+        } finally {
+          btnEnqueueSelected.disabled = false;
+        }
+      });
+
+      // Filter & Refresh Listeners
+      filterStatus.addEventListener('change', renderTable);
+      searchInput.addEventListener('input', renderTable);
+      btnRefresh.addEventListener('click', loadDashboardData);
+
+      // Initial load
+      loadDashboardData();
+
+    })();
+  </script>
+</body>
+
+</html>

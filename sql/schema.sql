@@ -1869,4 +1869,248 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_all_pml_capaian() TO anon, authenticated;
 
 
+-- ============================================================
+-- REJECT UTP QUEUE — Dashboard Anomali UTP
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS public.reject_utp_queue (
+  id                UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  assignment_id     VARCHAR(100) NOT NULL,
+
+  -- Konteks dari Excel (untuk tampilan dashboard tanpa hit API)
+  nama_kecamatan    VARCHAR(255),
+  nama_desa         VARCHAR(255),
+  kode_subsls       VARCHAR(20),
+  nama_sls          VARCHAR(255),
+  nama_kk           VARCHAR(500),         -- Nama kepala keluarga
+  jumlah_ditemukan  INTEGER DEFAULT 0,    -- Jumlah Jenis Subsektor ditemukan saat pendataan
+  jumlah_tidak_ditemukan INTEGER DEFAULT 0, -- Jumlah Jenis Subsektor Selain Ditemukan
+  link_assignment   TEXT,                 -- URL asli dari kolom Link_assignment di Excel
+  raw_data          JSONB,                -- Seluruh baris Excel sebagai JSON (semua kolom)
+
+  -- Status antrian
+  status            VARCHAR(30) NOT NULL DEFAULT 'imported'
+                    CHECK (status IN (
+                      'imported',         -- Baru diimport dari Excel, belum diantri
+                      'pending',          -- User sudah antrikan, menunggu bot
+                      'processing',       -- Sedang diproses oleh bot
+                      'success',          -- Berhasil di-reject di Fasih-SM
+                      'failed',           -- Gagal di-reject (lihat reject_note)
+                      'skipped_unapproved' -- Dilewati karena sudah direvoke pengawas
+                    )),
+  reject_note       TEXT,                 -- Alasan gagal / keterangan revoke dari bot
+
+  -- Metadata import & proses
+  imported_by_id    UUID REFERENCES public.profiles(id),
+  imported_by_nama  VARCHAR(255),
+  queued_at         TIMESTAMPTZ,          -- Kapan di-antrikan oleh user
+  processed_at      TIMESTAMPTZ,          -- Kapan selesai diproses oleh bot
+  created_at        TIMESTAMPTZ DEFAULT NOW(),
+  updated_at        TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX IF NOT EXISTS idx_ruq_assignment_id ON public.reject_utp_queue(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_ruq_status        ON public.reject_utp_queue(status);
+CREATE INDEX IF NOT EXISTS idx_ruq_kode_subsls   ON public.reject_utp_queue(kode_subsls);
+CREATE INDEX IF NOT EXISTS idx_ruq_created_at    ON public.reject_utp_queue(created_at);
+
+-- Trigger updated_at
+CREATE TRIGGER trg_ruq_updated_at
+  BEFORE UPDATE ON public.reject_utp_queue
+  FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
+
+-- RLS
+ALTER TABLE public.reject_utp_queue ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "ruq_select_authenticated" ON public.reject_utp_queue
+  FOR SELECT TO authenticated USING (true);
+
+CREATE POLICY "ruq_insert_admin" ON public.reject_utp_queue
+  FOR INSERT TO authenticated
+  WITH CHECK (get_my_role() IN ('superadmin', 'admin'));
+
+CREATE POLICY "ruq_update_admin" ON public.reject_utp_queue
+  FOR UPDATE TO authenticated
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+CREATE POLICY "ruq_delete_admin" ON public.reject_utp_queue
+  FOR DELETE TO authenticated
+  USING (get_my_role() IN ('superadmin', 'admin'));
+
+-- ============================================================
+-- RPC 1: CLAIM AND FETCH UTP REJECTIONS (CONCURRENCY LOCK)
+-- Digunakan oleh bot untuk mengambil antrian pending secara aman.
+-- Menggunakan SKIP LOCKED agar dua instance bot tidak proses item yang sama.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.claim_and_fetch_utp_rejections(p_limit INT DEFAULT 10)
+RETURNS TABLE (out_id UUID, out_assignment_id VARCHAR)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ids UUID[];
+BEGIN
+  -- Klaim baris pending dengan SKIP LOCKED (aman untuk concurrent bot)
+  SELECT array_agg(q.sub_id) INTO v_ids
+  FROM (
+    SELECT ruq.id AS sub_id
+    FROM public.reject_utp_queue ruq
+    WHERE ruq.status = 'pending'
+    FOR UPDATE SKIP LOCKED
+    LIMIT p_limit
+  ) q;
+
+  IF v_ids IS NULL THEN
+    RETURN;
+  END IF;
+
+  -- Tandai sebagai 'processing' dalam transaksi yang sama
+  UPDATE public.reject_utp_queue
+  SET status = 'processing',
+      updated_at = NOW()
+  WHERE public.reject_utp_queue.id = ANY(v_ids);
+
+  -- Kembalikan data yang diklaim
+  RETURN QUERY
+  SELECT ruq.id AS out_id, ruq.assignment_id::VARCHAR AS out_assignment_id
+  FROM public.reject_utp_queue ruq
+  WHERE ruq.id = ANY(v_ids);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.claim_and_fetch_utp_rejections(INT) TO anon, authenticated;
+
+-- ============================================================
+-- RPC 2: UPDATE UTP REJECT STATUS
+-- Digunakan bot untuk menyimpan hasil proses (sukses/gagal/skipped).
+-- Update semua baris dengan assignment_id yang sama (1 ID bisa multi-baris dari Excel).
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.update_utp_reject_status(
+  p_assignment_id   VARCHAR,
+  p_status          VARCHAR,    -- 'success' | 'failed' | 'skipped_unapproved'
+  p_note            TEXT DEFAULT NULL
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.reject_utp_queue
+  SET status       = p_status,
+      reject_note  = p_note,
+      processed_at = NOW(),
+      updated_at   = NOW()
+  WHERE assignment_id = p_assignment_id
+    AND status = 'processing';
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.update_utp_reject_status(VARCHAR, VARCHAR, TEXT) TO anon, authenticated;
+
+-- ============================================================
+-- RPC 3: RELEASE UTP ASSIGNMENT (ROLLBACK SAAT BOT GAGAL/LOGOUT)
+-- Mengembalikan status 'processing' ke 'pending' agar bisa diproses ulang.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.release_utp_assignment(p_assignment_id VARCHAR)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.reject_utp_queue
+  SET status     = 'pending',
+      updated_at = NOW()
+  WHERE assignment_id = p_assignment_id
+    AND status = 'processing';
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.release_utp_assignment(VARCHAR) TO anon, authenticated;
+
+-- ============================================================
+-- RPC 4: BATCH MERGE REJECT UTP (HIGH-SPEED IMPORT FOR LARGE FILES)
+-- Menerima JSONB array dan me-upsert ke reject_utp_queue secara efisien dalam 1 transaksi DB.
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.merge_reject_utp_batch(
+  p_records JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_rec RECORD;
+  v_inserted_count INT := 0;
+  v_updated_count INT := 0;
+  v_user_id UUID := auth.uid();
+  v_user_nama VARCHAR(255);
+BEGIN
+  -- 1. Check authorization
+  IF NOT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = v_user_id AND role IN ('admin', 'superadmin')
+  ) THEN
+    RAISE EXCEPTION 'Unauthorized';
+  END IF;
+
+  SELECT nama INTO v_user_nama FROM public.profiles WHERE id = v_user_id;
+
+  -- 2. Loop records & upsert
+  FOR v_rec IN 
+    SELECT * FROM jsonb_to_recordset(p_records) AS x(
+      assignment_id VARCHAR,
+      nama_kecamatan VARCHAR,
+      nama_desa VARCHAR,
+      kode_subsls VARCHAR,
+      nama_sls VARCHAR,
+      nama_kk VARCHAR,
+      jumlah_ditemukan INT,
+      jumlah_tidak_ditemukan INT,
+      link_assignment TEXT,
+      raw_data JSONB
+    )
+  LOOP
+    IF EXISTS (SELECT 1 FROM public.reject_utp_queue WHERE assignment_id = v_rec.assignment_id) THEN
+      UPDATE public.reject_utp_queue SET
+        nama_kecamatan        = COALESCE(NULLIF(v_rec.nama_kecamatan, ''), nama_kecamatan),
+        nama_desa             = COALESCE(NULLIF(v_rec.nama_desa, ''), nama_desa),
+        kode_subsls           = COALESCE(NULLIF(v_rec.kode_subsls, ''), kode_subsls),
+        nama_sls              = COALESCE(NULLIF(v_rec.nama_sls, ''), nama_sls),
+        nama_kk               = COALESCE(NULLIF(v_rec.nama_kk, ''), nama_kk),
+        jumlah_ditemukan      = COALESCE(v_rec.jumlah_ditemukan, jumlah_ditemukan),
+        jumlah_tidak_ditemukan= COALESCE(v_rec.jumlah_tidak_ditemukan, jumlah_tidak_ditemukan),
+        link_assignment       = COALESCE(NULLIF(v_rec.link_assignment, ''), link_assignment),
+        raw_data              = COALESCE(v_rec.raw_data, raw_data),
+        updated_at            = NOW()
+      WHERE assignment_id = v_rec.assignment_id;
+
+      v_updated_count := v_updated_count + 1;
+    ELSE
+      INSERT INTO public.reject_utp_queue (
+        assignment_id, nama_kecamatan, nama_desa, kode_subsls, nama_sls, nama_kk,
+        jumlah_ditemukan, jumlah_tidak_ditemukan, link_assignment, raw_data, status,
+        imported_by_id, imported_by_nama
+      ) VALUES (
+        v_rec.assignment_id, v_rec.nama_kecamatan, v_rec.nama_desa, v_rec.kode_subsls, v_rec.nama_sls, v_rec.nama_kk,
+        COALESCE(v_rec.jumlah_ditemukan, 0), COALESCE(v_rec.jumlah_tidak_ditemukan, 0), v_rec.link_assignment, v_rec.raw_data, 'imported',
+        v_user_id, v_user_nama
+      );
+
+      v_inserted_count := v_inserted_count + 1;
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'inserted', v_inserted_count,
+    'updated', v_updated_count
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.merge_reject_utp_batch(JSONB) TO authenticated;
 
