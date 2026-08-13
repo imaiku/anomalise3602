@@ -1790,15 +1790,24 @@
         updateSelectedCount();
       });
 
-      utpTableBody.addEventListener('change', (e) => {
-        if (e.target.classList.contains('rowCheckbox')) {
+      // Event delegation for both desktop table & mobile list
+      document.addEventListener('change', (e) => {
+        if (e.target && e.target.classList.contains('rowCheckbox')) {
+          // Sync checkbox status between desktop table row & mobile card with same assignment_id
+          const assignmentId = e.target.getAttribute('data-assignment-id');
+          if (assignmentId) {
+            document.querySelectorAll(`.rowCheckbox[data-assignment-id="${assignmentId}"]`).forEach(cb => {
+              cb.checked = e.target.checked;
+            });
+          }
           updateSelectedCount();
         }
       });
 
       function updateSelectedCount() {
-        const selected = document.querySelectorAll('.rowCheckbox:checked');
-        const count = selected.length;
+        const selectedCbs = document.querySelectorAll('.rowCheckbox:checked');
+        const uniqueIds = new Set(Array.from(selectedCbs).map(cb => cb.getAttribute('data-assignment-id')).filter(Boolean));
+        const count = uniqueIds.size;
         selectedCountSpan.textContent = count;
 
         if (count > 0 && isAdminOrSuper) {
@@ -1810,7 +1819,7 @@
 
       btnEnqueueSelected.addEventListener('click', async () => {
         const selectedCbs = document.querySelectorAll('.rowCheckbox:checked');
-        const selectedIds = Array.from(selectedCbs).map(cb => cb.getAttribute('data-assignment-id'));
+        const selectedIds = Array.from(new Set(Array.from(selectedCbs).map(cb => cb.getAttribute('data-assignment-id')).filter(Boolean)));
 
         if (!selectedIds.length) return;
 
