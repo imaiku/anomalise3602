@@ -82,35 +82,53 @@
 
             const historyList = data.data;
 
-            // 1. Cek apakah ada REVOKED BY Pengawas setelah 31 Juli 2026
-            const revokedEntry = historyList.find(h =>
-                h.status_alias && h.status_alias.toUpperCase() === 'REVOKED BY PENGAWAS' &&
-                new Date(h.date_created) > REVOKE_CUTOFF_UTC
-            );
+            // Urutkan riwayat secara kronologis (dari awal hingga paling akhir)
+            const sortedHistory = [...historyList].sort((a, b) => new Date(a.date_created) - new Date(b.date_created));
+            
+            // Entri terakhir (elemen paling akhir di array) adalah kondisi/status terkini saat ini
+            const latestEntry = sortedHistory[sortedHistory.length - 1];
+            const latestStatusRaw = String(latestEntry?.status_alias || '').trim().toLowerCase();
 
-            if (revokedEntry) {
-                const tgl = formatTanggalWIB(revokedEntry.date_created);
+            // 1. Cek jika status terkini adalah REVOKED BY Pengawas atau REJECTED BY Pengawas (HANYA JIKA SETELAH 31 Juli 2026)
+            if ((latestStatusRaw.includes('revoked by pengawas') || latestStatusRaw.includes('rejected by pengawas')) &&
+                new Date(latestEntry.date_created) > REVOKE_CUTOFF_UTC) {
+                const tgl = formatTanggalWIB(latestEntry.date_created);
                 return {
                     canProceed: false,
                     isRevoked: true,
-                    currentStatus: revokedEntry.status_alias,
-                    note: `Dilewati: sudah direvoke oleh pengawas pada ${tgl}`
+                    currentStatus: latestEntry.status_alias,
+                    note: `Dilewati: ${latestEntry.status_alias} pada ${tgl}`
                 };
             }
 
-            // 2. Ambil status paling terkini (entri paling atas / tanggal paling baru)
-            const latestEntry = historyList[0];
-            const latestStatusRaw = String(latestEntry?.status_alias || '').trim().toLowerCase();
+            // 2. Cek apakah ada status REVOKED BY Pengawas atau REJECTED BY Pengawas di riwayat historis setelah 31 Juli 2026
+            const revokedOrRejectedEntry = sortedHistory.find(h => {
+                if (!h.status_alias) return false;
+                const s = h.status_alias.toUpperCase();
+                return (s.includes('REVOKED BY PENGAWAS') || s.includes('REJECTED BY PENGAWAS')) &&
+                    new Date(h.date_created) > REVOKE_CUTOFF_UTC;
+            });
 
-            // Cek apakah status terkini termasuk status yang diizinkan untuk Admin Kabupaten
+            if (revokedOrRejectedEntry) {
+                const tgl = formatTanggalWIB(revokedOrRejectedEntry.date_created);
+                return {
+                    canProceed: false,
+                    isRevoked: true,
+                    currentStatus: latestEntry.status_alias,
+                    note: `Dilewati: pernah ${revokedOrRejectedEntry.status_alias} pada ${tgl}`
+                };
+            }
+
+            // 3. Cek apakah status terkini termasuk status yang diizinkan untuk Admin Kabupaten
             const isAllowedStatus = ALLOWED_ADMIN_STATUSES.some(s => latestStatusRaw.includes(s));
 
             if (!isAllowedStatus) {
+                const tgl = latestEntry?.date_created ? formatTanggalWIB(latestEntry.date_created) : '—';
                 return {
                     canProceed: false,
                     isRevoked: false,
                     currentStatus: latestEntry?.status_alias || 'Unknown',
-                    note: `Gagal Reject: Status dokumen '${latestEntry?.status_alias}' tidak berada di Admin (harus Approved by Pengawas atau edited by admin kabupaten)`
+                    note: `Gagal Reject: Status dokumen saat ini '${latestEntry?.status_alias}' (pada ${tgl}) tidak berada di Admin (harus Approved by Pengawas atau edited by admin kabupaten)`
                 };
             }
 

@@ -649,13 +649,14 @@
         </button>
 
         <!-- Status Select -->
-        <select class="filter-select" id="filterStatus" style="width:160px; height:38px;">
+        <select class="filter-select" id="filterStatus" style="width:175px; height:38px;">
           <option value="">Status: Semua</option>
           <option value="imported">Imported (Belum diantrikan)</option>
           <option value="pending">Pending (Mengantri System)</option>
           <option value="processing">Processing (Sedang diproses)</option>
           <option value="success">Success (Berhasil Reject)</option>
-          <option value="failed">Failed / Skipped (Gagal Reject)</option>
+          <option value="failed">Failed (Gagal Reject)</option>
+          <option value="skipped_unapproved">Skipped (Revoked Pengawas)</option>
         </select>
 
         <!-- Refresh Button -->
@@ -1485,13 +1486,7 @@
         rows.forEach(r => {
           if (!groups[r.assignment_id]) {
             const code = String(r.kode_subsls || '').trim();
-            let petInfo = petugasMap[code];
-            if (!petInfo && code.length >= 10) {
-              const prefix = code.substring(0, 10);
-              const found = Object.entries(petugasMap).find(pair => pair[0].startsWith(prefix));
-              if (found) petInfo = found[1];
-            }
-            if (!petInfo) petInfo = {};
+            const petInfo = petugasMap[code] || {};
 
             const pplVal = petInfo.ppl || (r.raw_data && (r.raw_data.nama_ppl || r.raw_data.ppl)) || null;
             const pmlVal = petInfo.pml || (r.raw_data && (r.raw_data.nama_pml || r.raw_data.pml)) || null;
@@ -1565,11 +1560,9 @@
               ${item.reject_note || 'Tidak ada catatan khusus.'}
             </div>
           </div>
-          ${item.link_assignment ? `
-            <div style="margin-top:1rem; text-align:right;">
-              <a href="${item.link_assignment}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none;">Buka Link Assignment Fasih-SM ↗</a>
-            </div>
-          ` : ''}
+          <div style="margin-top:1rem; text-align:right;">
+            <a href="https://fasih-sm.bps.go.id/app/assignment-detail/${item.assignment_id}" target="_blank" class="btn btn-secondary btn-xs" style="text-decoration:none;">Buka Link Assignment Fasih-SM ↗</a>
+          </div>
         `;
 
         detailModal.classList.remove('hidden');
@@ -1640,10 +1633,10 @@
         renderTable();
       });
 
-      let cachedGroupedAssignments = null;
+      let cachedAllGroupedAssignments = null;
 
       function invalidateGroupedCache() {
-        cachedGroupedAssignments = null;
+        cachedAllGroupedAssignments = null;
       }
 
       function renderTable() {
@@ -1655,47 +1648,42 @@
         const filterSlsVal = filterSls?.value || '';
         const filterSubSlsVal = filterSubSls?.value || '';
 
-        if (!cachedGroupedAssignments) {
-          let filtered = currentTableData.filter(r => {
-            let matchStatus = true;
-            if (filterStatusVal) {
-              if (filterStatusVal === 'failed') {
-                matchStatus = ['failed', 'skipped_unapproved'].includes(r.status);
-              } else {
-                matchStatus = r.status === filterStatusVal;
-              }
-            }
-            const matchKec = !filterKecVal || r.nama_kecamatan === filterKecVal;
-            const matchDesa = !filterDesaVal || r.nama_desa === filterDesaVal;
-            const matchSls = !filterSlsVal || r.nama_sls === filterSlsVal;
-            const matchSubSls = !filterSubSlsVal || r.kode_subsls === filterSubSlsVal;
-
-            const petInfo = petugasMap[r.kode_subsls] || {};
-            const matchSearch = !searchVal ||
-              (r.assignment_id || '').toLowerCase().includes(searchVal) ||
-              (r.nama_kk || '').toLowerCase().includes(searchVal) ||
-              (r.nama_sls || '').toLowerCase().includes(searchVal) ||
-              (r.kode_subsls || '').toLowerCase().includes(searchVal) ||
-              (petInfo.ppl || '').toLowerCase().includes(searchVal) ||
-              (petInfo.pml || '').toLowerCase().includes(searchVal);
-
-            return matchStatus && matchKec && matchDesa && matchSls && matchSubSls && matchSearch;
-          });
-
-          cachedGroupedAssignments = groupDataByAssignmentId(filtered);
-
-          // Map for modal
-          groupedAssignmentsMap = {};
-          cachedGroupedAssignments.forEach(g => groupedAssignmentsMap[g.assignment_id] = g);
-
-          if (utpSortDir === 'desc') {
-            cachedGroupedAssignments.sort((a, b) => b.jumlah_tidak_ditemukan - a.jumlah_tidak_ditemukan);
-          } else if (utpSortDir === 'asc') {
-            cachedGroupedAssignments.sort((a, b) => a.jumlah_tidak_ditemukan - b.jumlah_tidak_ditemukan);
-          }
+        // Step 1: Group 42k raw rows into assignment objects ONLY ONCE
+        if (!cachedAllGroupedAssignments) {
+          cachedAllGroupedAssignments = groupDataByAssignmentId(currentTableData);
         }
 
-        const grouped = cachedGroupedAssignments;
+        // Step 2: Apply fast array filtering directly on grouped assignment objects
+        let grouped = cachedAllGroupedAssignments.filter(g => {
+          let matchStatus = true;
+          if (filterStatusVal) {
+            matchStatus = g.status === filterStatusVal;
+          }
+          const matchKec = !filterKecVal || g.nama_kecamatan === filterKecVal;
+          const matchDesa = !filterDesaVal || g.nama_desa === filterDesaVal;
+          const matchSls = !filterSlsVal || g.nama_sls === filterSlsVal;
+          const matchSubSls = !filterSubSlsVal || g.kode_subsls === filterSubSlsVal;
+
+          const matchSearch = !searchVal ||
+            (g.assignment_id || '').toLowerCase().includes(searchVal) ||
+            (g.nama_kk || '').toLowerCase().includes(searchVal) ||
+            (g.nama_sls || '').toLowerCase().includes(searchVal) ||
+            (g.kode_subsls || '').toLowerCase().includes(searchVal) ||
+            (g.ppl_nama || '').toLowerCase().includes(searchVal) ||
+            (g.pml_nama || '').toLowerCase().includes(searchVal);
+
+          return matchStatus && matchKec && matchDesa && matchSls && matchSubSls && matchSearch;
+        });
+
+        // Map for modal
+        groupedAssignmentsMap = {};
+        grouped.forEach(g => groupedAssignmentsMap[g.assignment_id] = g);
+
+        if (utpSortDir === 'desc') {
+          grouped.sort((a, b) => b.jumlah_tidak_ditemukan - a.jumlah_tidak_ditemukan);
+        } else if (utpSortDir === 'asc') {
+          grouped.sort((a, b) => a.jumlah_tidak_ditemukan - b.jumlah_tidak_ditemukan);
+        }
 
         tableRecordCount.textContent = `(${grouped.length} assignment)`;
 
@@ -1724,7 +1712,7 @@
         let mobileHtml = '';
 
         pageItems.forEach((g) => {
-          const isSelectable = isAdminOrSuper && (g.status === 'imported' || g.status === 'failed');
+          const isSelectable = isAdminOrSuper && ['imported', 'failed', 'skipped_unapproved'].includes(g.status);
 
           // Desktop Table Row
           tableHtml += `
@@ -1927,16 +1915,20 @@
         try {
           const nowIso = new Date().toISOString();
 
-          // Batch update database tanpa perlu reload ulang 42k data
-          const { error } = await db
-            .from('reject_utp_queue')
-            .update({
-              status: 'pending',
-              queued_at: nowIso
-            })
-            .in('assignment_id', selectedIds);
+          // Batch update database per chunk 200 item untuk mencegah HTTP 400 (Bad Request / URL length limit)
+          const chunkSize = 200;
+          for (let i = 0; i < selectedIds.length; i += chunkSize) {
+            const chunk = selectedIds.slice(i, i + chunkSize);
+            const { error } = await db
+              .from('reject_utp_queue')
+              .update({
+                status: 'pending',
+                queued_at: nowIso
+              })
+              .in('assignment_id', chunk);
 
-          if (error) throw error;
+            if (error) throw error;
+          }
 
           // Asynchronous local state update
           const selectedSet = new Set(selectedIds);

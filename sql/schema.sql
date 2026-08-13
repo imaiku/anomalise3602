@@ -2036,6 +2036,27 @@ $$;
 GRANT EXECUTE ON FUNCTION public.release_utp_assignment(VARCHAR) TO anon, authenticated;
 
 -- ============================================================
+-- RPC: ENQUEUE UTP ASSIGNMENTS BATCH (CHUNKBOUND BATCH ENQUEUE)
+-- Mengantrikan daftar assignment_id secara aman dalam batch 500 ID
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.enqueue_utp_assignments_batch(
+  p_assignment_ids TEXT[]
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  UPDATE public.reject_utp_queue
+  SET status = 'pending',
+      queued_at = NOW(),
+      updated_at = NOW()
+  WHERE assignment_id = ANY(p_assignment_ids);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.enqueue_utp_assignments_batch(TEXT[]) TO authenticated, anon;
 -- RPC 4: BATCH MERGE REJECT UTP (HIGH-SPEED IMPORT FOR LARGE FILES)
 -- Menerima JSONB array dan me-upsert ke reject_utp_queue secara efisien dalam 1 transaksi DB.
 -- ============================================================
