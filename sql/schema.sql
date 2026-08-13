@@ -1926,6 +1926,9 @@ ALTER TABLE public.reject_utp_queue ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "ruq_select_authenticated" ON public.reject_utp_queue
   FOR SELECT TO authenticated USING (true);
 
+CREATE POLICY "ruq_select_anon" ON public.reject_utp_queue
+  FOR SELECT TO anon USING (true);
+
 CREATE POLICY "ruq_insert_admin" ON public.reject_utp_queue
   FOR INSERT TO authenticated
   WITH CHECK (get_my_role() IN ('superadmin', 'admin'));
@@ -1952,12 +1955,13 @@ AS $$
 DECLARE
   v_ids UUID[];
 BEGIN
-  -- Klaim baris pending dengan SKIP LOCKED (aman untuk concurrent bot)
+  -- Klaim baris 'pending' ATAU 'processing' macet/terhenti (> 5 menit)
   SELECT array_agg(q.sub_id) INTO v_ids
   FROM (
     SELECT ruq.id AS sub_id
     FROM public.reject_utp_queue ruq
     WHERE ruq.status = 'pending'
+       OR (ruq.status = 'processing' AND ruq.updated_at < NOW() - INTERVAL '5 minutes')
     FOR UPDATE SKIP LOCKED
     LIMIT p_limit
   ) q;

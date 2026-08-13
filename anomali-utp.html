@@ -556,6 +556,31 @@
       </div>
     </div>
 
+    <!-- Custom Dialog Modal Konfirmasi Antrian (Menghantikan window.confirm default browser) -->
+    <div id="confirmEnqueueModal" class="modal-backdrop hidden" style="display:none;">
+      <div class="modal-box" style="max-width:440px; border-radius:var(--radius-lg); text-align:center;">
+        <div
+          style="width:48px; height:48px; background:rgba(249,115,22,0.12); color:var(--primary); border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 1rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 9v4" />
+            <path d="M12 17h.01" />
+            <path d="M3.6 15 10 3.8a2 2 0 0 1 3.4 0l6.4 11.2a2 2 0 0 1-1.7 3H5.3a2 2 0 0 1-1.7-3z" />
+          </svg>
+        </div>
+        <h3 style="margin:0 0 0.5rem 0; font-size:1.1rem; font-weight:700; color:var(--text);">Konfirmasi Antrian Reject
+        </h3>
+        <p id="confirmEnqueueMsg"
+          style="font-size:0.875rem; color:var(--text-muted); margin:0 0 1.25rem 0; line-height:1.5;">
+          Apakah Anda yakin ingin memasukkan data ke antrian?
+        </p>
+        <div style="display:flex; gap:0.75rem; justify-content:center;">
+          <button class="btn btn-secondary" onclick="closeConfirmEnqueueModal()" style="flex:1;">Batal</button>
+          <button class="btn btn-primary" id="btnConfirmEnqueueProceed" style="flex:1;">Ya, Masukkan</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Stats Row (5 Card Seimbang Memenuhi Halaman: Total, Imported, Pending, Success, Gagal/Skipped) -->
     <div class="stat-grid-utp" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
       <div class="stat-card utp-card-accent">
@@ -700,16 +725,16 @@
           </tbody>
         </table>
       </div>
-      <!-- Pagination Controls Desktop -->
-      <div class="pagination" id="paginationControls"></div>
     </div>
+  </div>
 
-    <!-- Mobile Card List (Responsive Tampilan HP/Layar Kecil Sesuai Dashboard Utama) -->
-    <div class="mobile-card-list" id="utpMobileCardList">
-      <!-- Populated dynamically by renderTable in mobile mode -->
-    </div>
-    <!-- Duplicate Pagination Controls for Mobile -->
-    <div class="pagination mobile-pagination" id="paginationControlsMobile"></div>
+  <!-- Mobile Card List (Responsive Tampilan HP/Layar Kecil Sesuai Dashboard Utama) -->
+  <div class="mobile-card-list" id="utpMobileCardList">
+    <!-- Populated dynamically by renderTable in mobile mode -->
+  </div>
+
+  <!-- Single Shared Pagination Controls (Berlaku untuk Tampilan Desktop & Mobile) -->
+  <div class="pagination" id="paginationControls"></div>
 
   </div>
 
@@ -1297,27 +1322,50 @@
         window.closeWilayahFilterModal();
         selectedDesaCard = filterDesa.value || null;
         highlightActiveDesaCard();
+        invalidateGroupedCache();
         currentPage = 1;
         renderTable();
       };
 
+      // Filter & Refresh Listeners
+      filterStatus.addEventListener('change', () => {
+        invalidateGroupedCache();
+        currentPage = 1;
+        renderTable();
+      });
+
+      searchInput.addEventListener('input', () => {
+        invalidateGroupedCache();
+        currentPage = 1;
+        renderTable();
+      });
+
+      btnRefresh.addEventListener('click', () => {
+        invalidateGroupedCache();
+        loadDashboardData();
+      });
+
       filterKecamatan?.addEventListener('change', () => {
         populateWilayahFilters(currentTableData);
         renderDesaPriorityCards(currentTableData);
+        invalidateGroupedCache();
       });
 
       filterDesa?.addEventListener('change', () => {
         selectedDesaCard = filterDesa.value;
         populateWilayahFilters(currentTableData);
+        invalidateGroupedCache();
       });
 
       filterSls?.addEventListener('change', () => {
         populateWilayahFilters(currentTableData);
+        invalidateGroupedCache();
         currentPage = 1;
         renderTable();
       });
 
       filterSubSls?.addEventListener('change', () => {
+        invalidateGroupedCache();
         currentPage = 1;
         renderTable();
       });
@@ -1580,6 +1628,12 @@
         renderTable();
       });
 
+      let cachedGroupedAssignments = null;
+
+      function invalidateGroupedCache() {
+        cachedGroupedAssignments = null;
+      }
+
       function renderTable() {
         const filterStatusVal = filterStatus.value;
         const filterKecVal = filterKecamatan.value;
@@ -1589,44 +1643,47 @@
         const filterSlsVal = filterSls?.value || '';
         const filterSubSlsVal = filterSubSls?.value || '';
 
-        let filtered = currentTableData.filter(r => {
-          let matchStatus = true;
-          if (filterStatusVal) {
-            if (filterStatusVal === 'failed') {
-              // Failed & Skipped dihitung sama sebagai Gagal
-              matchStatus = ['failed', 'skipped_unapproved'].includes(r.status);
-            } else {
-              matchStatus = r.status === filterStatusVal;
+        if (!cachedGroupedAssignments) {
+          let filtered = currentTableData.filter(r => {
+            let matchStatus = true;
+            if (filterStatusVal) {
+              if (filterStatusVal === 'failed') {
+                matchStatus = ['failed', 'skipped_unapproved'].includes(r.status);
+              } else {
+                matchStatus = r.status === filterStatusVal;
+              }
             }
+            const matchKec = !filterKecVal || r.nama_kecamatan === filterKecVal;
+            const matchDesa = !filterDesaVal || r.nama_desa === filterDesaVal;
+            const matchSls = !filterSlsVal || r.nama_sls === filterSlsVal;
+            const matchSubSls = !filterSubSlsVal || r.kode_subsls === filterSubSlsVal;
+
+            const petInfo = petugasMap[r.kode_subsls] || {};
+            const matchSearch = !searchVal ||
+              (r.assignment_id || '').toLowerCase().includes(searchVal) ||
+              (r.nama_kk || '').toLowerCase().includes(searchVal) ||
+              (r.nama_sls || '').toLowerCase().includes(searchVal) ||
+              (r.kode_subsls || '').toLowerCase().includes(searchVal) ||
+              (petInfo.ppl || '').toLowerCase().includes(searchVal) ||
+              (petInfo.pml || '').toLowerCase().includes(searchVal);
+
+            return matchStatus && matchKec && matchDesa && matchSls && matchSubSls && matchSearch;
+          });
+
+          cachedGroupedAssignments = groupDataByAssignmentId(filtered);
+
+          // Map for modal
+          groupedAssignmentsMap = {};
+          cachedGroupedAssignments.forEach(g => groupedAssignmentsMap[g.assignment_id] = g);
+
+          if (utpSortDir === 'desc') {
+            cachedGroupedAssignments.sort((a, b) => b.jumlah_tidak_ditemukan - a.jumlah_tidak_ditemukan);
+          } else if (utpSortDir === 'asc') {
+            cachedGroupedAssignments.sort((a, b) => a.jumlah_tidak_ditemukan - b.jumlah_tidak_ditemukan);
           }
-          const matchKec = !filterKecVal || r.nama_kecamatan === filterKecVal;
-          const matchDesa = !filterDesaVal || r.nama_desa === filterDesaVal;
-          const matchSls = !filterSlsVal || r.nama_sls === filterSlsVal;
-          const matchSubSls = !filterSubSlsVal || r.kode_subsls === filterSubSlsVal;
-
-          const petInfo = petugasMap[r.kode_subsls] || {};
-          const matchSearch = !searchVal ||
-            (r.assignment_id || '').toLowerCase().includes(searchVal) ||
-            (r.nama_kk || '').toLowerCase().includes(searchVal) ||
-            (r.nama_sls || '').toLowerCase().includes(searchVal) ||
-            (r.kode_subsls || '').toLowerCase().includes(searchVal) ||
-            (petInfo.ppl || '').toLowerCase().includes(searchVal) ||
-            (petInfo.pml || '').toLowerCase().includes(searchVal);
-
-          return matchStatus && matchKec && matchDesa && matchSls && matchSubSls && matchSearch;
-        });
-
-        let grouped = groupDataByAssignmentId(filtered);
-
-        // Map for modal
-        groupedAssignmentsMap = {};
-        grouped.forEach(g => groupedAssignmentsMap[g.assignment_id] = g);
-
-        if (utpSortDir === 'desc') {
-          grouped.sort((a, b) => b.jumlah_tidak_ditemukan - a.jumlah_tidak_ditemukan);
-        } else if (utpSortDir === 'asc') {
-          grouped.sort((a, b) => a.jumlah_tidak_ditemukan - b.jumlah_tidak_ditemukan);
         }
+
+        const grouped = cachedGroupedAssignments;
 
         tableRecordCount.textContent = `(${grouped.length} assignment)`;
 
@@ -1721,11 +1778,10 @@
 
       function renderPagination(totalPages) {
         const container = document.getElementById('paginationControls');
-        const containerMobile = document.getElementById('paginationControlsMobile');
+        if (!container) return;
 
         if (totalPages <= 1) {
-          if (container) container.innerHTML = '';
-          if (containerMobile) containerMobile.innerHTML = '';
+          container.innerHTML = '';
           return;
         }
 
@@ -1762,8 +1818,7 @@
           </button>
         `;
 
-        if (container) container.innerHTML = html;
-        if (containerMobile) containerMobile.innerHTML = html;
+        container.innerHTML = html;
       }
 
       window.goToUtpPage = function (page) {
@@ -1817,15 +1872,42 @@
         }
       }
 
-      btnEnqueueSelected.addEventListener('click', async () => {
+      let pendingEnqueueIds = [];
+
+      window.closeConfirmEnqueueModal = function () {
+        const modal = document.getElementById('confirmEnqueueModal');
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.style.display = 'none';
+        }
+        pendingEnqueueIds = [];
+      };
+
+      btnEnqueueSelected.addEventListener('click', () => {
         const selectedCbs = document.querySelectorAll('.rowCheckbox:checked');
         const selectedIds = Array.from(new Set(Array.from(selectedCbs).map(cb => cb.getAttribute('data-assignment-id')).filter(Boolean)));
 
         if (!selectedIds.length) return;
 
-        if (!confirm(`Masukkan ${selectedIds.length} assignment_id yang dipilih ke antrian reject?`)) {
-          return;
+        pendingEnqueueIds = selectedIds;
+        const msg = document.getElementById('confirmEnqueueMsg');
+        if (msg) {
+          msg.textContent = `Apakah Anda yakin ingin memasukkan ${selectedIds.length} assignment yang dipilih ke antrian reject?`;
         }
+
+        const modal = document.getElementById('confirmEnqueueModal');
+        if (modal) {
+          modal.classList.remove('hidden');
+          modal.style.display = 'flex';
+        }
+      });
+
+      const btnConfirmEnqueueProceed = document.getElementById('btnConfirmEnqueueProceed');
+      btnConfirmEnqueueProceed?.addEventListener('click', async () => {
+        const selectedIds = pendingEnqueueIds;
+        closeConfirmEnqueueModal();
+
+        if (!selectedIds.length) return;
 
         btnEnqueueSelected.disabled = true;
         btnEnqueueSelected.textContent = 'Memproses...';
@@ -1854,14 +1936,13 @@
           });
 
           // Render statistik dan tabel secara instan tanpa reload database
+          invalidateGroupedCache();
           renderStats(currentTableData);
           renderDesaPriorityCards(currentTableData);
           renderTable();
 
           selectAllCheckbox.checked = false;
           updateSelectedCount();
-
-          alert(`Berhasil memasukkan ${selectedIds.length} assignment ke antrian!`);
         } catch (err) {
           alert('Gagal memperbarui antrian: ' + err.message);
         } finally {
@@ -1869,13 +1950,83 @@
         }
       });
 
-      // Filter & Refresh Listeners
-      filterStatus.addEventListener('change', renderTable);
-      searchInput.addEventListener('input', renderTable);
-      btnRefresh.addEventListener('click', loadDashboardData);
+      // ─── 8. Supabase Realtime Subscription & 1-Minute Background Status Polling ──────
+      function initRealtimeSubscription() {
+        db.channel('utp-reject-updates')
+          .on(
+            'postgres_changes',
+            {
+              event: 'UPDATE',
+              schema: 'public',
+              table: 'reject_utp_queue'
+            },
+            (payload) => {
+              const updatedRow = payload.new;
+              if (!updatedRow || !updatedRow.assignment_id) return;
 
-      // Initial load
-      loadDashboardData();
+              let updated = false;
+              currentTableData.forEach(row => {
+                if (row.assignment_id === updatedRow.assignment_id) {
+                  row.status = updatedRow.status;
+                  row.reject_note = updatedRow.reject_note;
+                  row.updated_at = updatedRow.updated_at;
+                  updated = true;
+                }
+              });
+
+              if (updated) {
+                invalidateGroupedCache();
+                renderStats(currentTableData);
+                renderDesaPriorityCards(currentTableData);
+                renderTable();
+              }
+            }
+          )
+          .subscribe();
+      }
+
+      // Lightweight 1-Minute Status Refresh (Hanya mengambil status & reject_note tanpa reload seluruh 42k baris)
+      async function refreshStatusOnly() {
+        try {
+          const { data, error } = await db
+            .from('reject_utp_queue')
+            .select('assignment_id, status, reject_note, updated_at')
+            .in('status', ['pending', 'processing', 'success', 'failed', 'skipped_unapproved']);
+
+          if (error || !data) return;
+
+          const statusMap = {};
+          data.forEach(item => {
+            statusMap[item.assignment_id] = item;
+          });
+
+          let hasChanges = false;
+          currentTableData.forEach(row => {
+            const fresh = statusMap[row.assignment_id];
+            if (fresh && (row.status !== fresh.status || row.reject_note !== fresh.reject_note)) {
+              row.status = fresh.status;
+              row.reject_note = fresh.reject_note;
+              row.updated_at = fresh.updated_at;
+              hasChanges = true;
+            }
+          });
+
+          if (hasChanges) {
+            invalidateGroupedCache();
+            renderStats(currentTableData);
+            renderDesaPriorityCards(currentTableData);
+            renderTable();
+          }
+        } catch (e) {
+          console.warn('[Auto-Refresh 1m] Error updating status:', e);
+        }
+      }
+
+      // Initial load & Start 60-Second Auto Refresh Timer
+      loadDashboardData().then(() => {
+        initRealtimeSubscription();
+        setInterval(refreshStatusOnly, 60000); // 1 Menit Auto-Update
+      });
 
     })();
   </script>
