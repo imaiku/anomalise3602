@@ -15,11 +15,18 @@
     const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // ─── Konstanta ─────────────────────────────────────────────────────────────
-    // Batas waktu validasi: 12 Agustus 2026 00:00 WIB = 11 Agustus 2026 17:00 UTC
-    const REVOKE_CUTOFF_UTC = new Date('2026-08-11T17:00:00.000Z');
+    // ─── Konstanta ─────────────────────────────────────────────────────────────
+    // Batas waktu validasi revoke: 31 Juli 2026 23:59:59 WIB = 31 Juli 2026 16:59:59 UTC
+    const REVOKE_CUTOFF_UTC = new Date('2026-07-31T16:59:59.000Z');
 
     const HISTORY_API_BASE = 'https://fasih-sm.bps.go.id/app/api/assignment-general/api/assignment-history/get-by-assignment-id';
     const REJECT_API_URL   = 'https://fasih-sm.bps.go.id/app/api/assignment-approval/api/v2/approval';
+
+    // Status valid yang boleh di-reject (berada di posisi Admin Kabupaten)
+    const ALLOWED_ADMIN_STATUSES = [
+        'approved by pengawas',
+        'edited by admin kabupaten'
+    ];
 
     // ─── 2. Helper CSRF ───────────────────────────────────────────────────────
     function getCsrfToken() {
@@ -51,42 +58,66 @@
 
     console.log("%c[Bot UTP Reject] Bot aktif! Memantau antrian 'pending' di database...", "color: #3b82f6; font-weight: bold;");
 
-    // ─── 3. Fungsi Cek History (Pre-Reject Validation) ────────────────────────
+    // ─── 3. Fungsi Cek History & Validasi Status Dokumen ──────────────────────
     /**
-     * Cek apakah assignment sudah pernah "REVOKED BY Pengawas" setelah batas waktu.
-     * @returns {{ isRevoked: boolean, tanggal: string|null }}
+     * Memeriksa riwayat dokumen untuk:
+     * 1. Deteksi REVOKED BY Pengawas setelah batas waktu 31 Juli 2026.
+     * 2. Memastikan status terkini dokumen adalah 'Approved by Pengawas' atau 'edited by admin kabupaten'.
+     * @returns {{ canProceed: boolean, isRevoked: boolean, currentStatus: string|null, note: string|null }}
      */
-    async function cekRiwayatRevoke(assignmentId) {
+    async function validasiHistoryDokumen(assignmentId) {
         try {
             const url = `${HISTORY_API_BASE}?assignmentId=${encodeURIComponent(assignmentId)}`;
             const response = await fetch(url, { method: 'GET' });
 
             if (!response.ok) {
                 console.warn(`[Bot UTP Reject] Gagal fetch history untuk ${assignmentId}: HTTP ${response.status}`);
-                return { isRevoked: false, tanggal: null };
+                return { canProceed: false, isRevoked: false, currentStatus: null, note: `HTTP Error ${response.status} saat cek history` };
             }
 
             const data = await response.json();
-            if (!data.success || !Array.isArray(data.data)) {
-                return { isRevoked: false, tanggal: null };
+            if (!data.success || !Array.isArray(data.data) || data.data.length === 0) {
+                return { canProceed: false, isRevoked: false, currentStatus: null, note: 'Riwayat history tidak ditemukan' };
             }
 
-            const revokedEntry = data.data.find(h =>
-                h.status_alias === 'REVOKED BY Pengawas' &&
+            const historyList = data.data;
+
+            // 1. Cek apakah ada REVOKED BY Pengawas setelah 31 Juli 2026
+            const revokedEntry = historyList.find(h =>
+                h.status_alias && h.status_alias.toUpperCase() === 'REVOKED BY PENGAWAS' &&
                 new Date(h.date_created) > REVOKE_CUTOFF_UTC
             );
 
             if (revokedEntry) {
+                const tgl = formatTanggalWIB(revokedEntry.date_created);
                 return {
+                    canProceed: false,
                     isRevoked: true,
-                    tanggal: formatTanggalWIB(revokedEntry.date_created)
+                    currentStatus: revokedEntry.status_alias,
+                    note: `Dilewati: sudah direvoke oleh pengawas pada ${tgl}`
                 };
             }
 
-            return { isRevoked: false, tanggal: null };
+            // 2. Ambil status paling terkini (entri paling atas / tanggal paling baru)
+            const latestEntry = historyList[0];
+            const latestStatusRaw = String(latestEntry?.status_alias || '').trim().toLowerCase();
+
+            // Cek apakah status terkini termasuk status yang diizinkan untuk Admin Kabupaten
+            const isAllowedStatus = ALLOWED_ADMIN_STATUSES.some(s => latestStatusRaw.includes(s));
+
+            if (!isAllowedStatus) {
+                return {
+                    canProceed: false,
+                    isRevoked: false,
+                    currentStatus: latestEntry?.status_alias || 'Unknown',
+                    note: `Gagal Reject: Status dokumen '${latestEntry?.status_alias}' tidak berada di Admin (harus Approved by Pengawas atau edited by admin kabupaten)`
+                };
+            }
+
+            return { canProceed: true, isRevoked: false, currentStatus: latestEntry?.status_alias, note: null };
         } catch (err) {
             console.warn(`[Bot UTP Reject] Error saat fetch history ${assignmentId}:`, err.message);
-            return { isRevoked: false, tanggal: null };
+            return { canProceed: false, isRevoked: false, currentStatus: null, note: `Error validation: ${err.message}` };
         }
     }
 
@@ -121,16 +152,24 @@
                     const historyDelay = 300 + Math.random() * 700;
                     await sleep(historyDelay);
 
-                    const { isRevoked, tanggal } = await cekRiwayatRevoke(assignmentId);
+                    const { canProceed, isRevoked, currentStatus, note } = await validasiHistoryDokumen(assignmentId);
 
-                    if (isRevoked) {
-                        const note = `Dilewati: sudah direvoke oleh pengawas pada ${tanggal}`;
-                        console.warn(`%c[Bot UTP Reject] SKIPPED (Revoke) ID: ${assignmentId} — ${note}`, "color: #f97316; font-weight: bold;");
-                        await db.rpc('update_utp_reject_status', {
-                            p_assignment_id: assignmentId,
-                            p_status: 'skipped_unapproved',
-                            p_note: note
-                        });
+                    if (!canProceed) {
+                        if (isRevoked) {
+                            console.warn(`%c[Bot UTP Reject] SKIPPED (Revoke) ID: ${assignmentId} — ${note}`, "color: #f97316; font-weight: bold;");
+                            await db.rpc('update_utp_reject_status', {
+                                p_assignment_id: assignmentId,
+                                p_status: 'skipped_unapproved',
+                                p_note: note
+                            });
+                        } else {
+                            console.error(`%c[Bot UTP Reject] FAILED ID: ${assignmentId} — ${note}`, "color: #ef4444; font-weight: bold;");
+                            await db.rpc('update_utp_reject_status', {
+                                p_assignment_id: assignmentId,
+                                p_status: 'failed',
+                                p_note: note
+                            });
+                        }
                         processedIndex++;
                         continue;
                     }

@@ -1214,6 +1214,7 @@
           let from = 0;
           const fetchChunkSize = 1000;
           let hasMore = true;
+          let isFirstChunk = true;
 
           while (hasMore) {
             const { data, error } = await db
@@ -1228,8 +1229,19 @@
               allFetchedRows = allFetchedRows.concat(data);
               from += fetchChunkSize;
 
-              // Inform user real-time of progress
+              currentTableData = allFetchedRows;
               tableRecordCount.textContent = `(Memuat ${allFetchedRows.length} data...)`;
+
+              // Render pertama secara instan begitu 1000 data pertama sampai (Progressive / Dynamic Streaming Render)
+              if (isFirstChunk) {
+                isFirstChunk = false;
+                populateWilayahFilters(currentTableData);
+                renderDesaPriorityCards(currentTableData);
+                renderStats(currentTableData);
+                currentPage = 1;
+                invalidateGroupedCache();
+                renderTable();
+              }
 
               if (data.length < fetchChunkSize) {
                 hasMore = false;
@@ -1243,10 +1255,10 @@
           populateWilayahFilters(currentTableData);
           renderDesaPriorityCards(currentTableData);
           renderStats(currentTableData);
-          currentPage = 1;
+          invalidateGroupedCache();
           renderTable();
         } catch (err) {
-          utpTableBody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 2rem; color: var(--error);">Gagal memuat data: ${err.message}</td></tr>`;
+          utpTableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 2rem; color: var(--error);">Gagal memuat data: ${err.message}</td></tr>`;
         }
       }
 
