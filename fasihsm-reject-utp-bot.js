@@ -20,7 +20,7 @@
     const REVOKE_CUTOFF_UTC = new Date('2026-07-31T16:59:59.000Z');
 
     const HISTORY_API_BASE = 'https://fasih-sm.bps.go.id/app/api/assignment-general/api/assignment-history/get-by-assignment-id';
-    const REJECT_API_URL   = 'https://fasih-sm.bps.go.id/app/api/assignment-approval/api/v2/approval';
+    const REJECT_API_URL = 'https://fasih-sm.bps.go.id/app/api/assignment-approval/api/v2/approval';
 
     // Status valid yang boleh di-reject (berada di posisi Admin Kabupaten)
     const ALLOWED_ADMIN_STATUSES = [
@@ -84,7 +84,7 @@
 
             // Urutkan riwayat secara kronologis (dari awal hingga paling akhir)
             const sortedHistory = [...historyList].sort((a, b) => new Date(a.date_created) - new Date(b.date_created));
-            
+
             // Entri terakhir (elemen paling akhir di array) adalah kondisi/status terkini saat ini
             const latestEntry = sortedHistory[sortedHistory.length - 1];
             const latestStatusRaw = String(latestEntry?.status_alias || '').trim().toLowerCase();
@@ -101,7 +101,23 @@
                 };
             }
 
-            // 2. Cek apakah ada status REVOKED BY Pengawas atau REJECTED BY Pengawas di riwayat historis setelah 31 Juli 2026
+            // 2. Cek jika status terkini adalah DRAFT, SUBMITTED BY PENCACAH, atau APPROVED BY PENGAWAS setelah 31 Juli 2026
+            const isDraftSubmittedOrApproved =
+                latestStatusRaw.includes('draft') ||
+                latestStatusRaw.includes('submitted by pencacah') ||
+                latestStatusRaw.includes('approved by pengawas');
+
+            if (isDraftSubmittedOrApproved && new Date(latestEntry.date_created) > REVOKE_CUTOFF_UTC) {
+                const tgl = formatTanggalWIB(latestEntry.date_created);
+                return {
+                    canProceed: false,
+                    isRevoked: true,
+                    currentStatus: latestEntry.status_alias,
+                    note: `Dilewati: Status terakhir ${latestEntry.status_alias} setelah 31 Juli 2026 (pada ${tgl})`
+                };
+            }
+
+            // 3. Cek apakah ada status REVOKED BY Pengawas atau REJECTED BY Pengawas di riwayat historis setelah 31 Juli 2026
             const revokedOrRejectedEntry = sortedHistory.find(h => {
                 if (!h.status_alias) return false;
                 const s = h.status_alias.toUpperCase();
