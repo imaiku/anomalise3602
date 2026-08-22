@@ -1,6 +1,6 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════╗
- * ║  BOT MITRA BPS — MULTI-DEVICE DATABASE QUEUE & GLOBAL EXPORT EXCEL           ║
+ * ║  BOT MITRA BPS — MULTI-DEVICE AUTO-RECOVERY QUEUE & EXPORT EXCEL            ║
  * ║  Jalankan di browser console saat sudah login di manajemen-mitra.bps.go.id   ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
@@ -12,7 +12,7 @@
     const LOG_WARN   = 'color: #f59e0b; font-weight: bold;';
     const LOG_ERR    = 'color: #ef4444; font-weight: bold;';
 
-    console.log(LOG_PREFIX + ' Menginisialisasi Bot Mitra BPS (Database Realtime & Auto-Queue)...', LOG_INFO);
+    console.log(LOG_PREFIX + ' Menginisialisasi Bot Mitra BPS (Auto-Recovery & Realtime DB)...', LOG_INFO);
 
     // ─── 0. Konfigurasi Database & Auth ───
     const SUPABASE_URL = "https://vpbhqemomsewrnrggbmd.supabase.co";
@@ -34,13 +34,13 @@
 
     const AUTH_TOKEN = getAuthToken();
     const CLIENT_ID = 'PC-' + Math.random().toString(36).substring(2, 7).toUpperCase();
-    const BATCH_CLAIM_SIZE = 10;
-    const DELAY_MIN = 2500; // 2.5s
-    const DELAY_MAX = 4000; // 4s
+    const BATCH_CLAIM_SIZE = 3; // Batch kecil (3 data) agar mitigasi abort sangat cepat
+    const DELAY_MIN = 2200; // 2.2s
+    const DELAY_MAX = 3800; // 3.8s
     const RATE_LIMIT_AUTO_WAIT_SECONDS = 30;
     const BASE_URL = 'https://mitra-api.bps.go.id';
 
-    // ─── 1. Robust Loader untuk SheetJS (XLSX) & Supabase ───
+    // ─── 1. Robust Loader untuk SheetJS & Supabase ───
     async function loadScript(url) {
         return new Promise((resolve, reject) => {
             const s = document.createElement('script');
@@ -64,7 +64,6 @@
             try {
                 await loadScript(cdn);
                 if (window.XLSX && window.XLSX.utils && window.XLSX.utils.json_to_sheet) {
-                    console.log(LOG_PREFIX + ` SheetJS berhasil dimuat dari ${cdn}`, LOG_OK);
                     return window.XLSX;
                 }
             } catch (e) {}
@@ -84,7 +83,6 @@
             try {
                 await loadScript(cdn);
                 if (window.supabase && typeof window.supabase.createClient === 'function') {
-                    console.log(LOG_PREFIX + ` Supabase SDK berhasil dimuat`, LOG_OK);
                     return window.supabase;
                 }
             } catch (e) {}
@@ -96,13 +94,13 @@
     await ensureSupabase();
 
     if (!window.supabase) {
-        alert("Gagal memuat library Supabase. Pastikan koneksi internet aktif!");
+        alert("Gagal memuat library Supabase. Periksa koneksi internet!");
         return;
     }
 
     const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-    // ─── 2. Interceptor (Fetch + XHR) untuk Rate-Limit & Captcha ───
+    // ─── 2. Interceptor (Fetch + XHR) ───
     window._isCaptchaResolved = false;
     window._lastRevealedNikMap = window._lastRevealedNikMap || {};
 
@@ -156,7 +154,19 @@
         return originalSend.apply(this, args);
     };
 
-    // ─── 3. Floating Panel UI ───
+    // ─── 3. Auto-Release saat Tab Ditutup / Refresh ───
+    window._currentClaimedIds = new Set();
+    
+    window.addEventListener('beforeunload', () => {
+        if (window._currentClaimedIds.size > 0) {
+            const ids = Array.from(window._currentClaimedIds);
+            db.from('mitra_data_sync')
+                .update({ queue_status: 'pending', claimed_by: null, claimed_at: null })
+                .in('id_mitra', ids);
+        }
+    });
+
+    // ─── 4. Floating Panel UI ───
     const oldUI = document.getElementById('mitra-bot-floating-panel');
     if (oldUI) oldUI.remove();
 
@@ -167,7 +177,7 @@
         background: #0f172a; color: #f8fafc; padding: 14px 18px;
         border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
         font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px;
-        display: flex; flex-direction: column; gap: 10px;
+        display: flex; flex-direction: column; gap: 8px;
         border: 1px solid #334155; width: 340px;
     `;
 
@@ -182,21 +192,27 @@
 
         <div style="display: flex; flex-direction: column; gap: 3px;">
             <div id="mitra-bot-status" style="color: #cbd5e1; font-size: 12px; font-weight: 500;">Menginisialisasi...</div>
-            <div id="mitra-device-stat" style="color: #64748b; font-size: 11px;">Sesi PC ini: 0 tersimpan</div>
+            <div style="display: flex; justify-content: space-between; font-size: 11px; color: #64748b;">
+                <span id="mitra-device-stat">Sesi PC ini: 0 tersimpan</span>
+                <span id="mitra-stale-stat" style="color: #f59e0b; cursor: pointer;" title="Klik untuk paksa reset antrean macet">Macet: 0</span>
+            </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 4px;">
-            <button id="btn-resume-bot" style="background: #10b981; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">▶️ Lanjut Sekarang</button>
-            <button id="btn-stop-bot" style="background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">⏹️ Stop Bot</button>
+            <button id="btn-resume-bot" style="background: #10b981; color: white; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">▶️ Lanjut</button>
+            <button id="btn-reset-stale" style="background: #f59e0b; color: white; border: none; padding: 7px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">🔄 Reset Macet</button>
         </div>
 
-        <button id="btn-export-db-bot" style="background: #6366f1; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;">
-            📥 Export Semua Data DB (.xlsx)
-        </button>
+        <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 6px;">
+            <button id="btn-export-db-bot" style="background: #6366f1; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold;">
+                📥 Export DB (.xlsx)
+            </button>
+            <button id="btn-stop-bot" style="background: #ef4444; color: white; border: none; padding: 8px 10px; border-radius: 6px; cursor: pointer; font-size: 11px; font-weight: 600;">⏹️ Stop</button>
+        </div>
     `;
     document.body.appendChild(panel);
 
-    function updateFloatingStatus(statusText, dbStatText = null, deviceStatText = null) {
+    function updateFloatingStatus(statusText, dbStatText = null, deviceStatText = null, staleText = null) {
         const el = document.getElementById('mitra-bot-status');
         if (el && statusText) el.innerText = statusText;
         if (dbStatText) {
@@ -207,6 +223,10 @@
             const devEl = document.getElementById('mitra-device-stat');
             if (devEl) devEl.innerText = deviceStatText;
         }
+        if (staleText) {
+            const stEl = document.getElementById('mitra-stale-stat');
+            if (stEl) stEl.innerText = staleText;
+        }
     }
 
     document.getElementById('btn-resume-bot').onclick = () => {
@@ -214,17 +234,64 @@
         window._isCaptchaResolved = true;
     };
 
-    document.getElementById('btn-stop-bot').onclick = () => {
+    document.getElementById('btn-stop-bot').onclick = async () => {
         window.isMitraBotStopped = true;
-        updateFloatingStatus("Bot dihentikan manual.");
-        console.log(LOG_PREFIX + ' Bot dihentikan. Antrean aman di DB.', LOG_WARN);
+        updateFloatingStatus("Menghentikan bot & melepas klaim...");
+        if (window._currentClaimedIds.size > 0) {
+            const ids = Array.from(window._currentClaimedIds);
+            await db.from('mitra_data_sync')
+                .update({ queue_status: 'pending', claimed_by: null, claimed_at: null })
+                .in('id_mitra', ids);
+            window._currentClaimedIds.clear();
+        }
+        updateFloatingStatus("Bot dihentikan. Semua antrean aman.");
+        console.log(LOG_PREFIX + ' Bot dihentikan. Antrean telah dilepas.', LOG_WARN);
+    };
+
+    // Fungsi reset antrean macet
+    async function resetStaleQueues(seconds = 90) {
+        updateFloatingStatus(`Mereset antrean macet (> ${seconds}s)...`);
+        console.log(LOG_PREFIX + ` Mereset antrean macet/ter-abort (> ${seconds} detik)...`, LOG_WARN);
+        
+        let resetCount = 0;
+        const { data: countRpc, error: rpcErr } = await db.rpc('reset_stale_mitra_claims', { p_seconds: seconds });
+        if (!rpcErr) {
+            resetCount = countRpc || 0;
+        } else {
+            // Direct query fallback
+            const timeoutStr = new Date(Date.now() - seconds * 1000).toISOString();
+            const { data: staleRows } = await db
+                .from('mitra_data_sync')
+                .select('id_mitra')
+                .eq('nik_revealed', false)
+                .or(`and(queue_status.eq.claimed,claimed_at.lt.${timeoutStr}),queue_status.eq.failed`);
+
+            if (staleRows && staleRows.length > 0) {
+                const ids = staleRows.map(r => r.id_mitra);
+                await db.from('mitra_data_sync')
+                    .update({ queue_status: 'pending', claimed_by: null, claimed_at: null })
+                    .in('id_mitra', ids);
+                resetCount = ids.length;
+            }
+        }
+
+        console.log(LOG_PREFIX + ` ✅ Berhasil mereset ${resetCount} antrean macet ke status 'pending'.`, LOG_OK);
+        updateFloatingStatus(`Reset berhasil: ${resetCount} antrean dipulihkan.`);
+        return resetCount;
+    }
+
+    document.getElementById('btn-reset-stale').onclick = async () => {
+        await resetStaleQueues(60);
+    };
+    document.getElementById('mitra-stale-stat').onclick = async () => {
+        await resetStaleQueues(60);
     };
 
     document.getElementById('btn-export-db-bot').onclick = async () => {
         await window.exportAllMitraFromDB();
     };
 
-    // ─── 4. Helpers & DB Sync ───
+    // ─── 5. Helpers & DB Sync ───
     const sleep = ms => new Promise(r => setTimeout(r, ms));
     const randomDelay = () => sleep(DELAY_MIN + Math.random() * (DELAY_MAX - DELAY_MIN));
 
@@ -236,7 +303,7 @@
         };
     }
 
-    // ─── 5. Export Seluruh Data Database ke Excel (dengan Fallback CSV) ───
+    // ─── 6. Export Seluruh Data Database ke Excel ───
     function downloadCSVFallback(rowsData, filename) {
         if (!rowsData || rowsData.length === 0) return;
         const headers = Object.keys(rowsData[0]);
@@ -262,8 +329,8 @@
     }
 
     window.exportAllMitraFromDB = async function() {
-        updateFloatingStatus("Mengunduh seluruh data dari database...");
-        console.log(LOG_PREFIX + ' Mengambil seluruh data dari tabel mitra_data_sync di Supabase...', LOG_INFO);
+        updateFloatingStatus("Mengunduh data dari database...");
+        console.log(LOG_PREFIX + ' Mengambil data dari tabel mitra_data_sync di Supabase...', LOG_INFO);
 
         try {
             let allRows = [];
@@ -277,10 +344,7 @@
                     .order('id_mitra', { ascending: true })
                     .range(from, from + pageSize - 1);
 
-                if (error) {
-                    console.error(LOG_PREFIX + ' Gagal fetch dari Supabase:', error);
-                    throw error;
-                }
+                if (error) throw error;
                 if (!data || data.length === 0) break;
 
                 allRows = allRows.concat(data);
@@ -347,42 +411,31 @@
                 xlsx.writeFile(wb, filename);
                 console.log(LOG_PREFIX + ` 📥 File Excel tersimpan: "${filename}" (${exportData.length} baris)`, LOG_OK);
             } else {
-                console.warn(LOG_PREFIX + ' SheetJS tidak tersedia, menggunakan fallback CSV.', LOG_WARN);
                 downloadCSVFallback(exportData, filename);
             }
 
             updateFloatingStatus(`Export selesai: ${exportData.length} mitra.`);
         } catch (err) {
             console.error(LOG_PREFIX + ' Gagal export database:', LOG_ERR, err);
-            alert("Gagal export database: " + err.message + "\n\nPastikan tabel 'mitra_data_sync' sudah dibuat di Supabase SQL Editor!");
+            alert("Gagal export database: " + err.message);
             updateFloatingStatus("Export gagal: " + err.message);
         }
     };
 
-    // ─── 6. Sinkronisasi Awal Master Data ke Supabase ───
+    // ─── 7. Inisialisasi Master Data ───
     async function syncMasterDataToDB() {
-        updateFloatingStatus("Memeriksa data master di database...");
-        
-        // Tes kueri tabel mitra_data_sync
         const { count, error: countErr } = await db
             .from('mitra_data_sync')
             .select('id_mitra', { count: 'exact', head: true });
 
         if (countErr) {
-            console.error(LOG_PREFIX + ' ❌ TABEL BELUM ADA / ERROR SUPABASE:', LOG_ERR, countErr);
-            alert("⚠️ PERHATIAN:\nTabel 'mitra_data_sync' belum dibuat di Supabase!\n\nSilakan jalankan script SQL dari file `sql/mitra_scrape_system.sql` di Supabase SQL Editor terlebih dahulu.");
-            updateFloatingStatus("Error: Tabel DB belum dibuat.");
+            alert("⚠️ PERHATIAN:\nTabel 'mitra_data_sync' belum dibuat di Supabase!\n\nJalankan file sql/mitra_scrape_system.sql di Supabase SQL Editor.");
             return 0;
         }
 
-        if (count && count > 0) {
-            console.log(LOG_PREFIX + ` Database sudah memiliki ${count} data mitra terdaftar.`, LOG_OK);
-            return count;
-        }
+        if (count && count > 0) return count;
 
         updateFloatingStatus("Mengambil master data dari BPS API...");
-        console.log(LOG_PREFIX + ' Mengunduh master mitra dari API BPS untuk inisialisasi awal database...', LOG_INFO);
-
         let mitras = [];
         try {
             const res = await fetch(`${BASE_URL}/api/mitra-kepka/by-year-wil/2026/36/02`, {
@@ -394,17 +447,10 @@
             mitras = json?.mitras ?? json?.data ?? json ?? [];
         } catch (err) {
             console.error(LOG_PREFIX + ' Gagal ambil daftar mitra BPS:', LOG_ERR, err);
-            updateFloatingStatus(`Error BPS API: ${err.message}`);
             return 0;
         }
 
-        if (!mitras.length) {
-            updateFloatingStatus("Data mitra BPS kosong.");
-            return 0;
-        }
-
-        console.log(LOG_PREFIX + ` Mengunggah ${mitras.length} mitra awal ke database Supabase...`, LOG_INFO);
-        updateFloatingStatus(`Inisialisasi ${mitras.length} mitra ke DB...`);
+        if (!mitras.length) return 0;
 
         const formattedRows = mitras.map(m => {
             const d = m.mitra_detail ?? {};
@@ -445,23 +491,15 @@
             };
         });
 
-        // Upsert batch per 100 rows
         for (let i = 0; i < formattedRows.length; i += 100) {
             const chunk = formattedRows.slice(i, i + 100);
-            const { error: upsertErr } = await db
-                .from('mitra_data_sync')
-                .upsert(chunk, { onConflict: 'id_mitra' });
-
-            if (upsertErr) {
-                console.error(LOG_PREFIX + ' Error upsert batch initial:', LOG_ERR, upsertErr);
-            }
+            await db.from('mitra_data_sync').upsert(chunk, { onConflict: 'id_mitra' });
         }
 
-        console.log(LOG_PREFIX + ` Inisialisasi master database selesai.`, LOG_OK);
         return formattedRows.length;
     }
 
-    // ─── 7. Helper Cek Statistik Global Database ───
+    // ─── 8. Statistik Global & Stale Tracker ───
     async function getGlobalStats() {
         try {
             const { count: total } = await db
@@ -473,13 +511,20 @@
                 .select('id_mitra', { count: 'exact', head: true })
                 .eq('nik_revealed', true);
 
-            return { total: total || 0, done: done || 0 };
+            const staleThreshold = new Date(Date.now() - 90 * 1000).toISOString();
+            const { count: stale } = await db
+                .from('mitra_data_sync')
+                .select('id_mitra', { count: 'exact', head: true })
+                .eq('nik_revealed', false)
+                .or(`and(queue_status.eq.claimed,claimed_at.lt.${staleThreshold}),queue_status.eq.failed`);
+
+            return { total: total || 0, done: done || 0, stale: stale || 0 };
         } catch(e) {
-            return { total: 0, done: 0 };
+            return { total: 0, done: 0, stale: 0 };
         }
     }
 
-    // ─── 8. Reveal NIK dengan Auto-Wait Rate Limit 30s ───
+    // ─── 9. Reveal NIK dengan Heartbeat & Rate Limit ───
     async function revealNik(idMitra, nama) {
         if (window._lastRevealedNikMap[idMitra]) {
             return window._lastRevealedNikMap[idMitra];
@@ -487,6 +532,12 @@
 
         while (true) {
             if (window.isMitraBotStopped) return null;
+
+            // Heartbeat agar antrean yang sedang diproses tidak direbut PC lain
+            db.from('mitra_data_sync')
+                .update({ claimed_at: new Date().toISOString() })
+                .eq('id_mitra', idMitra)
+                .catch(() => {});
 
             try {
                 const revRes = await fetch(`${BASE_URL}/api/mitra/reveal-info/nik/${idMitra}`, {
@@ -503,9 +554,9 @@
                     }
                 }
 
-                // Terkena 429 Rate Limit / 403 Forbidden
+                // Rate Limit 429 / 403
                 if (revRes.status === 429 || revRes.status === 403) {
-                    console.warn(LOG_PREFIX + ` ⚠️ [429 RATE LIMIT] Menunggu ${RATE_LIMIT_AUTO_WAIT_SECONDS}s atau Captcha...`, LOG_WARN);
+                    console.warn(LOG_PREFIX + ` ⚠️ [RATE LIMIT 429] Jeda ${RATE_LIMIT_AUTO_WAIT_SECONDS}s atau Captcha...`, LOG_WARN);
                     window._isCaptchaResolved = false;
 
                     for (let sec = RATE_LIMIT_AUTO_WAIT_SECONDS; sec > 0; sec--) {
@@ -513,6 +564,14 @@
                         if (window._isCaptchaResolved) {
                             console.log(LOG_PREFIX + ' [Timer Dibatalkan] Captcha disolve lebih awal!', LOG_OK);
                             break;
+                        }
+
+                        // Perbarui heartbeat setiap 10 detik selama countdown
+                        if (sec % 10 === 0) {
+                            db.from('mitra_data_sync')
+                                .update({ claimed_at: new Date().toISOString() })
+                                .eq('id_mitra', idMitra)
+                                .catch(() => {});
                         }
 
                         updateFloatingStatus(`⏳ Rate-limit: lanjut dlm ${sec}s...`);
@@ -532,28 +591,22 @@
         }
     }
 
-    // ─── 9. Main Loop Multi-Device Antrean Realtime ───
+    // ─── 10. Main Loop Auto-Recovery Queue ───
     window.isMitraBotStopped = false;
     let localSuccess = 0;
 
-    const totalInit = await syncMasterDataToDB();
-    if (totalInit === 0) {
-        const { count } = await db.from('mitra_data_sync').select('id_mitra', { count: 'exact', head: true });
-        if (!count) {
-            console.error(LOG_PREFIX + ' Inisialisasi database tidak dapat dilanjutkan.', LOG_ERR);
-            return;
-        }
-    }
+    await syncMasterDataToDB();
+    console.log(LOG_PREFIX + ` [${CLIENT_ID}] Memulai antrean Auto-Recovery...`, LOG_OK);
 
-    console.log(LOG_PREFIX + ` [${CLIENT_ID}] Memulai penarikan antrean database...`, LOG_OK);
+    let emptyCycles = 0;
 
     while (!window.isMitraBotStopped) {
-        // Ambil statistik global langsung dari Supabase
         const stats = await getGlobalStats();
         const statStr = `DB: ${stats.done}/${stats.total} (${stats.total ? Math.round((stats.done/stats.total)*100) : 0}%)`;
-        updateFloatingStatus("Mengklaim antrean...", statStr, `Sesi PC ini: ${localSuccess} tersimpan`);
+        const staleStr = `Macet: ${stats.stale}`;
+        updateFloatingStatus("Mengklaim antrean...", statStr, `Sesi PC ini: ${localSuccess} tersimpan`, staleStr);
 
-        // Klaim antrean: Coba panggil RPC dahulu
+        // 1. Klaim antrean via RPC (otomatis merebut item yang ditinggal > 90s)
         let claimedRows = [];
         const { data: claimed, error: claimErr } = await db.rpc('claim_mitra_scrape_queue', {
             p_limit: BATCH_CLAIM_SIZE,
@@ -563,13 +616,13 @@
         if (!claimErr && claimed && claimed.length > 0) {
             claimedRows = claimed;
         } else {
-            // Fallback direct query jika RPC belum dibuat
-            const timeoutThreshold = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+            // Direct query fallback
+            const staleThreshold = new Date(Date.now() - 90 * 1000).toISOString();
             const { data: fallbackData } = await db
                 .from('mitra_data_sync')
                 .select('*')
-                .or(`queue_status.eq.pending,and(queue_status.eq.claimed,claimed_at.lt.${timeoutThreshold})`)
                 .eq('nik_revealed', false)
+                .or(`queue_status.eq.pending,queue_status.eq.failed,and(queue_status.eq.claimed,claimed_at.lt.${staleThreshold})`)
                 .order('id_mitra', { ascending: true })
                 .limit(BATCH_CLAIM_SIZE);
 
@@ -586,46 +639,49 @@
             }
         }
 
-        // Jika tidak ada lagi antrean yang pending
+        // 2. Jika antrean lokal kosong
         if (!claimedRows || claimedRows.length === 0) {
-            // Cek apakah masih ada data yang belum ter-reveal sama sekali
+            // Cek apakah masih ada data yang belum ter-reveal di database
             const { count: sisaBelum } = await db
                 .from('mitra_data_sync')
                 .select('id_mitra', { count: 'exact', head: true })
                 .eq('nik_revealed', false);
 
             if (sisaBelum && sisaBelum > 0) {
-                updateFloatingStatus(`Menunggu ${sisaBelum} antrean di device lain...`, statStr);
+                emptyCycles++;
+                // Jika sudah 2 kali siklus kosong tapi masih ada sisa, paksa auto-reset antrean yang nyangkut
+                if (emptyCycles >= 2) {
+                    console.log(LOG_PREFIX + ` ⚠️ Terdeteksi ${sisaBelum} antrean terhambat di PC lain. Menjalankan auto-recovery...`, LOG_WARN);
+                    await resetStaleQueues(30);
+                    emptyCycles = 0;
+                    await sleep(2000);
+                    continue;
+                }
+
+                updateFloatingStatus(`Menunggu ${sisaBelum} sisa antrean...`, statStr, null, `Macet: ${stats.stale}`);
                 console.log(LOG_PREFIX + ` Sisa ${sisaBelum} mitra sedang dikerjakan device lain. Menunggu 5 detik...`, LOG_INFO);
                 await sleep(5000);
                 continue;
             }
 
-            updateFloatingStatus("🎉 Semua data mitra lengkap!", statStr);
+            updateFloatingStatus("🎉 Semua data mitra lengkap!", statStr, null, "Macet: 0");
             console.log(LOG_PREFIX + ' 🎉 SEMUA DATA MITRA TELAH LENGKAP & TERBUKA DI DATABASE!', LOG_OK);
             break;
         }
 
-        console.log(LOG_PREFIX + ` [${CLIENT_ID}] Mengklaim ${claimedRows.length} antrean...`, LOG_INFO);
+        emptyCycles = 0;
+        window._currentClaimedIds = new Set(claimedRows.map(r => r.id_mitra));
+        console.log(LOG_PREFIX + ` [${CLIENT_ID}] Memproses ${claimedRows.length} antrean aktif...`, LOG_INFO);
 
         for (const item of claimedRows) {
-            if (window.isMitraBotStopped) {
-                // Lepas klaim sebelum keluar
-                try {
-                    await db.from('mitra_data_sync')
-                        .update({ queue_status: 'pending', claimed_by: null, claimed_at: null })
-                        .eq('id_mitra', item.id_mitra);
-                } catch(e) {}
-                break;
-            }
+            if (window.isMitraBotStopped) break;
 
             const idMitra = item.id_mitra;
             const nama = item.nama_lengkap || `id_mitra=${idMitra}`;
 
-            updateFloatingStatus(`Memproses: ${nama}`, statStr, `Sesi PC ini: ${localSuccess} tersimpan`);
+            updateFloatingStatus(`Memproses: ${nama}`, statStr, `Sesi PC ini: ${localSuccess} tersimpan`, staleStr);
             console.log(LOG_PREFIX + ` (${CLIENT_ID}) Memproses ${nama} (ID: ${idMitra})...`, LOG_INFO);
 
-            // Cek jika NIK sudah lengkap
             let nikLengkap = item.nik;
             let isRevealed = Boolean(nikLengkap && !nikLengkap.includes('*'));
 
@@ -634,7 +690,7 @@
                 isRevealed = Boolean(nikLengkap && !nikLengkap.includes('*'));
             }
 
-            // ─── SIMPAN LANGSUNG KE SUPABASE REALTIME SETIAP NIK DIDAPAT ───
+            // SIMPAN LANGSUNG KE SUPABASE REALTIME
             const updatePayload = {
                 nik: nikLengkap || item.nik || '',
                 nik_revealed: isRevealed,
@@ -650,24 +706,26 @@
                 .eq('id_mitra', idMitra);
 
             if (updateErr) {
-                console.error(LOG_PREFIX + ` ❌ Gagal update Supabase ID ${idMitra}:`, LOG_ERR, updateErr);
+                console.error(LOG_PREFIX + ` ❌ Gagal update Supabase ID ${idMitra}:`, updateErr);
             } else {
                 if (isRevealed) {
                     localSuccess++;
                     console.log(LOG_PREFIX + ` 💾 [DB UPDATE OK] ${nama} -> NIK: ${nikLengkap}`, LOG_OK);
                 } else {
-                    console.warn(LOG_PREFIX + ` ⚠️ [DB UPDATE FAILED NIK] ${nama}`, LOG_WARN);
+                    console.warn(LOG_PREFIX + ` ⚠️ [STATUS FAILED/RETRY LATER] ${nama}`, LOG_WARN);
                 }
             }
 
+            window._currentClaimedIds.delete(idMitra);
             await randomDelay();
         }
 
+        window._currentClaimedIds.clear();
         await sleep(1000);
     }
 
     if (!window.isMitraBotStopped) {
-        updateFloatingStatus("🎉 Selesai!", null, `Total tersimpan: ${localSuccess} data.`);
+        updateFloatingStatus("🎉 Selesai!", null, `Total tersimpan: ${localSuccess} data.`, "Macet: 0");
         console.log(LOG_PREFIX + ' ✅ Bot selesai memproses seluruh antrean.', LOG_OK);
     }
 })();

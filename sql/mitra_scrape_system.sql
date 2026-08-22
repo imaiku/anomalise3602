@@ -1,5 +1,6 @@
 -- ============================================================
 -- TABEL & FUNGSI SISTEM ANTRIAN SCRAPING MITRA BPS MULTI-DEVICE
+-- (Idempotent: Aman dijalankan berulang kali di Supabase SQL Editor)
 -- ============================================================
 
 -- 1. Buat Tabel mitra_data_sync
@@ -48,7 +49,12 @@ CREATE INDEX IF NOT EXISTS idx_mitra_data_sync_nik_revealed ON public.mitra_data
 -- Enable RLS
 ALTER TABLE public.mitra_data_sync ENABLE ROW LEVEL SECURITY;
 
--- Policy RLS (Izinkan Anon / Public Read, Insert, Update)
+-- Drop Policy lama jika sudah ada agar tidak error 42710
+DROP POLICY IF EXISTS "Allow public read mitra_data_sync" ON public.mitra_data_sync;
+DROP POLICY IF EXISTS "Allow public insert mitra_data_sync" ON public.mitra_data_sync;
+DROP POLICY IF EXISTS "Allow public update mitra_data_sync" ON public.mitra_data_sync;
+
+-- Buat ulang Policy RLS (Izinkan Anon / Public Read, Insert, Update)
 CREATE POLICY "Allow public read mitra_data_sync" 
     ON public.mitra_data_sync FOR SELECT 
     USING (true);
@@ -62,8 +68,9 @@ CREATE POLICY "Allow public update mitra_data_sync"
     USING (true);
 
 -- 2. RPC: Claim Antrean Multi-Device (FOR UPDATE SKIP LOCKED)
+-- Otomatis merebut antrean yang macet / ditinggal > 90 detik
 CREATE OR REPLACE FUNCTION public.claim_mitra_scrape_queue(
-    p_limit INT DEFAULT 10,
+    p_limit INT DEFAULT 5,
     p_client_id TEXT DEFAULT 'client'
 )
 RETURNS SETOF public.mitra_data_sync
@@ -78,8 +85,12 @@ BEGIN
         SELECT id_mitra
         FROM public.mitra_data_sync
         WHERE 
-            queue_status = 'pending'
-            OR (queue_status = 'claimed' AND claimed_at < (NOW() - INTERVAL '5 minutes'))
+            nik_revealed = FALSE
+            AND (
+                queue_status = 'pending'
+                OR queue_status = 'failed'
+                OR (queue_status = 'claimed' AND (claimed_at IS NULL OR claimed_at < (NOW() - INTERVAL '90 seconds')))
+            )
         ORDER BY id_mitra ASC
         LIMIT v_limit
         FOR UPDATE SKIP LOCKED
@@ -89,7 +100,8 @@ BEGIN
         SET 
             queue_status = 'claimed',
             claimed_by = p_client_id,
-            claimed_at = NOW()
+            claimed_at = NOW(),
+            updated_at = NOW()
         FROM available a
         WHERE m.id_mitra = a.id_mitra
         RETURNING m.*
@@ -121,7 +133,7 @@ BEGIN
 END;
 $$;
 
--- 4. RPC: Lepaskan Klaim (Jika Error / Tab Ditutup)
+-- 4. RPC: Lepaskan Klaim Tertentu (Jika Error / Tab Ditutup)
 CREATE OR REPLACE FUNCTION public.release_mitra_claim(
     p_id_mitra BIGINT
 )
@@ -140,7 +152,51 @@ BEGIN
 END;
 $$;
 
--- 5. RPC: Reset Semua Antrean (Utilitas jika ingin mengulang antrean yang nyangkut)
+-- 5. RPC: Heartbeat Klaim (Agar antrean aktif tidak direbut saat menunggu captcha)
+CREATE OR REPLACE FUNCTION public.heartbeat_mitra_claim(
+    p_id_mitra BIGINT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    UPDATE public.mitra_data_sync
+    SET claimed_at = NOW()
+    WHERE id_mitra = p_id_mitra AND queue_status = 'claimed';
+END;
+$$;
+
+-- 6. RPC: Reset Antrean Macet / Ditinggal (> 90 detik)
+CREATE OR REPLACE FUNCTION public.reset_stale_mitra_claims(
+    p_seconds INT DEFAULT 90
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_count INT;
+BEGIN
+    UPDATE public.mitra_data_sync
+    SET 
+        queue_status = 'pending',
+        claimed_by = NULL,
+        claimed_at = NULL,
+        updated_at = NOW()
+    WHERE 
+        nik_revealed = FALSE 
+        AND (
+            (queue_status = 'claimed' AND (claimed_at IS NULL OR claimed_at < (NOW() - (p_seconds || ' seconds')::INTERVAL)))
+            OR queue_status = 'failed'
+        );
+    
+    GET DIAGNOSTICS v_count = ROW_COUNT;
+    RETURN v_count;
+END;
+$$;
+
+-- 7. RPC: Reset SEMUA Antrean yang Belum Selesai ke 'pending'
 CREATE OR REPLACE FUNCTION public.reset_mitra_scrape_queue()
 RETURNS INT
 LANGUAGE plpgsql
@@ -153,8 +209,9 @@ BEGIN
     SET 
         queue_status = 'pending',
         claimed_by = NULL,
-        claimed_at = NULL
-    WHERE queue_status IN ('claimed', 'failed') OR nik_revealed = FALSE;
+        claimed_at = NULL,
+        updated_at = NOW()
+    WHERE nik_revealed = FALSE;
     
     GET DIAGNOSTICS v_count = ROW_COUNT;
     RETURN v_count;
