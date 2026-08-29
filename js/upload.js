@@ -197,15 +197,20 @@ function validateExcel(rows) {
 
     // --- Validasi Nama Entitas ---
     if (!namaEntitas) {
-      if (rowWarnings.length < 20) rowWarnings.push(`⚠️ Baris ${rowNum}: Kolom "Nama Usaha / Kepala Keluarga" kosong`);
+      rowWarnings.push(`⚠️ Baris ${rowNum}: Kolom "Nama Usaha / Kepala Keluarga" kosong`);
     }
 
-    // --- Deteksi duplikat assignment_id ---
-    if (UUID_REGEX.test(assignmentId)) {
-      if (seenAssignments.has(assignmentId)) {
-        if (rowWarnings.length < 20) rowWarnings.push(`⚠️ Baris ${rowNum}: Assignment ID "${assignmentId.slice(0, 8)}..." muncul lebih dari 1x di file`);
-      }
-      seenAssignments.add(assignmentId);
+    // --- Deteksi duplikat persis (assignment_id + tipe + nomor anomali) ---
+    if (UUID_REGEX.test(assignmentId) && daftarAnomali) {
+      const parsedItems = parseDaftarAnomali(daftarAnomali);
+      parsedItems.forEach(item => {
+        const itemKey = `${assignmentId}|${item.tipe}|${item.nomor}`;
+        if (seenAssignments.has(itemKey)) {
+          rowWarnings.push(`⚠️ Baris ${rowNum}: Anomali ${item.tipe.toUpperCase()} ${item.nomor} untuk Assignment ID "${assignmentId.slice(0, 8)}..." duplikat persis di baris lain`);
+        } else {
+          seenAssignments.add(itemKey);
+        }
+      });
     }
   }
 

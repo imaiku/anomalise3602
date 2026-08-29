@@ -516,6 +516,14 @@ function toggleAllBulkReject(checked) {
     }
   });
 }
+
+function toggleAllBulkResolved(checked) {
+  const resolvedCbs = document.querySelectorAll('.bulk-resolved-cb');
+  resolvedCbs.forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
 function closeBulkModal(triggerHistoryBack = true) {
   const modal = document.getElementById('bulkModal');
   if (modal && modal.classList.contains('open')) {
@@ -538,19 +546,25 @@ function renderBulkSheetBody() {
       <thead>
         <tr style="border-bottom:2px solid var(--border)">
           <th style="padding:0.75rem; text-align:left">Nama KK / Usaha</th>
-          <th style="padding:0.75rem; text-align:center; width:160px">
+          <th style="padding:0.75rem; text-align:center; width:150px">
             <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
               <input type="checkbox" id="bulkMasterShow" onchange="toggleAllBulkShow(this.checked)" style="width:14px; height:14px; cursor:pointer">
               Tampilkan Anomali
             </label>
           </th>
-          <th style="padding:0.75rem; text-align:center; width:110px">
+          <th style="padding:0.75rem; text-align:center; width:90px">
             <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
               <input type="checkbox" id="bulkMasterReject" onchange="toggleAllBulkReject(this.checked)" style="width:14px; height:14px; cursor:pointer">
               Reject
             </label>
           </th>
-          <th style="padding:0.75rem; text-align:center; width:150px">Aksi</th>
+          <th style="padding:0.75rem; text-align:center; width:150px">
+            <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
+              <input type="checkbox" id="bulkMasterResolved" onchange="toggleAllBulkResolved(this.checked)" style="width:14px; height:14px; cursor:pointer">
+              Sudah Diperbaiki
+            </label>
+          </th>
+          <th style="padding:0.75rem; text-align:center; width:140px">Aksi</th>
         </tr>
       </thead>
       <tbody>`;
@@ -558,6 +572,7 @@ function renderBulkSheetBody() {
   bulkSelectedData.forEach((g, idx) => {
     const showAnomalyVal = g.show_anomaly === true;
     const isRejectedVal = g.is_rejected === true;
+    const isAllResolved = g.rows && g.rows.length > 0 && g.rows.every(r => r.status === 'sudah_diperbaiki');
 
     const nameParts = [];
     if (g.nama_kk) nameParts.push(g.nama_kk);
@@ -565,6 +580,7 @@ function renderBulkSheetBody() {
       nameParts.push(g.nama_usaha_list.join(', '));
     }
     const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
+    const anomaliCount = g.rows ? g.rows.length : 0;
     const openUrl = `https://fasih-sm.bps.go.id/app/assignment-detail/${g.assignment_id}`;
     const editUrl = `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${g.assignment_id}/edit`;
 
@@ -572,13 +588,16 @@ function renderBulkSheetBody() {
         <tr style="border-bottom:1px solid var(--border)">
           <td style="padding:0.75rem">
             <div style="font-weight:600; color:var(--text)">${escHtml(combinedName)}</div>
-            <div style="font-size:0.7rem; color:var(--text-muted)">${g.kode_sls_gabungan} &nbsp;·&nbsp; ${g.assignment_id.slice(0, 8)}...</div>
+            <div style="font-size:0.7rem; color:var(--text-muted)">${g.kode_sls_gabungan} &nbsp;·&nbsp; ${g.assignment_id.slice(0, 8)}... &nbsp;·&nbsp; <span class="badge" style="font-size:0.65rem; padding:0.1rem 0.35rem">${anomaliCount} anomali</span></div>
           </td>
           <td style="padding:0.75rem; text-align:center">
             <input type="checkbox" class="bulk-show-cb" data-idx="${idx}" ${showAnomalyVal ? 'checked' : ''} onchange="onBulkShowAnomalyToggle(${idx}, this.checked)" style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer">
           </td>
           <td style="padding:0.75rem; text-align:center">
             <input type="checkbox" class="bulk-reject-cb" id="bulkReject-${idx}" data-idx="${idx}" ${isRejectedVal ? 'checked' : ''} ${showAnomalyVal ? '' : 'disabled'} style="width:16px; height:16px; accent-color:var(--primary); cursor:pointer">
+          </td>
+          <td style="padding:0.75rem; text-align:center">
+            <input type="checkbox" class="bulk-resolved-cb" id="bulkResolved-${idx}" data-idx="${idx}" ${isAllResolved ? 'checked' : ''} style="width:16px; height:16px; accent-color:var(--success); cursor:pointer" title="Tandai semua anomali pada assignment ini sudah diperbaiki">
           </td>
           <td style="padding:0.75rem; text-align:center; white-space:nowrap">
             <a href="${openUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-secondary btn-sm" style="padding:0.25rem 0.5rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.2rem">
@@ -619,27 +638,61 @@ async function saveBulkChanges() {
     const now = new Date().toISOString();
     const showCbs = document.querySelectorAll('.bulk-show-cb');
     const rejectCbs = document.querySelectorAll('.bulk-reject-cb');
+    const resolvedCbs = document.querySelectorAll('.bulk-resolved-cb');
 
     for (let i = 0; i < bulkSelectedData.length; i++) {
       const g = bulkSelectedData[i];
       const showAnomalyVal = showCbs[i]?.checked ?? false;
       const isRejectedVal = rejectCbs[i]?.checked ?? false;
+      const isResolvedChecked = resolvedCbs[i]?.checked ?? false;
+
+      const updObj = {
+        show_anomaly: showAnomalyVal,
+        is_rejected: isRejectedVal,
+        updated_at: now,
+        updated_by_nama: sessionName,
+        updated_by_id: currentProfile.id
+      };
+
+      if (isResolvedChecked) {
+        updObj.status = 'sudah_diperbaiki';
+        updObj.catatan = 'Ditandai selesai (sudah diperbaiki) secara massal';
+
+        // Insert into status_history for rows whose status changed
+        if (g.rows && g.rows.length > 0) {
+          const histItems = g.rows
+            .filter(r => r.status !== 'sudah_diperbaiki')
+            .map(r => ({
+              assignment_anomali_id: r.id,
+              status_lama: r.status,
+              status_baru: 'sudah_diperbaiki',
+              diubah_oleh_nama: sessionName,
+              diubah_oleh_id: currentProfile.id,
+              catatan: 'Ditandai selesai (sudah diperbaiki) secara massal',
+              sumber: 'manual'
+            }));
+
+          if (histItems.length > 0) {
+            await db.from('status_history').insert(histItems);
+          }
+        }
+      }
 
       const { error: updErr } = await db
         .from('assignment_anomali')
-        .update({
-          show_anomaly: showAnomalyVal,
-          is_rejected: isRejectedVal,
-          updated_at: now,
-          updated_by_nama: sessionName,
-          updated_by_id: currentProfile.id
-        })
+        .update(updObj)
         .eq('assignment_id', g.assignment_id);
 
       if (updErr) throw updErr;
 
       g.show_anomaly = showAnomalyVal;
       g.is_rejected = isRejectedVal;
+      if (isResolvedChecked && g.rows) {
+        g.rows.forEach(r => {
+          r.status = 'sudah_diperbaiki';
+          r.catatan = 'Ditandai selesai (sudah diperbaiki) secara massal';
+        });
+      }
     }
 
     showToast('Perubahan massal berhasil disimpan', 'success');
