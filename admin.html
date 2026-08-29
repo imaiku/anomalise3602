@@ -655,7 +655,7 @@
       <!-- ============ UPLOAD DATA ============ -->
       <div class="section-panel active" id="panel-upload">
         <div class="section-title">Upload Data Anomali</div>
-        <div class="section-sub">Upload file Excel anomali keluarga dan usaha untuk diproses dan di-merge ke database.
+        <div class="section-sub">Upload file Excel anomali gabungan (keluarga & usaha) untuk diproses dan di-merge ke database.
         </div>
 
         <!-- Steps indicator -->
@@ -689,76 +689,40 @@
             </div>
           </div>
 
-          <!-- File inputs -->
-          <div class="upload-grid">
-            <!-- Keluarga -->
-            <div class="upload-card">
-              <div class="upload-card-title">File Anomali Keluarga</div>
-              <div class="upload-card-sub">File Excel dengan kolom Nama Kepala Keluarga, Kode Desa, Kode SLS, dsb.</div>
-              <div class="upload-zone" id="zoneKK" onclick="document.getElementById('fileKK').click()"
-                ondragover="handleDragOver(event,'zoneKK')" ondragleave="handleDragLeave('zoneKK')"
-                ondrop="handleDrop(event,'kk')">
-                <input type="file" id="fileKK" accept=".xlsx,.xls" onchange="handleFileSelect(event,'kk')">
-                <div class="upload-zone-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                </div>
-                <div class="upload-zone-title" id="kkLabel">Pilih atau seret file di sini</div>
-                <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 20MB</div>
+          <!-- Single combined file input -->
+          <div class="upload-card" style="max-width:520px">
+            <div class="upload-card-title">File Anomali Gabungan (Keluarga & Usaha)</div>
+            <div class="upload-card-sub">File Excel format baru: 1 baris per assignment, kolom "Daftar Anomali" berisi anomali keluarga dan/atau usaha.</div>
+            <div class="upload-zone" id="zoneAnomali" onclick="document.getElementById('fileAnomali').click()"
+              ondragover="handleDragOver(event,'zoneAnomali')" ondragleave="handleDragLeave('zoneAnomali')"
+              ondrop="handleDrop(event)">
+              <input type="file" id="fileAnomali" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
+              <div class="upload-zone-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
               </div>
-              <div id="kkValidation" class="mt-2"></div>
-              <div style="margin-top:0.75rem">
-                <button class="btn btn-ghost btn-sm" onclick="generateTemplate('keluarga')">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" x2="12" y1="15" y2="3" />
-                  </svg>
-                  Download Template Keluarga
-                </button>
-              </div>
+              <div class="upload-zone-title" id="anomaliLabel">Pilih atau seret file di sini</div>
+              <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 20MB</div>
             </div>
-
-            <!-- Usaha -->
-            <div class="upload-card">
-              <div class="upload-card-title">File Anomali Usaha</div>
-              <div class="upload-card-sub">File Excel dengan kolom Nama Usaha, Kode Desa, Kode SLS, dsb.</div>
-              <div class="upload-zone" id="zoneUsaha" onclick="document.getElementById('fileUsaha').click()"
-                ondragover="handleDragOver(event,'zoneUsaha')" ondragleave="handleDragLeave('zoneUsaha')"
-                ondrop="handleDrop(event,'usaha')">
-                <input type="file" id="fileUsaha" accept=".xlsx,.xls" onchange="handleFileSelect(event,'usaha')">
-                <div class="upload-zone-icon">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-                    <polyline points="14 2 14 8 20 8" />
-                  </svg>
-                </div>
-                <div class="upload-zone-title" id="usahaLabel">Pilih atau seret file di sini</div>
-                <div class="upload-zone-sub">.xlsx atau .xls · Maksimal 20MB</div>
-              </div>
-              <div id="usahaValidation" class="mt-2"></div>
-              <div style="margin-top:0.75rem">
-                <button class="btn btn-ghost btn-sm" onclick="generateTemplate('usaha')">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" x2="12" y1="15" y2="3" />
-                  </svg>
-                  Download Template Usaha
-                </button>
-              </div>
+            <div id="anomaliValidation" class="mt-2"></div>
+            <div id="anomaliWarnings" class="mt-2"></div>
+            <div style="margin-top:0.75rem">
+              <button class="btn btn-ghost btn-sm" onclick="generateTemplate()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" x2="12" y1="15" y2="3" />
+                </svg>
+                Download Template Anomali Gabungan
+              </button>
             </div>
           </div>
 
-          <div id="consistencyWarnings"></div>
-
-          <div style="display:flex;gap:0.75rem;align-items:center">
+          <div style="display:flex;gap:0.75rem;align-items:center;margin-top:1rem">
             <button class="btn btn-primary" id="validateBtn" onclick="startValidation()" disabled>
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -767,7 +731,7 @@
               </svg>
               Validasi & Lanjut
             </button>
-            <span id="validateHint" style="font-size:0.8125rem;color:var(--text-muted)">Upload minimal 1 file dan pilih
+            <span id="validateHint" style="font-size:0.8125rem;color:var(--text-muted)">Upload file dan pilih
               tanggal data</span>
           </div>
         </div>

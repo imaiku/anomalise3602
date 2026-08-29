@@ -3,8 +3,7 @@
 // Depends on: config.js, utils.js, auth.js, upload.js, import.js
 // ============================================================
 let adminProfile = null;
-let parsedKK = null;   // { rows, records }
-let parsedUsaha = null;   // { rows, records }
+let parsedData = null;   // { rows, records, warnings }
 let batchId = null;
 let allUsers = [];
 let filteredUsers = [];
@@ -287,7 +286,7 @@ function closeBappModal() {
   }
 }
 // ============================================================
-// FILE UPLOAD — ANOMALI DATA
+// FILE UPLOAD — ANOMALI DATA (FORMAT GABUNGAN)
 // ============================================================
 function handleDragOver(e, zoneId) {
   e.preventDefault();
@@ -296,50 +295,67 @@ function handleDragOver(e, zoneId) {
 function handleDragLeave(zoneId) {
   document.getElementById(zoneId)?.classList.remove('drag-over');
 }
-function handleDrop(e, tipe) {
+function handleDrop(e) {
   e.preventDefault();
-  const zoneId = tipe === 'kk' ? 'zoneKK' : 'zoneUsaha';
-  document.getElementById(zoneId)?.classList.remove('drag-over');
+  document.getElementById('zoneAnomali')?.classList.remove('drag-over');
   const file = e.dataTransfer.files[0];
-  if (file) processFile(file, tipe === 'kk' ? 'keluarga' : 'usaha');
+  if (file) processFile(file);
 }
-function handleFileSelect(e, tipe) {
+function handleFileSelect(e) {
   const file = e.target.files[0];
-  if (file) processFile(file, tipe === 'kk' ? 'keluarga' : 'usaha');
+  if (file) processFile(file);
 }
-async function processFile(file, tipe) {
-  const isKK = tipe === 'keluarga';
-  const labelId = isKK ? 'kkLabel' : 'usahaLabel';
-  const zoneId = isKK ? 'zoneKK' : 'zoneUsaha';
-  const validId = isKK ? 'kkValidation' : 'usahaValidation';
-  document.getElementById(labelId).textContent = file.name;
-  document.getElementById(validId).innerHTML = '<div class="chip">Memvalidasi...</div>';
+async function processFile(file) {
+  const labelEl = document.getElementById('anomaliLabel');
+  const zoneEl = document.getElementById('zoneAnomali');
+  const validEl = document.getElementById('anomaliValidation');
+  const warnEl = document.getElementById('anomaliWarnings');
+  if (labelEl) labelEl.textContent = file.name;
+  if (validEl) validEl.innerHTML = '<div class="chip">Memvalidasi...</div>';
+  if (warnEl) warnEl.innerHTML = '';
   try {
     const rows = await parseExcelFile(file);
-    const result = validateExcel(rows, tipe);
+    const result = validateExcel(rows);
     if (!result.valid) {
-      document.getElementById(zoneId).classList.remove('has-file');
-      renderValidationResult(validId, result);
-      if (isKK) parsedKK = null; else parsedUsaha = null;
+      zoneEl?.classList.remove('has-file');
+      renderValidationResult('anomaliValidation', result);
+      parsedData = null;
     } else {
-      document.getElementById(zoneId).classList.add('has-file');
-      document.getElementById(validId).innerHTML = `
+      zoneEl?.classList.add('has-file');
+      // Convert rows to records (may generate warnings)
+      const tanggal = document.getElementById('tanggalData').value || new Date().toISOString().slice(0, 10);
+      const { records, warnings: convWarnings } = rowsToRecordsFull(rows, tanggal);
+      const kkCount = records.filter(r => r.tipe === 'keluarga').length;
+      const usahaCount = records.filter(r => r.tipe === 'usaha').length;
+      validEl.innerHTML = `
         <div class="alert alert-success">
           <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
-          <span>Validasi berhasil — ${result.dataRows.length.toLocaleString('id')} baris data ditemukan</span>
+          <span>Validasi berhasil — ${result.dataRows.length.toLocaleString('id')} baris data, ${records.length.toLocaleString('id')} record anomali (${kkCount} keluarga, ${usahaCount} usaha)</span>
         </div>`;
-      const tanggal = document.getElementById('tanggalData').value || new Date().toISOString().slice(0, 10);
-      const records = rowsToRecordsFull(rows, tipe, tanggal);
-      if (isKK) parsedKK = { rows, records };
-      else parsedUsaha = { rows, records };
+      parsedData = { rows, records };
+      // Tampilkan warnings (validasi + konversi) jika ada
+      const allWarnings = [...(result.warnings || []), ...(convWarnings || [])];
+      if (allWarnings.length > 0 && warnEl) {
+        warnEl.innerHTML = `
+          <div class="alert alert-warning" style="display:block;border-left:4px solid var(--warning);padding:0.75rem 1rem;margin-top:0.5rem">
+            <div style="font-weight:600;margin-bottom:0.4rem;display:flex;align-items:center;gap:0.35rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--warning)"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+              Peringatan (${allWarnings.length})
+            </div>
+            <ul style="margin:0 0 0 1.25rem;font-size:0.8rem;max-height:200px;overflow-y:auto;padding:0">
+              ${allWarnings.slice(0, 20).map(w => `<li style="margin-bottom:0.2rem">${escHtml(w)}</li>`).join('')}
+              ${allWarnings.length > 20 ? `<li><em>...dan ${allWarnings.length - 20} peringatan lainnya</em></li>` : ''}
+            </ul>
+          </div>`;
+      }
     }
   } catch (e) {
-    document.getElementById(validId).innerHTML = `
+    validEl.innerHTML = `
       <div class="alert alert-error">
         <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
         <span>${escHtml(e.message)}</span>
       </div>`;
-    if (isKK) parsedKK = null; else parsedUsaha = null;
+    parsedData = null;
   }
   checkValidateBtn();
 }
@@ -347,34 +363,22 @@ function checkValidateBtn() {
   const btn = document.getElementById('validateBtn');
   const hint = document.getElementById('validateHint');
   const tanggal = document.getElementById('tanggalData')?.value;
-  const hasFile = parsedKK || parsedUsaha;
+  const hasFile = parsedData && parsedData.records.length > 0;
   btn.disabled = !(hasFile && tanggal);
   hint.textContent = !tanggal ? 'Pilih tanggal data terlebih dahulu' :
-    !hasFile ? 'Upload minimal 1 file Excel yang valid' :
+    !hasFile ? 'Upload file Excel anomali gabungan yang valid' :
       'Siap untuk dilanjutkan';
 }
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('tanggalData')?.addEventListener('change', checkValidateBtn);
 });
 async function startValidation() {
-  if (parsedKK && parsedUsaha) {
-    const warnings = checkSLSConsistency(parsedKK.records, parsedUsaha.records);
-    document.getElementById('consistencyWarnings').innerHTML = warnings.length > 0
-      ? `<div class="alert alert-warning mb-4">
-          <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-          <div>
-            <strong>Peringatan Konsistensi SLS</strong>
-            <ul style="margin:0.25rem 0 0 1rem;font-size:0.8rem">
-              ${warnings.slice(0, 5).map(w => `<li>${escHtml(w)}</li>`).join('')}
-              ${warnings.length > 5 ? `<li>...dan ${warnings.length - 5} peringatan lainnya</li>` : ''}
-            </ul>
-          </div>
-        </div>`
-      : '';
-  }
+  if (!parsedData || !parsedData.records.length) return;
   const tanggal = document.getElementById('tanggalData').value;
-  const kkCount = parsedKK?.records.length || 0;
-  const usahaCount = parsedUsaha?.records.length || 0;
+  const allRecords = parsedData.records;
+  const kkCount = allRecords.filter(r => r.tipe === 'keluarga').length;
+  const usahaCount = allRecords.filter(r => r.tipe === 'usaha').length;
+  const uniqueAssignments = new Set(allRecords.map(r => r.assignment_id)).size;
   document.getElementById('uploadStep1').classList.add('hidden');
   setStep(2);
   document.getElementById('previewSummary').innerHTML = `
@@ -383,20 +387,25 @@ async function startValidation() {
       <div style="font-weight:700;font-size:1.1rem">${tanggal}</div>
     </div>
     <div>
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem">Anomali Keluarga</div>
-      <div style="font-weight:700;font-size:1.1rem;color:var(--primary)">${kkCount.toLocaleString('id')} baris</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem">Total Record Anomali</div>
+      <div style="font-weight:700;font-size:1.1rem;color:var(--primary)">${allRecords.length.toLocaleString('id')} record</div>
+      <div style="font-size:0.725rem;color:var(--text-muted)">${uniqueAssignments.toLocaleString('id')} assignment unik</div>
     </div>
     <div>
-      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem">Anomali Usaha</div>
-      <div style="font-weight:700;font-size:1.1rem;color:var(--primary)">${usahaCount.toLocaleString('id')} baris</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem">Rincian per Tipe</div>
+      <div style="font-size:0.875rem;font-weight:600">${kkCount.toLocaleString('id')} keluarga · ${usahaCount.toLocaleString('id')} usaha</div>
     </div>`;
   document.getElementById('uploadStep2').classList.remove('hidden');
 }
 async function startMerge() {
+  if (!parsedData || !parsedData.records.length) return;
   document.getElementById('uploadStep2').classList.add('hidden');
   document.getElementById('uploadStep3').classList.remove('hidden');
   setStep(3);
   const tanggal = document.getElementById('tanggalData').value;
+  const allRecords = parsedData.records;
+  const kkCount = allRecords.filter(r => r.tipe === 'keluarga').length;
+  const usahaCount = allRecords.filter(r => r.tipe === 'usaha').length;
   const { data: batch, error: batchErr } = await db
     .from('upload_batches')
     .insert({
@@ -404,8 +413,8 @@ async function startMerge() {
       uploaded_by_nama: getSessionName(adminProfile),
       uploaded_by_id: adminProfile.id,
       status: 'processing',
-      jumlah_keluarga: parsedKK?.records.length || 0,
-      jumlah_usaha: parsedUsaha?.records.length || 0
+      jumlah_keluarga: kkCount,
+      jumlah_usaha: usahaCount
     })
     .select('id').single();
   if (batchErr) {
@@ -413,7 +422,6 @@ async function startMerge() {
     backToStep1(); return;
   }
   batchId = batch.id;
-  const allRecords = [...(parsedKK?.records || []), ...(parsedUsaha?.records || [])];
   try {
     const results = await mergeRecords(allRecords, batchId, tanggal, pct => {
       document.getElementById('mergeProgress').style.width = pct + '%';
@@ -522,16 +530,18 @@ function backToStep1() {
   setStep(1);
 }
 function resetUpload() {
-  parsedKK = null; parsedUsaha = null; batchId = null;
+  parsedData = null; batchId = null;
   const newAnomWarn = document.getElementById('newAnomaliesWarning');
   if (newAnomWarn) {
     newAnomWarn.classList.add('hidden');
     newAnomWarn.innerHTML = '';
   }
-  ['zoneKK', 'zoneUsaha'].forEach(id => document.getElementById(id)?.classList.remove('has-file'));
-  ['kkLabel', 'usahaLabel'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).textContent = 'Pilih atau seret file di sini'; });
-  ['kkValidation', 'usahaValidation', 'consistencyWarnings'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).innerHTML = ''; });
-  ['fileKK', 'fileUsaha'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).value = ''; });
+  document.getElementById('zoneAnomali')?.classList.remove('has-file');
+  const labelEl = document.getElementById('anomaliLabel');
+  if (labelEl) labelEl.textContent = 'Pilih atau seret file di sini';
+  ['anomaliValidation', 'anomaliWarnings'].forEach(id => { if (document.getElementById(id)) document.getElementById(id).innerHTML = ''; });
+  const fileEl = document.getElementById('fileAnomali');
+  if (fileEl) fileEl.value = '';
   ['uploadStep2', 'uploadStep3', 'uploadStep4'].forEach(id => document.getElementById(id)?.classList.add('hidden'));
   document.getElementById('uploadStep1')?.classList.remove('hidden');
   setStep(1);
