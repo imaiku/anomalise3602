@@ -5,9 +5,9 @@ const SUPABASE_KEY = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
 const { createClient } = supabase;
 const db = createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth: {
-    autoRefreshToken: false,
-    persistSession: false,
-    detectSessionInUrl: false
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
   }
 });
 
