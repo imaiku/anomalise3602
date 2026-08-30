@@ -15,9 +15,24 @@ let lastInteractionTimestamp = Date.now();
 });
 
 // Helper: Cek apakah sebuah assignment sedang dikunci oleh orang lain
-function isAssignmentLockedByOther(group, currentUserId) {
+function isAssignmentLockedByOther(group, currentProfile) {
   if (!group || !group.locked_by_id) return false;
-  if (currentUserId && group.locked_by_id === currentUserId) return false;
+  if (!currentProfile) return true; // Tamu melihat semua yang dikunci sebagai milik orang lain
+
+  const currentUserId = currentProfile.id;
+  const currentSessionName = typeof getSessionName === 'function' ? getSessionName(currentProfile) : (currentProfile.nama || '');
+
+  // Jika akun admin bersama: bedakan berdasarkan nama sesi (locked_by_nama)
+  if (currentProfile.role === 'admin') {
+    if (group.locked_by_nama && group.locked_by_nama.toLowerCase() === currentSessionName.toLowerCase()) {
+      return false; // Dikunci oleh diri sendiri di sesi ini
+    }
+  } else {
+    // Role non-admin: bedakan berdasarkan ID akun unik
+    if (group.locked_by_id === currentUserId) {
+      return false; // Dikunci oleh diri sendiri
+    }
+  }
 
   // Cek apakah kunci sudah kadaluarsa (> 15 menit)
   if (group.locked_at) {

@@ -1008,8 +1008,18 @@ function renderTable(pageData) {
     const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
-    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile?.id) : false;
-    const isLockedBySelf = group.locked_by_id && currentProfile && group.locked_by_id === currentProfile.id;
+    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile) : false;
+    
+    // Cek apakah dikunci oleh diri sendiri (memperhitungkan session name untuk shared admin)
+    let isLockedBySelf = false;
+    if (group.locked_by_id && currentProfile) {
+      if (currentProfile.role === 'admin') {
+        const curSessionName = typeof getSessionName === 'function' ? getSessionName(currentProfile) : (currentProfile.nama || '');
+        isLockedBySelf = Boolean(group.locked_by_nama && group.locked_by_nama.toLowerCase() === curSessionName.toLowerCase());
+      } else {
+        isLockedBySelf = (group.locked_by_id === currentProfile.id);
+      }
+    }
 
     const nameParts = [];
     if (group.nama_kk) nameParts.push(group.nama_kk);
@@ -1083,8 +1093,18 @@ function renderMobileCards(pageData) {
     const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
-    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile?.id) : false;
-    const isLockedBySelf = group.locked_by_id && currentProfile && group.locked_by_id === currentProfile.id;
+    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile) : false;
+    
+    // Cek apakah dikunci oleh diri sendiri (memperhitungkan session name untuk shared admin)
+    let isLockedBySelf = false;
+    if (group.locked_by_id && currentProfile) {
+      if (currentProfile.role === 'admin') {
+        const curSessionName = typeof getSessionName === 'function' ? getSessionName(currentProfile) : (currentProfile.nama || '');
+        isLockedBySelf = Boolean(group.locked_by_nama && group.locked_by_nama.toLowerCase() === curSessionName.toLowerCase());
+      } else {
+        isLockedBySelf = (group.locked_by_id === currentProfile.id);
+      }
+    }
 
     let lockBadgeHtml = '';
     if (isLockedByOther) {
@@ -1299,7 +1319,7 @@ function renderPagination() {
 
       // Filter hanya assignment yang TIDAK sedang dikunci oleh orang lain
       const availableGroups = currentPageGroups.filter(g => {
-        return !(typeof isAssignmentLockedByOther === 'function' && isAssignmentLockedByOther(g, currentProfile?.id));
+        return !(typeof isAssignmentLockedByOther === 'function' && isAssignmentLockedByOther(g, currentProfile));
       });
 
       const idsToClaim = availableGroups.map(g => g.assignment_id);

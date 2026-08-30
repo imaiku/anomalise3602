@@ -15,7 +15,7 @@ async function openDetail(assignmentId) {
   if (!currentGroup) return;
 
   // Cek apakah sedang dikunci oleh user lain
-  const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(currentGroup, currentProfile?.id) : false;
+  const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(currentGroup, currentProfile) : false;
 
   if (!currentProfile) {
     canEdit = !isLockedByOther; // Let guests interact if not locked by someone else
