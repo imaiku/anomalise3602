@@ -15,12 +15,21 @@ let showReopenHighlight = false;
 let debounceTimer = null;
 let kecProgressData = [];
 
+// Expose to window for lock-sync module
+window.allData = allData;
+window.filteredData = filteredData;
+window.selectedIds = selectedIds;
+window.currentProfile = currentProfile;
+window.renderAll = renderAll;
+window.updateFab = updateFab;
+
 // ============================================================
 // INIT
 // ============================================================
 async function initDashboard() {
   const session = await getSession();
   currentProfile = session?.profile || null;
+  window.currentProfile = currentProfile;
 
   const userDisplayName = document.getElementById('userDisplayName');
   const userRoleBadge = document.getElementById('userRoleBadge');
@@ -35,7 +44,7 @@ async function initDashboard() {
     if (userRoleBadge) {
       userRoleBadge.textContent = currentProfile.role.toUpperCase();
       userRoleBadge.className = `type-badge type-${currentProfile.role === 'ppl' ? 'keluarga' :
-          currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
+        currentProfile.role === 'pml' ? 'usaha' : 'keduanya'}`;
       userRoleBadge.style.display = 'inline-block';
     }
     loginNavBtn?.classList.add('hidden');
@@ -49,6 +58,13 @@ async function initDashboard() {
     const rejectFilter = document.getElementById('filterReject');
     if (rejectFilter) {
       rejectFilter.classList.toggle('hidden', !isAdmin);
+    }
+
+    const isSuperAdmin = currentProfile.role.toLowerCase() === 'superadmin';
+    const syncBtn = document.getElementById('toggleSyncBtn');
+    if (syncBtn) {
+      syncBtn.classList.toggle('hidden', !isSuperAdmin);
+      syncBtn.style.display = isSuperAdmin ? 'inline-flex' : 'none';
     }
 
     const showPetugasFilter = !['ppl', 'pml'].includes(currentProfile.role.toLowerCase());
@@ -78,6 +94,16 @@ async function initDashboard() {
 
   // Run stats + dropdown options in parallel with the main table data
   await Promise.all([loadStats(), loadAnomalinomorOptions(), loadWilayahOptions(), loadKecamatanProgress(), loadData(), loadLastDataDate()]);
+
+  // Init Realtime Lock Synchronization
+  if (typeof initLockRealtime === 'function') {
+    initLockRealtime((updatedAssignmentId, newRow) => {
+      // Re-render table row and mobile card secara reaktif
+      if (typeof renderAll === 'function') {
+        renderAll();
+      }
+    });
+  }
 }
 
 
@@ -606,6 +632,8 @@ function applyLocalFiltersAndRender() {
   }
 
   allData = groupByAssignment(rows);
+  window.allData = allData;
+  window.activeScopeRows = activeScopeRows;
 
   // Apply filters on the grouped assignments (frontend-side) to preserve grouping integrity
   filteredData = allData.filter(group => {
@@ -677,7 +705,7 @@ async function loadData(forceRefresh = false) {
   lastLoadedScope = currentScope;
 
   try {
-    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected, is_api_synced';
+    const COLS = 'id, assignment_id, tipe, nama_entitas, kode_desa, kode_sls, kode_sub_sls, kode_sls_gabungan, nomor_anomali, status, first_seen, last_seen, is_ever_reopened, show_anomaly, is_rejected, is_api_synced, locked_by_id, locked_by_nama, locked_at';
 
     const buildScopeQuery = (tipeOverride = null) => {
       let q = db.from('assignment_anomali').select(COLS).order('first_seen', { ascending: false });
@@ -810,6 +838,9 @@ function groupByAssignment(rows) {
         show_anomaly: row.show_anomaly !== undefined ? row.show_anomaly : false,
         is_rejected: row.is_rejected !== undefined ? row.is_rejected : false,
         is_api_synced: row.is_api_synced !== undefined ? row.is_api_synced : false,
+        locked_by_id: row.locked_by_id || null,
+        locked_by_nama: row.locked_by_nama || null,
+        locked_at: row.locked_at || null,
         first_seen: row.first_seen,
         last_seen: row.last_seen,
         rows: []
@@ -817,6 +848,11 @@ function groupByAssignment(rows) {
     }
     const asgn = map[row.assignment_id];
     asgn.rows.push(row);
+    if (row.locked_by_id && !asgn.locked_by_id) {
+      asgn.locked_by_id = row.locked_by_id;
+      asgn.locked_by_nama = row.locked_by_nama;
+      asgn.locked_at = row.locked_at;
+    }
     if (row.is_ever_reopened) asgn.is_ever_reopened = true;
     if (row.tipe === 'keluarga') {
       asgn.nama_kk = row.nama_entitas;
@@ -941,6 +977,14 @@ function sortData() {
 // RENDER
 // ============================================================
 function renderAll() {
+  // Sync window references for lock-sync polling
+  window.allData = allData;
+  window.filteredData = filteredData;
+  window.selectedIds = selectedIds;
+  window.currentProfile = currentProfile;
+  window.currentPage = currentPage;
+  window.pageSize = pageSize;
+
   const start = (currentPage - 1) * pageSize;
   const pageData = filteredData.slice(start, start + pageSize);
   renderTable(pageData);
@@ -964,6 +1008,9 @@ function renderTable(pageData) {
     const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
+    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile?.id) : false;
+    const isLockedBySelf = group.locked_by_id && currentProfile && group.locked_by_id === currentProfile.id;
+
     const nameParts = [];
     if (group.nama_kk) nameParts.push(group.nama_kk);
     if (group.nama_usaha_list.length > 0) {
@@ -971,19 +1018,45 @@ function renderTable(pageData) {
     }
     const combinedName = nameParts.length > 0 ? nameParts.join(' / ') : '—';
 
-    return `<tr class="${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''}" data-id="${group.assignment_id}">
+    let lockBadgeHtml = '';
+    if (isLockedByOther) {
+      lockBadgeHtml = `
+        <span class="lock-badge" title="Sedang dikerjakan oleh ${escHtml(group.locked_by_nama || 'Pengguna lain')}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Dikerjakan: ${escHtml(group.locked_by_nama || 'Rekan')}
+        </span>`;
+    } else if (isLockedBySelf) {
+      lockBadgeHtml = `
+        <span class="lock-badge lock-badge-self" title="Sedang Anda kerjakan">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Anda
+        </span>`;
+    }
+
+    return `<tr class="${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''} ${isLockedByOther ? 'row-locked' : ''}" data-id="${group.assignment_id}">
       <td class="col-checkbox">
-        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${group.assignment_id}', this)" style="cursor:pointer;accent-color:var(--primary)">
+        <input type="checkbox" 
+          ${isSelected ? 'checked' : ''} 
+          ${isLockedByOther ? 'disabled' : ''} 
+          onchange="toggleSelect('${group.assignment_id}', this)" 
+          class="${isLockedByOther ? 'checkbox-disabled-locked' : ''}"
+          style="cursor:${isLockedByOther ? 'not-allowed' : 'pointer'};accent-color:var(--primary)"
+          title="${isLockedByOther ? `Sedang dikerjakan oleh ${escHtml(group.locked_by_nama || 'Pengguna lain')}` : ''}">
       </td>
       <td>
-        <div class="assignment-id-cell">${group.assignment_id.slice(0, 8)}...</div>
-        ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
-        <a href="https://fasih-sm.bps.go.id/app/assignment-detail/${group.assignment_id}" target="_blank" rel="noopener" class="fasih-link" onclick="event.stopPropagation()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
-          Fasih-SM
-        </a>` : ''}
-        ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
-        ${group.is_rejected ? (group.is_api_synced ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : '<span class="reject-badge" style="background:var(--warning); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Pending</span>') : ''}
+        <div class="assignment-id-cell">
+          ${group.assignment_id.slice(0, 8)}...
+        </div>
+        <div style="display:flex; align-items:center; flex-wrap:wrap; gap:0.25rem; margin-top:0.2rem">
+          ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
+          <a href="https://fasih-sm.bps.go.id/app/assignment-detail/${group.assignment_id}" target="_blank" rel="noopener" class="fasih-link" onclick="event.stopPropagation()">
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+            Fasih-SM
+          </a>` : ''}
+          ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
+          ${group.is_rejected ? (group.is_api_synced ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm)">Rejected</span>' : '<span class="reject-badge" style="background:var(--warning); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm)">Pending</span>') : ''}
+        </div>
+        ${lockBadgeHtml ? `<div style="margin-top:0.3rem">${lockBadgeHtml}</div>` : ''}
       </td>
       <td>${escHtml(combinedName)}</td>
       <td><span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span></td>
@@ -1010,17 +1083,41 @@ function renderMobileCards(pageData) {
     const ket = getKeterangan(group);
     const isReopened = group.is_ever_reopened && showReopenHighlight;
     const isSelected = selectedIds.has(group.assignment_id);
-    return `<div class="mobile-card ${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''}" data-id="${group.assignment_id}">
+    const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(group, currentProfile?.id) : false;
+    const isLockedBySelf = group.locked_by_id && currentProfile && group.locked_by_id === currentProfile.id;
+
+    let lockBadgeHtml = '';
+    if (isLockedByOther) {
+      lockBadgeHtml = `
+        <span class="lock-badge" style="margin-left:0.35rem" title="Sedang dikerjakan oleh ${escHtml(group.locked_by_nama || 'Pengguna lain')}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Dikerjakan: ${escHtml(group.locked_by_nama || 'Rekan')}
+        </span>`;
+    } else if (isLockedBySelf) {
+      lockBadgeHtml = `
+        <span class="lock-badge lock-badge-self" style="margin-left:0.35rem" title="Sedang Anda kerjakan">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Anda
+        </span>`;
+    }
+
+    return `<div class="mobile-card ${isReopened ? 'reopened' : ''} ${isSelected ? 'selected' : ''} ${isLockedByOther ? 'row-locked' : ''}" data-id="${group.assignment_id}">
       <div class="mobile-card-header">
         <div>
           <div class="mobile-card-id">
             ${group.assignment_id.slice(0, 8)}... 
+            ${lockBadgeHtml}
             ${isReopened ? '<span class="reopen-badge">Re-open</span>' : ''}
             ${group.is_rejected ? (group.is_api_synced ? '<span class="reject-badge" style="background:var(--error); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Rejected</span>' : '<span class="reject-badge" style="background:var(--warning); color:#fff; font-size:0.65rem; font-weight:600; padding:0.1rem 0.35rem; border-radius:var(--radius-sm); margin-left:0.25rem">Pending</span>') : ''}
           </div>
           <div class="mobile-card-name">${escHtml(group.nama_kk || group.nama_usaha_list[0] || '—')}</div>
         </div>
-        <input type="checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${group.assignment_id}', this)" style="cursor:pointer;accent-color:var(--primary);width:18px;height:18px">
+        <input type="checkbox" 
+          ${isSelected ? 'checked' : ''} 
+          ${isLockedByOther ? 'disabled' : ''} 
+          onchange="toggleSelect('${group.assignment_id}', this)" 
+          class="${isLockedByOther ? 'checkbox-disabled-locked' : ''}"
+          style="cursor:${isLockedByOther ? 'not-allowed' : 'pointer'};accent-color:var(--primary);width:18px;height:18px">
       </div>
       <div class="mobile-card-meta">
         <span class="type-badge type-${jenis}">${jenisLabel(jenis)}</span>
@@ -1030,11 +1127,14 @@ function renderMobileCards(pageData) {
       <div class="anomali-list-str" style="margin-bottom:0.75rem">${buildAnomaliString(group)}</div>
       <div class="mobile-card-footer">
         ${currentProfile && ['superadmin', 'admin'].includes(currentProfile.role) ? `
-        <a href="${buildFasihLink(group.assignment_id)}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">
-          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
+        <a href="https://fasih-sm.bps.go.id/app/assignment-detail/${group.assignment_id}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" onclick="event.stopPropagation()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" x2="21" y1="14" y2="3"/></svg>
           Fasih-SM
         </a>` : ''}
-        <button class="btn btn-primary btn-sm" onclick="openDetail('${group.assignment_id}')">Aksi</button>
+        <button class="btn btn-primary btn-sm" onclick="openDetail('${group.assignment_id}')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+          Aksi
+        </button>
       </div>
     </div>`;
   }).join('');
@@ -1044,347 +1144,451 @@ function renderMobileCards(pageData) {
 // PAGINATION
 // ============================================================
 function renderPagination() {
-  const total = filteredData.length;
-  const totalPages = Math.ceil(total / pageSize);
-  const pag = document.getElementById('pagination');
-  if (totalPages <= 1) { pag.innerHTML = ''; return; }
+    const total = filteredData.length;
+    const totalPages = Math.ceil(total / pageSize);
+    const pag = document.getElementById('pagination');
+    if (totalPages <= 1) { pag.innerHTML = ''; return; }
 
-  const firstBtn = `<button class="page-btn" onclick="goPage(1)" ${currentPage === 1 ? 'disabled' : ''} title="Halaman pertama"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>`;
-  const prevBtn = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>`;
-  const nextBtn = `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>`;
-  const lastBtn = `<button class="page-btn" onclick="goPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="Halaman terakhir"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></button>`;
+    const firstBtn = `<button class="page-btn" onclick="goPage(1)" ${currentPage === 1 ? 'disabled' : ''} title="Halaman pertama"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>`;
+    const prevBtn = `<button class="page-btn" onclick="goPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>`;
+    const nextBtn = `<button class="page-btn" onclick="goPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>`;
+    const lastBtn = `<button class="page-btn" onclick="goPage(${totalPages})" ${currentPage === totalPages ? 'disabled' : ''} title="Halaman terakhir"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></button>`;
 
-  const range = [];
-  for (let i = Math.max(1, currentPage - 3); i <= Math.min(totalPages, currentPage + 3); i++) range.push(i);
+    const range = [];
+    for (let i = Math.max(1, currentPage - 3); i <= Math.min(totalPages, currentPage + 3); i++) range.push(i);
 
-  let pageButtons = '';
-  if (range[0] > 1) {
-    pageButtons += `<button class="page-btn" onclick="goPage(1)">1</button>`;
-    if (range[0] > 2) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    let pageButtons = '';
+    if (range[0] > 1) {
+      pageButtons += `<button class="page-btn" onclick="goPage(1)">1</button>`;
+      if (range[0] > 2) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    }
+    range.forEach(p => { pageButtons += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`; });
+    if (range[range.length - 1] < totalPages) {
+      if (range[range.length - 1] < totalPages - 1) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+      pageButtons += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+    }
+
+    pag.innerHTML = firstBtn + prevBtn + pageButtons + nextBtn + lastBtn;
   }
-  range.forEach(p => { pageButtons += `<button class="page-btn ${p === currentPage ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`; });
-  if (range[range.length - 1] < totalPages) {
-    if (range[range.length - 1] < totalPages - 1) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
-    pageButtons += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+
+  function goPage(p) {
+    const totalPages = Math.ceil(filteredData.length / pageSize);
+    if (p < 1 || p > totalPages) return;
+    currentPage = p;
+    renderAll();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Langsung cek lock state untuk halaman baru
+    if (typeof window.pollLockState === 'function') window.pollLockState();
   }
 
-  pag.innerHTML = firstBtn + prevBtn + pageButtons + nextBtn + lastBtn;
-}
-
-function goPage(p) {
-  const totalPages = Math.ceil(filteredData.length / pageSize);
-  if (p < 1 || p > totalPages) return;
-  currentPage = p;
-  renderAll();
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-function changePageSize() {
-  pageSize = parseInt(document.getElementById('pageSizeSelect').value);
-  currentPage = 1;
-  renderAll();
-}
-
-function updateTableCount() {
-  const start = (currentPage - 1) * pageSize + 1;
-  const end = Math.min(currentPage * pageSize, filteredData.length);
-  const total = filteredData.length;
-  const dbTotal = document.getElementById('statTotal')?.textContent || '0';
-
-  const displayTotal = total.toLocaleString('id');
-
-  // Cek apakah ada filter aktif yang membatasi dataset
-  const hasActiveFilters = document.getElementById('filterStatus')?.value ||
-    document.getElementById('filterJenis')?.value ||
-    getSelectedNomorFilters().length > 0 ||
-    document.getElementById('filterKeterangan')?.value ||
-    selectedKec || selectedDes || selectedSLS || selectedSub ||
-    selectedPetugas ||
-    document.getElementById('filterReject')?.value ||
-    document.getElementById('filterSearch')?.value.trim();
-
-  let text = total === 0
-    ? 'Tidak ada data'
-    : `Menampilkan ${start}–${end} dari ${displayTotal}`;
-  const dbTotalNum = parseInt(dbTotal.replace(/\./g, '')) || 0;
-  if (hasActiveFilters && (total < allData.length || allData.length < dbTotalNum)) {
-    text += ` (difilter dari ${dbTotal})`;
+  function changePageSize() {
+    pageSize = parseInt(document.getElementById('pageSizeSelect').value);
+    currentPage = 1;
+    renderAll();
+    // Langsung cek lock state untuk halaman baru
+    if (typeof window.pollLockState === 'function') window.pollLockState();
   }
-  document.getElementById('tableCount').textContent = text;
-}
 
-// ============================================================
-// SELECTION
-// ============================================================
-function toggleSelect(id, cb) {
-  if (cb.checked) selectedIds.add(id); else selectedIds.delete(id);
-  if (!cb.checked) document.getElementById('selectAll').checked = false;
-  updateFab();
-  document.querySelectorAll(`tr[data-id="${id}"], .mobile-card[data-id="${id}"]`)
-    .forEach(el => el.classList.toggle('selected', cb.checked));
-}
+  function updateTableCount() {
+    const start = (currentPage - 1) * pageSize + 1;
+    const end = Math.min(currentPage * pageSize, filteredData.length);
+    const total = filteredData.length;
+    const dbTotal = document.getElementById('statTotal')?.textContent || '0';
 
-function toggleSelectAll(cb) {
-  const ids = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize).map(g => g.assignment_id);
-  ids.forEach(id => { if (cb.checked) selectedIds.add(id); else selectedIds.delete(id); });
-  updateFab();
-  renderAll();
-}
+    const displayTotal = total.toLocaleString('id');
 
-function clearSelection() {
-  selectedIds.clear();
-  document.getElementById('selectAll').checked = false;
-  updateFab(); renderAll();
-}
+    // Cek apakah ada filter aktif yang membatasi dataset
+    const hasActiveFilters = document.getElementById('filterStatus')?.value ||
+      document.getElementById('filterJenis')?.value ||
+      getSelectedNomorFilters().length > 0 ||
+      document.getElementById('filterKeterangan')?.value ||
+      selectedKec || selectedDes || selectedSLS || selectedSub ||
+      selectedPetugas ||
+      document.getElementById('filterReject')?.value ||
+      document.getElementById('filterSearch')?.value.trim();
 
-function updateFab() {
-  const count = selectedIds.size;
-  document.getElementById('fabCount').textContent = `${count} baris dipilih`;
-  document.getElementById('fabBar').classList.toggle('visible', count > 0);
-
-  const openBtn = document.getElementById('fabOpenBtn');
-  if (openBtn) {
-    const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
-    openBtn.style.display = (count > 0 && isAdmin) ? 'flex' : 'none';
+    let text = total === 0
+      ? 'Tidak ada data'
+      : `Menampilkan ${start}–${end} dari ${displayTotal}`;
+    const dbTotalNum = parseInt(dbTotal.replace(/\./g, '')) || 0;
+    if (hasActiveFilters && (total < allData.length || allData.length < dbTotalNum)) {
+      text += ` (difilter dari ${dbTotal})`;
+    }
+    document.getElementById('tableCount').textContent = text;
   }
-}
 
+  // ============================================================
+  // SELECTION & COLLABORATIVE LOCK INTEGRATION
+  // ============================================================
+  async function toggleSelect(id, cb) {
+    if (cb.checked) {
+      // Cek apakah user login
+      if (!currentProfile) {
+        cb.checked = false;
+        showToast('Silakan login terlebih dahulu untuk menandai/mengerjakan assignment.', 'warning');
+        openLoginModal();
+        return;
+      }
 
+      // Optimistic UI select & update local lock state
+      selectedIds.add(id);
+      const sessionName = typeof getSessionName === 'function' ? getSessionName(currentProfile) : (currentProfile.nama || 'Anda');
+      const nowIso = new Date().toISOString();
 
-function copySelectedIds() {
-  if (!selectedIds.size) return;
-  const text = Array.from(selectedIds).join('\n');
-  navigator.clipboard.writeText(text)
-    .then(() => showToast(`${selectedIds.size} Assignment ID disalin ke clipboard`, 'success'))
-    .catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select(); document.execCommand('copy');
-      document.body.removeChild(ta);
-      showToast(`${selectedIds.size} Assignment ID disalin`, 'success');
-    });
-}
-
-// ============================================================
-// UI HELPERS
-// ============================================================
-function toggleReopenHighlight() {
-  showReopenHighlight = !showReopenHighlight;
-  const btn = document.getElementById('reopenToggle');
-  btn.classList.toggle('btn-primary', showReopenHighlight);
-  btn.classList.toggle('btn-secondary', !showReopenHighlight);
-  renderAll();
-}
-
-function updateFilterChips() {
-  const bar = document.getElementById('filterActiveBar');
-  const status = document.getElementById('filterStatus').value;
-  const jenis = document.getElementById('filterJenis').value;
-  const excludedNomorList = getExcludedNomorFilters();
-  const ket = document.getElementById('filterKeterangan').value;
-  const search = document.getElementById('filterSearch').value.trim();
-  const reject = document.getElementById('filterReject')?.value;
-
-  // Helper untuk mengambil label teks yang terpilih
-  const getSelectText = id => {
-    const el = document.getElementById(id);
-    return el?.options[el.selectedIndex]?.text || '';
-  };
-
-  const chips = [
-    status && { label: `Status: ${STATUS_CONFIG[status]?.label}`, clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
-    jenis && { label: `Jenis: ${jenisLabel(jenis)}`, clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
-    ...excludedNomorList.map(val => {
-      const [tipe, nomor] = val.split(':');
-      return {
-        label: `Kecuali: ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`,
-        clear: () => {
-          // Re-check (include kembali) nomor yang sebelumnya di-exclude
-          const cbs = document.querySelectorAll('.nomor-filter-cb');
-          cbs.forEach(cb => {
-            if (cb.value === val) cb.checked = true;
-          });
-          updateNomorLabel();
-          applyFilters();
+      allData.forEach(g => {
+        if (g.assignment_id === id) {
+          g.locked_by_id = currentProfile.id;
+          g.locked_by_nama = sessionName;
+          g.locked_at = nowIso;
         }
-      };
-    }),
-    selectedPetugas && { label: `Petugas: ${selectedPetugas.nama}`, clear: () => { clearSelectedPetugas(); } },
-    selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
-    (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
-    (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
-    (!selectedDes && selectedKec) && { label: `Kec: ${getSelectText('filterKecamatan')}`, clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); applyWilayahFilter(); } },
-    ket && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
-    reject && { label: `Reject: ${reject === 'ya' ? 'Ya' : 'Tidak'}`, clear: () => { document.getElementById('filterReject').value = ''; applyFilters(); } },
-    search && { label: `Cari: "${search}"`, clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
-  ].filter(Boolean);
+      });
+      updateFab();
+      renderAll();
 
-  bar.innerHTML = chips.map(c =>
-    `<span class="filter-active-chip" onclick="(${c.clear.toString()})()">
+      // Panggil RPC acquire lock di database
+      if (typeof acquireAssignmentLocks === 'function') {
+        const res = await acquireAssignmentLocks([id], currentProfile);
+        if (!res.success && res.failed_ids && res.failed_ids.includes(id)) {
+          // Gagal diklaim karena sudah didahului user lain
+          selectedIds.delete(id);
+          cb.checked = false;
+          allData.forEach(g => {
+            if (g.assignment_id === id) {
+              g.locked_by_id = null;
+              g.locked_by_nama = null;
+              g.locked_at = null;
+            }
+          });
+          updateFab();
+          renderAll();
+          showToast('Assignment ini baru saja diambil/dikerjakan oleh rekan lain.', 'warning');
+          return;
+        }
+      }
+    } else {
+      // Uncheck -> Release lock
+      selectedIds.delete(id);
+      if (document.getElementById('selectAll')) document.getElementById('selectAll').checked = false;
+      
+      allData.forEach(g => {
+        if (g.assignment_id === id && g.locked_by_id === currentProfile?.id) {
+          g.locked_by_id = null;
+          g.locked_by_nama = null;
+          g.locked_at = null;
+        }
+      });
+      updateFab();
+      renderAll();
+
+      if (typeof releaseAssignmentLocks === 'function' && currentProfile) {
+        releaseAssignmentLocks([id], currentProfile);
+      }
+    }
+  }
+
+  async function toggleSelectAll(cb) {
+    const currentPageGroups = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+    if (cb.checked) {
+      if (!currentProfile) {
+        cb.checked = false;
+        showToast('Silakan login terlebih dahulu untuk menandai/mengerjakan assignment.', 'warning');
+        openLoginModal();
+        return;
+      }
+
+      // Filter hanya assignment yang TIDAK sedang dikunci oleh orang lain
+      const availableGroups = currentPageGroups.filter(g => {
+        return !(typeof isAssignmentLockedByOther === 'function' && isAssignmentLockedByOther(g, currentProfile?.id));
+      });
+
+      const idsToClaim = availableGroups.map(g => g.assignment_id);
+      idsToClaim.forEach(id => selectedIds.add(id));
+      updateFab();
+      renderAll();
+
+      if (idsToClaim.length > 0 && typeof acquireAssignmentLocks === 'function') {
+        const res = await acquireAssignmentLocks(idsToClaim, currentProfile);
+        if (res.failed_ids && res.failed_ids.length > 0) {
+          res.failed_ids.forEach(fid => selectedIds.delete(fid));
+          updateFab();
+          renderAll();
+          showToast(`${res.failed_ids.length} assignment dilewati karena sedang dikerjakan orang lain.`, 'warning');
+        }
+      }
+    } else {
+      const idsToRelease = Array.from(selectedIds);
+      selectedIds.clear();
+      updateFab();
+      renderAll();
+
+      if (idsToRelease.length > 0 && typeof releaseAssignmentLocks === 'function' && currentProfile) {
+        releaseAssignmentLocks(idsToRelease, currentProfile);
+      }
+    }
+  }
+
+  function clearSelection() {
+    const idsToRelease = Array.from(selectedIds);
+    selectedIds.clear();
+    const selectAllEl = document.getElementById('selectAll');
+    if (selectAllEl) selectAllEl.checked = false;
+    updateFab();
+    renderAll();
+
+    if (idsToRelease.length > 0 && typeof releaseAssignmentLocks === 'function' && currentProfile) {
+      releaseAssignmentLocks(idsToRelease, currentProfile);
+    }
+  }
+
+  function updateFab() {
+    const count = selectedIds.size;
+    document.getElementById('fabCount').textContent = `${count} baris dipilih`;
+    document.getElementById('fabBar').classList.toggle('visible', count > 0);
+
+    const openBtn = document.getElementById('fabOpenBtn');
+    if (openBtn) {
+      const isAdmin = currentProfile && ['superadmin', 'admin'].includes(currentProfile.role);
+      openBtn.style.display = (count > 0 && isAdmin) ? 'flex' : 'none';
+    }
+  }
+
+
+
+  function copySelectedIds() {
+    if (!selectedIds.size) return;
+    const text = Array.from(selectedIds).join('\n');
+    navigator.clipboard.writeText(text)
+      .then(() => showToast(`${selectedIds.size} Assignment ID disalin ke clipboard`, 'success'))
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(`${selectedIds.size} Assignment ID disalin`, 'success');
+      });
+  }
+
+  // ============================================================
+  // UI HELPERS
+  // ============================================================
+  function toggleReopenHighlight() {
+    showReopenHighlight = !showReopenHighlight;
+    const btn = document.getElementById('reopenToggle');
+    btn.classList.toggle('btn-primary', showReopenHighlight);
+    btn.classList.toggle('btn-secondary', !showReopenHighlight);
+    renderAll();
+  }
+
+  function updateFilterChips() {
+    const bar = document.getElementById('filterActiveBar');
+    const status = document.getElementById('filterStatus').value;
+    const jenis = document.getElementById('filterJenis').value;
+    const excludedNomorList = getExcludedNomorFilters();
+    const ket = document.getElementById('filterKeterangan').value;
+    const search = document.getElementById('filterSearch').value.trim();
+    const reject = document.getElementById('filterReject')?.value;
+
+    // Helper untuk mengambil label teks yang terpilih
+    const getSelectText = id => {
+      const el = document.getElementById(id);
+      return el?.options[el.selectedIndex]?.text || '';
+    };
+
+    const chips = [
+      status && { label: `Status: ${STATUS_CONFIG[status]?.label}`, clear: () => { document.getElementById('filterStatus').value = ''; applyFilters(); } },
+      jenis && { label: `Jenis: ${jenisLabel(jenis)}`, clear: () => { document.getElementById('filterJenis').value = ''; applyFilters(); } },
+      ...excludedNomorList.map(val => {
+        const [tipe, nomor] = val.split(':');
+        return {
+          label: `Kecuali: ${tipe === 'keluarga' ? 'KK' : 'Usaha'} ${nomor}`,
+          clear: () => {
+            // Re-check (include kembali) nomor yang sebelumnya di-exclude
+            const cbs = document.querySelectorAll('.nomor-filter-cb');
+            cbs.forEach(cb => {
+              if (cb.value === val) cb.checked = true;
+            });
+            updateNomorLabel();
+            applyFilters();
+          }
+        };
+      }),
+      selectedPetugas && { label: `Petugas: ${selectedPetugas.nama}`, clear: () => { clearSelectedPetugas(); } },
+      selectedSub && { label: `Sub-SLS: ${getSelectText('filterSubSLS')}`, clear: () => { document.getElementById('filterSubSLS').value = ''; applyWilayahFilter(); } },
+      (!selectedSub && selectedSLS) && { label: `SLS: ${getSelectText('filterSLS')}`, clear: () => { document.getElementById('filterSLS').value = ''; onSLSChange(); applyWilayahFilter(); } },
+      (!selectedSLS && selectedDes) && { label: `Desa: ${getSelectText('filterDesa')}`, clear: () => { document.getElementById('filterDesa').value = ''; onDesaChange(); applyWilayahFilter(); } },
+      (!selectedDes && selectedKec) && { label: `Kec: ${getSelectText('filterKecamatan')}`, clear: () => { document.getElementById('filterKecamatan').value = ''; onKecamatanChange(); applyWilayahFilter(); } },
+      ket && { label: `Ket: ${ket === 'selesai' ? 'Selesai' : 'Belum Selesai'}`, clear: () => { document.getElementById('filterKeterangan').value = ''; applyFilters(); } },
+      reject && { label: `Reject: ${reject === 'ya' ? 'Ya' : 'Tidak'}`, clear: () => { document.getElementById('filterReject').value = ''; applyFilters(); } },
+      search && { label: `Cari: "${search}"`, clear: () => { document.getElementById('filterSearch').value = ''; applyFilters(); } }
+    ].filter(Boolean);
+
+    bar.innerHTML = chips.map(c =>
+      `<span class="filter-active-chip" onclick="(${c.clear.toString()})()">
       ${escHtml(c.label)}
       <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
     </span>`
-  ).join('');
-}
+    ).join('');
+  }
 
-function showTableLoading() {
-  const spinner = `<div class="spinner" style="margin:0 auto"></div>`;
-  document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">${spinner}</td></tr>`;
-  document.getElementById('mobileCardList').innerHTML = `<div style="text-align:center;padding:3rem">${spinner}</div>`;
-}
+  function showTableLoading() {
+    const spinner = `<div class="spinner" style="margin:0 auto"></div>`;
+    document.getElementById('tableBody').innerHTML = `<tr><td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">${spinner}</td></tr>`;
+    document.getElementById('mobileCardList').innerHTML = `<div style="text-align:center;padding:3rem">${spinner}</div>`;
+  }
 
-// ============================================================
-// WILAYAH FILTER LOGIC (6-Level Cascade Popup)
-// ============================================================
-let selectedKec = '';
-let selectedDes = '';
-let selectedSLS = '';
-let selectedSub = '';
+  // ============================================================
+  // WILAYAH FILTER LOGIC (6-Level Cascade Popup)
+  // ============================================================
+  let selectedKec = '';
+  let selectedDes = '';
+  let selectedSLS = '';
+  let selectedSub = '';
 
-function openWilayahFilterModal() {
-  const modal = document.getElementById('wilayahFilterModal');
-  if (modal) modal.classList.add('open');
-}
+  function openWilayahFilterModal() {
+    const modal = document.getElementById('wilayahFilterModal');
+    if (modal) modal.classList.add('open');
+  }
 
-function closeWilayahFilterModal() {
-  const modal = document.getElementById('wilayahFilterModal');
-  if (modal) modal.classList.remove('open');
-}
+  function closeWilayahFilterModal() {
+    const modal = document.getElementById('wilayahFilterModal');
+    if (modal) modal.classList.remove('open');
+  }
 
-function applyWilayahFilter() {
-  selectedKec = document.getElementById('filterKecamatan')?.value || '';
-  selectedDes = document.getElementById('filterDesa')?.value || '';
-  selectedSLS = document.getElementById('filterSLS')?.value || '';
-  selectedSub = document.getElementById('filterSubSLS')?.value || '';
+  function applyWilayahFilter() {
+    selectedKec = document.getElementById('filterKecamatan')?.value || '';
+    selectedDes = document.getElementById('filterDesa')?.value || '';
+    selectedSLS = document.getElementById('filterSLS')?.value || '';
+    selectedSub = document.getElementById('filterSubSLS')?.value || '';
 
-  closeWilayahFilterModal();
-  applyFilters();
-}
+    closeWilayahFilterModal();
+    applyFilters();
+  }
 
-async function loadWilayahOptions() {
-  const kecSelect = document.getElementById('filterKecamatan');
-  if (!kecSelect) return;
+  async function loadWilayahOptions() {
+    const kecSelect = document.getElementById('filterKecamatan');
+    if (!kecSelect) return;
 
-  try {
-    const { data, error } = await db
-      .from('wilayah_kec')
-      .select('kode_kec, nmkec')
-      .order('nmkec');
+    try {
+      const { data, error } = await db
+        .from('wilayah_kec')
+        .select('kode_kec, nmkec')
+        .order('nmkec');
 
-    if (error) throw error;
+      if (error) throw error;
 
-    kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
-    (data || []).forEach(kec => {
-      const opt = document.createElement('option');
-      opt.value = kec.kode_kec;
-      opt.textContent = kec.nmkec;
-      kecSelect.appendChild(opt);
-    });
+      kecSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
+      (data || []).forEach(kec => {
+        const opt = document.createElement('option');
+        opt.value = kec.kode_kec;
+        opt.textContent = kec.nmkec;
+        kecSelect.appendChild(opt);
+      });
 
-    document.getElementById('filterDesa').innerHTML = '<option value="">Semua Desa</option>';
+      document.getElementById('filterDesa').innerHTML = '<option value="">Semua Desa</option>';
+      document.getElementById('filterSLS').innerHTML = '<option value="">Semua SLS</option>';
+      document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
+    } catch (err) {
+      console.error('Error loading kecamatan:', err);
+    }
+  }
+
+  async function onKecamatanChange() {
+    const selectedKecVal = document.getElementById('filterKecamatan')?.value;
+    const desSelect = document.getElementById('filterDesa');
+    if (!desSelect) return;
+
+    desSelect.innerHTML = '<option value="">Semua Desa</option>';
     document.getElementById('filterSLS').innerHTML = '<option value="">Semua SLS</option>';
     document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
-  } catch (err) {
-    console.error('Error loading kecamatan:', err);
-  }
-}
 
-async function onKecamatanChange() {
-  const selectedKecVal = document.getElementById('filterKecamatan')?.value;
-  const desSelect = document.getElementById('filterDesa');
-  if (!desSelect) return;
+    if (selectedKecVal) {
+      try {
+        const { data, error } = await db
+          .from('wilayah_desa')
+          .select('kode_desa, nmdesa')
+          .eq('kode_kec', selectedKecVal)
+          .order('nmdesa');
 
-  desSelect.innerHTML = '<option value="">Semua Desa</option>';
-  document.getElementById('filterSLS').innerHTML = '<option value="">Semua SLS</option>';
-  document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
+        if (error) throw error;
 
-  if (selectedKecVal) {
-    try {
-      const { data, error } = await db
-        .from('wilayah_desa')
-        .select('kode_desa, nmdesa')
-        .eq('kode_kec', selectedKecVal)
-        .order('nmdesa');
-
-      if (error) throw error;
-
-      (data || []).forEach(des => {
-        const opt = document.createElement('option');
-        opt.value = des.kode_desa;
-        opt.textContent = des.nmdesa;
-        desSelect.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('Error loading desa:', err);
+        (data || []).forEach(des => {
+          const opt = document.createElement('option');
+          opt.value = des.kode_desa;
+          opt.textContent = des.nmdesa;
+          desSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error loading desa:', err);
+      }
     }
   }
-}
 
-async function onDesaChange() {
-  const selectedDesVal = document.getElementById('filterDesa')?.value;
-  const slsSelect = document.getElementById('filterSLS');
-  if (!slsSelect) return;
+  async function onDesaChange() {
+    const selectedDesVal = document.getElementById('filterDesa')?.value;
+    const slsSelect = document.getElementById('filterSLS');
+    if (!slsSelect) return;
 
-  slsSelect.innerHTML = '<option value="">Semua SLS</option>';
-  document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
+    slsSelect.innerHTML = '<option value="">Semua SLS</option>';
+    document.getElementById('filterSubSLS').innerHTML = '<option value="">Semua Sub-SLS</option>';
 
-  if (selectedDesVal) {
-    try {
-      const { data, error } = await db
-        .from('wilayah_sls')
-        .select('kode_sls, nmsls')
-        .eq('kode_desa', selectedDesVal)
-        .order('nmsls');
+    if (selectedDesVal) {
+      try {
+        const { data, error } = await db
+          .from('wilayah_sls')
+          .select('kode_sls, nmsls')
+          .eq('kode_desa', selectedDesVal)
+          .order('nmsls');
 
-      if (error) throw error;
+        if (error) throw error;
 
-      (data || []).forEach(sls => {
-        const opt = document.createElement('option');
-        opt.value = sls.kode_sls;
-        opt.textContent = sls.nmsls;
-        slsSelect.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('Error loading SLS:', err);
+        (data || []).forEach(sls => {
+          const opt = document.createElement('option');
+          opt.value = sls.kode_sls;
+          opt.textContent = sls.nmsls;
+          slsSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error loading SLS:', err);
+      }
     }
   }
-}
 
-async function onSLSChange() {
-  const selectedSLSVal = document.getElementById('filterSLS')?.value;
-  const subSelect = document.getElementById('filterSubSLS');
-  if (!subSelect) return;
+  async function onSLSChange() {
+    const selectedSLSVal = document.getElementById('filterSLS')?.value;
+    const subSelect = document.getElementById('filterSubSLS');
+    if (!subSelect) return;
 
-  subSelect.innerHTML = '<option value="">Semua Sub-SLS</option>';
+    subSelect.innerHTML = '<option value="">Semua Sub-SLS</option>';
 
-  if (selectedSLSVal) {
-    try {
-      const { data, error } = await db
-        .from('wilayah_subsls')
-        .select('kode_sls_gabungan, nmsubsls, kdsubsls')
-        .eq('kode_sls', selectedSLSVal)
-        .order('nmsubsls');
+    if (selectedSLSVal) {
+      try {
+        const { data, error } = await db
+          .from('wilayah_subsls')
+          .select('kode_sls_gabungan, nmsubsls, kdsubsls')
+          .eq('kode_sls', selectedSLSVal)
+          .order('nmsubsls');
 
-      if (error) throw error;
+        if (error) throw error;
 
-      (data || []).forEach(sub => {
-        const opt = document.createElement('option');
-        opt.value = sub.kode_sls_gabungan;
-        opt.textContent = `${sub.nmsubsls} (${sub.kdsubsls})`;
-        subSelect.appendChild(opt);
-      });
-    } catch (err) {
-      console.error('Error loading subsls:', err);
+        (data || []).forEach(sub => {
+          const opt = document.createElement('option');
+          opt.value = sub.kode_sls_gabungan;
+          opt.textContent = `${sub.nmsubsls} (${sub.kdsubsls})`;
+          subSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Error loading subsls:', err);
+      }
     }
   }
-}
 
-async function loadKecamatanProgress() {
-  const container = document.getElementById('kecProgressGrid');
-  if (!container) return;
+  async function loadKecamatanProgress() {
+    const container = document.getElementById('kecProgressGrid');
+    if (!container) return;
 
-  container.innerHTML = Array(6).fill(0).map(() => `
+    container.innerHTML = Array(6).fill(0).map(() => `
     <div class="kec-progress-card" style="opacity:0.6">
       <div class="skeleton skeleton-text" style="width:70%;margin-bottom:0.4rem;height:12px"></div>
       <div class="skeleton skeleton-text" style="width:40%;height:10px;margin-bottom:0.4rem"></div>
@@ -1392,82 +1596,82 @@ async function loadKecamatanProgress() {
     </div>
   `).join('');
 
-  try {
-    const { data, error } = await db.rpc('get_kecamatan_progress');
-    if (error) throw error;
-    kecProgressData = data || [];
-    renderKecamatanProgress();
-  } catch (err) {
-    console.error('Error loading kecamatan progress:', err);
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--error);font-size:0.8rem">Gagal memuat progres: ${err.message}</div>`;
+    try {
+      const { data, error } = await db.rpc('get_kecamatan_progress');
+      if (error) throw error;
+      kecProgressData = data || [];
+      renderKecamatanProgress();
+    } catch (err) {
+      console.error('Error loading kecamatan progress:', err);
+      container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--error);font-size:0.8rem">Gagal memuat progres: ${err.message}</div>`;
+    }
   }
-}
 
-let currentKecPage = 0;
-const kecPageSize = 5;
+  let currentKecPage = 0;
+  const kecPageSize = 5;
 
-function prevKecPage() {
-  if (currentKecPage > 0) {
-    currentKecPage--;
-    renderKecamatanProgress();
+  function prevKecPage() {
+    if (currentKecPage > 0) {
+      currentKecPage--;
+      renderKecamatanProgress();
+    }
   }
-}
 
-function nextKecPage() {
-  const maxPage = Math.ceil(kecProgressData.length / kecPageSize) - 1;
-  if (currentKecPage < maxPage) {
-    currentKecPage++;
-    renderKecamatanProgress();
+  function nextKecPage() {
+    const maxPage = Math.ceil(kecProgressData.length / kecPageSize) - 1;
+    if (currentKecPage < maxPage) {
+      currentKecPage++;
+      renderKecamatanProgress();
+    }
   }
-}
 
-function renderKecamatanProgress() {
-  const container = document.getElementById('kecProgressGrid');
-  if (!container) return;
+  function renderKecamatanProgress() {
+    const container = document.getElementById('kecProgressGrid');
+    if (!container) return;
 
-  if (!kecProgressData || kecProgressData.length === 0) {
-    container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--text-subtle);font-size:0.8rem">Tidak ada data progres wilayah</div>`;
+    if (!kecProgressData || kecProgressData.length === 0) {
+      container.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:1.5rem;color:var(--text-subtle);font-size:0.8rem">Tidak ada data progres wilayah</div>`;
+      const nav = document.getElementById('kecNavControls');
+      if (nav) nav.classList.add('hidden');
+      return;
+    }
+
+    const isMobile = window.innerWidth <= 768;
+    const isCollapsed = container.classList.contains('collapsed');
     const nav = document.getElementById('kecNavControls');
-    if (nav) nav.classList.add('hidden');
-    return;
-  }
 
-  const isMobile = window.innerWidth <= 768;
-  const isCollapsed = container.classList.contains('collapsed');
-  const nav = document.getElementById('kecNavControls');
+    let pageData = kecProgressData;
+    if (isMobile) {
+      if (nav && !isCollapsed) nav.classList.remove('hidden');
+      const totalPages = Math.ceil(kecProgressData.length / kecPageSize);
+      const maxPage = totalPages - 1;
+      if (currentKecPage > maxPage) currentKecPage = maxPage;
+      if (currentKecPage < 0) currentKecPage = 0;
 
-  let pageData = kecProgressData;
-  if (isMobile) {
-    if (nav && !isCollapsed) nav.classList.remove('hidden');
-    const totalPages = Math.ceil(kecProgressData.length / kecPageSize);
-    const maxPage = totalPages - 1;
-    if (currentKecPage > maxPage) currentKecPage = maxPage;
-    if (currentKecPage < 0) currentKecPage = 0;
+      const start = currentKecPage * kecPageSize;
+      pageData = kecProgressData.slice(start, start + kecPageSize);
 
-    const start = currentKecPage * kecPageSize;
-    pageData = kecProgressData.slice(start, start + kecPageSize);
+      // Update indicator and buttons
+      const ind = document.getElementById('kecPageIndicator');
+      if (ind) ind.textContent = `${currentKecPage + 1}/${totalPages}`;
 
-    // Update indicator and buttons
-    const ind = document.getElementById('kecPageIndicator');
-    if (ind) ind.textContent = `${currentKecPage + 1}/${totalPages}`;
+      const btnPrev = document.getElementById('btnKecPrev');
+      const btnNext = document.getElementById('btnKecNext');
+      if (btnPrev) btnPrev.disabled = currentKecPage === 0;
+      if (btnNext) btnNext.disabled = currentKecPage === maxPage;
+    } else {
+      if (nav) nav.classList.add('hidden');
+    }
 
-    const btnPrev = document.getElementById('btnKecPrev');
-    const btnNext = document.getElementById('btnKecNext');
-    if (btnPrev) btnPrev.disabled = currentKecPage === 0;
-    if (btnNext) btnNext.disabled = currentKecPage === maxPage;
-  } else {
-    if (nav) nav.classList.add('hidden');
-  }
+    container.innerHTML = pageData.map(k => {
+      const pct = parseFloat(k.persen_progress || 0);
+      let colorClass = 'progress-red';
+      if (pct >= 80) colorClass = 'progress-green';
+      else if (pct >= 50) colorClass = 'progress-orange';
 
-  container.innerHTML = pageData.map(k => {
-    const pct = parseFloat(k.persen_progress || 0);
-    let colorClass = 'progress-red';
-    if (pct >= 80) colorClass = 'progress-green';
-    else if (pct >= 50) colorClass = 'progress-orange';
+      const isActive = selectedKec === k.kode_kec;
 
-    const isActive = selectedKec === k.kode_kec;
-
-    return `
+      return `
       <div class="kec-progress-card ${isActive ? 'active-filter' : ''}" onclick="toggleKecFilter('${k.kode_kec}')">
         <div class="kec-progress-name" title="${escHtml(k.nmkec)}">${escHtml(k.nmkec)}</div>
         <div class="kec-progress-meta">
@@ -1479,114 +1683,114 @@ function renderKecamatanProgress() {
         </div>
       </div>
     `;
-  }).join('');
-}
-
-async function toggleKecFilter(kodeKec) {
-  const kecSelect = document.getElementById('filterKecamatan');
-  if (!kecSelect) return;
-
-  if (selectedKec === kodeKec) {
-    kecSelect.value = '';
-    selectedKec = '';
-    selectedDes = '';
-    selectedSLS = '';
-    selectedSub = '';
-  } else {
-    kecSelect.value = kodeKec;
-    selectedKec = kodeKec;
-    selectedDes = '';
-    selectedSLS = '';
-    selectedSub = '';
+    }).join('');
   }
 
-  await onKecamatanChange();
-  applyFilters();
-}
+  async function toggleKecFilter(kodeKec) {
+    const kecSelect = document.getElementById('filterKecamatan');
+    if (!kecSelect) return;
 
-let kecProgressExpanded = false;
-
-function toggleKecProgress() {
-  kecProgressExpanded = !kecProgressExpanded;
-  const grid = document.getElementById('kecProgressGrid');
-  const btn = document.getElementById('btnToggleKecProgress');
-  const icon = document.getElementById('toggleKecIcon');
-  const nav = document.getElementById('kecNavControls');
-  if (!grid || !btn) return;
-
-  const isMobile = window.innerWidth <= 768;
-
-  if (kecProgressExpanded) {
-    grid.classList.remove('collapsed');
-    btn.querySelector('span').textContent = 'Sembunyikan';
-    if (icon) icon.style.transform = 'rotate(180deg)';
-    if (isMobile && nav) nav.classList.remove('hidden');
-  } else {
-    grid.classList.add('collapsed');
-    btn.querySelector('span').textContent = 'Tampilkan';
-    if (icon) icon.style.transform = 'rotate(0deg)';
-    if (nav) nav.classList.add('hidden');
-  }
-}
-
-// ============================================================
-// BOOTSTRAP
-// ============================================================
-initTheme();
-document.addEventListener('DOMContentLoaded', () => {
-  (async () => {
-    const s = await getSession();
-    if (s?.profile?.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
-      document.getElementById('adminNameModal')?.classList.add('open');
-      setTimeout(() => { document.getElementById('adminNameInput')?.focus(); }, 50);
+    if (selectedKec === kodeKec) {
+      kecSelect.value = '';
+      selectedKec = '';
+      selectedDes = '';
+      selectedSLS = '';
+      selectedSub = '';
     } else {
-      initDashboard();
+      kecSelect.value = kodeKec;
+      selectedKec = kodeKec;
+      selectedDes = '';
+      selectedSLS = '';
+      selectedSub = '';
     }
-  })();
-});
 
-// Dropdown toggle logic
-function toggleProfileDropdown(event) {
-  event.stopPropagation();
-  document.getElementById('profileDropdown')?.classList.toggle('open');
-}
-
-document.addEventListener('click', () => {
-  document.getElementById('profileDropdown')?.classList.remove('open');
-});
-
-// Escape key listener for modals
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    // 1. Detail Modal
-    const detailModal = document.getElementById('detailModal');
-    if (detailModal && detailModal.classList.contains('open')) {
-      if (typeof closeDetailModal === 'function') {
-        closeDetailModal();
-      } else {
-        detailModal.classList.remove('open');
-        document.body.style.overflow = '';
-      }
-    }
-    // 2. Wilayah Filter Modal
-    const wilModal = document.getElementById('wilayahFilterModal');
-    if (wilModal && wilModal.classList.contains('open')) {
-      if (typeof closeWilayahFilterModal === 'function') {
-        closeWilayahFilterModal();
-      } else {
-        wilModal.classList.remove('open');
-      }
-    }
-    // 3. Login Modal
-    const logModal = document.getElementById('loginModal');
-    if (logModal && logModal.classList.contains('open')) {
-      if (typeof closeLoginModal === 'function') {
-        closeLoginModal();
-      } else {
-        logModal.classList.remove('open');
-      }
-    }
-    // 4. Admin Name Modal
-    document.getElementById('adminNameModal')?.classList.remove('open');
+    await onKecamatanChange();
+    applyFilters();
   }
-});
+
+  let kecProgressExpanded = false;
+
+  function toggleKecProgress() {
+    kecProgressExpanded = !kecProgressExpanded;
+    const grid = document.getElementById('kecProgressGrid');
+    const btn = document.getElementById('btnToggleKecProgress');
+    const icon = document.getElementById('toggleKecIcon');
+    const nav = document.getElementById('kecNavControls');
+    if (!grid || !btn) return;
+
+    const isMobile = window.innerWidth <= 768;
+
+    if (kecProgressExpanded) {
+      grid.classList.remove('collapsed');
+      btn.querySelector('span').textContent = 'Sembunyikan';
+      if (icon) icon.style.transform = 'rotate(180deg)';
+      if (isMobile && nav) nav.classList.remove('hidden');
+    } else {
+      grid.classList.add('collapsed');
+      btn.querySelector('span').textContent = 'Tampilkan';
+      if (icon) icon.style.transform = 'rotate(0deg)';
+      if (nav) nav.classList.add('hidden');
+    }
+  }
+
+  // ============================================================
+  // BOOTSTRAP
+  // ============================================================
+  initTheme();
+  document.addEventListener('DOMContentLoaded', () => {
+    (async () => {
+      const s = await getSession();
+      if (s?.profile?.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
+        document.getElementById('adminNameModal')?.classList.add('open');
+        setTimeout(() => { document.getElementById('adminNameInput')?.focus(); }, 50);
+      } else {
+        initDashboard();
+      }
+    })();
+  });
+
+  // Dropdown toggle logic
+  function toggleProfileDropdown(event) {
+    event.stopPropagation();
+    document.getElementById('profileDropdown')?.classList.toggle('open');
+  }
+
+  document.addEventListener('click', () => {
+    document.getElementById('profileDropdown')?.classList.remove('open');
+  });
+
+  // Escape key listener for modals
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      // 1. Detail Modal
+      const detailModal = document.getElementById('detailModal');
+      if (detailModal && detailModal.classList.contains('open')) {
+        if (typeof closeDetailModal === 'function') {
+          closeDetailModal();
+        } else {
+          detailModal.classList.remove('open');
+          document.body.style.overflow = '';
+        }
+      }
+      // 2. Wilayah Filter Modal
+      const wilModal = document.getElementById('wilayahFilterModal');
+      if (wilModal && wilModal.classList.contains('open')) {
+        if (typeof closeWilayahFilterModal === 'function') {
+          closeWilayahFilterModal();
+        } else {
+          wilModal.classList.remove('open');
+        }
+      }
+      // 3. Login Modal
+      const logModal = document.getElementById('loginModal');
+      if (logModal && logModal.classList.contains('open')) {
+        if (typeof closeLoginModal === 'function') {
+          closeLoginModal();
+        } else {
+          logModal.classList.remove('open');
+        }
+      }
+      // 4. Admin Name Modal
+      document.getElementById('adminNameModal')?.classList.remove('open');
+    }
+  });

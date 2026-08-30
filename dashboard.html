@@ -398,6 +398,14 @@
           <div class="table-count" id="tableCount">Memuat...</div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem">
+          <!-- Toggle Live Sync Auto-Refresh Button (Superadmin only) -->
+          <button id="toggleSyncBtn" class="btn btn-secondary btn-sm hidden" onclick="toggleLockSync()"
+            title="Klik untuk menghidupkan/mematikan sinkronisasi status live otomatis"
+            style="padding:0.35rem 0.65rem;font-size:0.78rem;display:none;align-items:center;gap:0.35rem;cursor:pointer;border-radius:var(--radius-sm)">
+            <span id="syncStatusDot" style="width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block"></span>
+            <span id="syncBtnText">Live Sync: ON</span>
+          </button>
+
           <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()"
             style="padding:0.35rem 0.6rem;font-size:0.8rem">
             <option value="10" selected>10 / halaman</option>
@@ -714,8 +722,9 @@
   <script src="js/config.js?v=1.0.2"></script>
   <script src="js/utils.js?v=1.0.2"></script>
   <script src="js/auth.js?v=1.0.2"></script>
-  <script src="js/dashboard.js?v=1.0.3"></script>
-  <script src="js/modal.js?v=1.0.3"></script>
+  <script src="js/lock-sync.js?v=1.0.5"></script>
+  <script src="js/dashboard.js?v=1.0.9"></script>
+  <script src="js/modal.js?v=1.0.9"></script>
   <script>
     function handleNameSubmitDash() {
       const input = document.getElementById('adminNameInput');

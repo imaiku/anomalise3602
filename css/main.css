@@ -1103,3 +1103,53 @@ tbody td {
   background: var(--bg-card-2);
   border-top: 1px solid var(--border);
 }
+
+/* ============================================================
+   COLLABORATION / ANTI-COLLISION LOCK STYLES
+   ============================================================ */
+.lock-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--error);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  font-size: 0.65rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.dark .lock-badge {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+}
+
+.lock-badge-self {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+  border-color: rgba(16, 185, 129, 0.25);
+}
+
+.dark .lock-badge-self {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+}
+
+tr.row-locked {
+  background-color: rgba(239, 68, 68, 0.02) !important;
+}
+
+tr.row-locked td {
+  opacity: 0.88;
+}
+
+.checkbox-disabled-locked {
+  cursor: not-allowed !important;
+  opacity: 0.4 !important;
+}
+

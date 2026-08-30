@@ -14,16 +14,23 @@ async function openDetail(assignmentId) {
   currentGroup = allData.find(g => g.assignment_id === assignmentId);
   if (!currentGroup) return;
 
+  // Cek apakah sedang dikunci oleh user lain
+  const isLockedByOther = typeof isAssignmentLockedByOther === 'function' ? isAssignmentLockedByOther(currentGroup, currentProfile?.id) : false;
+
   if (!currentProfile) {
-    canEdit = true; // Let guests interact in the modal
+    canEdit = !isLockedByOther; // Let guests interact if not locked by someone else
   } else {
-    canEdit = await canEditSLS(currentGroup.kode_sls_gabungan, currentProfile);
+    canEdit = (await canEditSLS(currentGroup.kode_sls_gabungan, currentProfile)) && !isLockedByOther;
+    // Auto-acquire lock jika belum dikunci
+    if (canEdit && typeof acquireAssignmentLocks === 'function') {
+      acquireAssignmentLocks([assignmentId], currentProfile);
+    }
   }
 
   document.getElementById('sheetTitle').textContent =
     currentGroup.nama_kk || currentGroup.nama_usaha_list[0] || assignmentId.slice(0, 8) + '...';
   document.getElementById('sheetSubtitle').textContent =
-    `Assignment ID: ${assignmentId} \u00b7 SLS: ${currentGroup.kode_sls_gabungan}`;
+    `Assignment ID: ${assignmentId} \u00b7 SLS: ${currentGroup.kode_sls_gabungan}${isLockedByOther ? ` \u00b7 (Sedang dikerjakan oleh: ${escHtml(currentGroup.locked_by_nama || 'Rekan')})` : ''}`;
   document.getElementById('fasihLink').href = buildFasihLink(assignmentId);
   document.getElementById('saveBtn').disabled = !canEdit;
 
@@ -421,6 +428,14 @@ function closeDetailModal(triggerHistoryBack = true) {
   if (modal && modal.classList.contains('open')) {
     modal.classList.remove('open');
     document.body.style.overflow = '';
+    
+    // Release lock jika tidak sedang dicentang di tabel utama
+    if (currentAssignmentId && currentProfile && (!selectedIds || !selectedIds.has(currentAssignmentId))) {
+      if (typeof releaseAssignmentLocks === 'function') {
+        releaseAssignmentLocks([currentAssignmentId], currentProfile);
+      }
+    }
+
     currentAssignmentId = null; currentGroup = null; pendingChanges = {};
     if (triggerHistoryBack && window.history.state?.modalOpen === 'detail') {
       window.history.back();

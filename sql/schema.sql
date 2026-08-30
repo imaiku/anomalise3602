@@ -161,6 +161,12 @@ CREATE TABLE public.assignment_anomali (
   first_seen        DATE NOT NULL,
   last_seen         DATE NOT NULL,
   is_ever_reopened  BOOLEAN DEFAULT false,
+  show_anomaly      BOOLEAN DEFAULT true,
+  is_rejected       BOOLEAN DEFAULT false,
+  is_api_synced     BOOLEAN DEFAULT false,
+  locked_by_id      UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  locked_by_nama    VARCHAR(255),
+  locked_at         TIMESTAMPTZ,
   updated_at        TIMESTAMPTZ DEFAULT NOW(),
   updated_by_nama   VARCHAR(255),
   updated_by_id     UUID REFERENCES public.profiles(id),
@@ -2138,4 +2144,122 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.merge_reject_utp_batch(JSONB) TO authenticated;
+
+-- ============================================================
+-- COLLABORATION & LOCKING RPC FUNCTIONS (ANTI-COLLISION)
+-- ============================================================
+
+-- RPC: Klaim kunci assignment untuk mencegah collision
+-- Kunci dapat diambil jika:
+-- 1. Belum dikunci (locked_by_id IS NULL)
+-- 2. Sedang dikunci oleh user yang sama
+-- 3. Kunci sebelumnya sudah kadaluarsa (> 15 menit)
+CREATE OR REPLACE FUNCTION public.claim_assignment_locks(
+  p_assignment_ids TEXT[],
+  p_user_id UUID,
+  p_user_nama TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_claimed_count INT := 0;
+  v_failed_ids TEXT[] := '{}';
+  v_aid TEXT;
+  v_existing RECORD;
+BEGIN
+  IF p_assignment_ids IS NULL OR array_length(p_assignment_ids, 1) = 0 THEN
+    RETURN jsonb_build_object('success', true, 'claimed_count', 0, 'failed_ids', '[]'::jsonb);
+  END IF;
+
+  FOREACH v_aid IN ARRAY p_assignment_ids LOOP
+    -- Cek status lock saat ini
+    SELECT locked_by_id, locked_by_nama, locked_at 
+    INTO v_existing
+    FROM public.assignment_anomali
+    WHERE assignment_id = v_aid
+    LIMIT 1;
+
+    IF v_existing.locked_by_id IS NULL 
+       OR v_existing.locked_by_id = p_user_id 
+       OR v_existing.locked_at < (NOW() - INTERVAL '15 minutes') THEN
+      
+      UPDATE public.assignment_anomali
+      SET locked_by_id = p_user_id,
+          locked_by_nama = p_user_nama,
+          locked_at = NOW()
+      WHERE assignment_id = v_aid;
+
+      v_claimed_count := v_claimed_count + 1;
+    ELSE
+      v_failed_ids := array_append(v_failed_ids, v_aid);
+    END IF;
+  END LOOP;
+
+  RETURN jsonb_build_object(
+    'success', array_length(v_failed_ids, 1) IS NULL,
+    'claimed_count', v_claimed_count,
+    'failed_ids', to_jsonb(v_failed_ids)
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.claim_assignment_locks(TEXT[], UUID, TEXT) TO authenticated, anon;
+
+-- RPC: Melepaskan kunci assignment milik user tertentu
+CREATE OR REPLACE FUNCTION public.release_assignment_locks(
+  p_assignment_ids TEXT[],
+  p_user_id UUID
+)
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_released_count INT := 0;
+BEGIN
+  IF p_assignment_ids IS NULL OR array_length(p_assignment_ids, 1) = 0 THEN
+    RETURN 0;
+  END IF;
+
+  UPDATE public.assignment_anomali
+  SET locked_by_id = NULL,
+      locked_by_nama = NULL,
+      locked_at = NULL
+  WHERE assignment_id = ANY(p_assignment_ids)
+    AND (locked_by_id = p_user_id OR locked_at < (NOW() - INTERVAL '15 minutes'));
+
+  GET DIAGNOSTICS v_released_count = ROW_COUNT;
+  RETURN v_released_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.release_assignment_locks(TEXT[], UUID) TO authenticated, anon;
+
+-- RPC: Melepaskan SEMUA kunci yang sudah expired (> 15 menit)
+CREATE OR REPLACE FUNCTION public.cleanup_expired_assignment_locks()
+RETURNS INT
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_count INT := 0;
+BEGIN
+  UPDATE public.assignment_anomali
+  SET locked_by_id = NULL,
+      locked_by_nama = NULL,
+      locked_at = NULL
+  WHERE locked_at < (NOW() - INTERVAL '15 minutes');
+
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.cleanup_expired_assignment_locks() TO authenticated, anon;
+
 
