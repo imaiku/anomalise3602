@@ -1221,8 +1221,28 @@ function setupDropzone() {
 function extractUuidFromLink(linkStr) {
   if (!linkStr) return null;
   const str = String(linkStr).trim();
-  const match = str.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
-  return match ? match[0] : null;
+
+  // Pola spesifik URL Fasih-SM:
+  // https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/{assignment_id}
+  // (bisa diakhiri dengan /edit atau langsung {assignment_id})
+  const pathMatch = str.match(/\/assignment\/[0-9a-fA-F-]+\/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+  if (pathMatch) {
+    return pathMatch[1];
+  }
+
+  // Pola query param: assignmentId=UUID
+  const paramMatch = str.match(/assignmentId=([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})/);
+  if (paramMatch) {
+    return paramMatch[1];
+  }
+
+  // Fallback: Jika ada lebih dari 1 UUID, ambil UUID yang kedua / terakhir
+  const allUuids = str.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/g);
+  if (allUuids && allUuids.length > 0) {
+    return allUuids[allUuids.length - 1];
+  }
+
+  return null;
 }
 
 function parseExcelFile(file) {
@@ -1236,34 +1256,84 @@ function parseExcelFile(file) {
       const workbook = XLSX.read(data, { type: 'array' });
       const firstSheet = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheet];
-      const jsonRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
 
-      if (!jsonRows || jsonRows.length === 0) {
-        alert('File Excel kosong atau tidak berisi data.');
-        return;
+      // Dapatkan rentang worksheet (range)
+      const range = XLSX.utils.decode_range(worksheet['!ref'] || 'A1');
+      const headerRowIndex = range.s.r;
+
+      // Identifikasi letak kolom berdasarkan header di baris pertama
+      const colMap = {};
+      for (let C = range.s.c; C <= range.e.c; ++C) {
+        const cellRef = XLSX.utils.encode_cell({ r: headerRowIndex, c: C });
+        const cell = worksheet[cellRef];
+        if (cell && cell.v) {
+          const headerClean = String(cell.v).toLowerCase().replace(/[^a-z0-9]/g, '');
+          colMap[C] = headerClean;
+        }
       }
 
+      // Cari indeks kolom yang relevan
+      const findColIdx = (keySub) => {
+        const cleanSub = keySub.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const [colIdx, name] of Object.entries(colMap)) {
+          if (name.includes(cleanSub)) return parseInt(colIdx, 10);
+        }
+        return -1;
+      };
+
+      const kecCol = findColIdx('kecamatan');
+      const desaCol = findColIdx('desa') !== -1 ? findColIdx('desa') : findColIdx('kelurahan');
+      const slsCol = findColIdx('sls') !== -1 ? findColIdx('sls') : findColIdx('subsls');
+      const artCol = findColIdx('namaart') !== -1 ? findColIdx('namaart') : (findColIdx('pekerja') !== -1 ? findColIdx('pekerja') : findColIdx('pelaku'));
+      const kedudukanCol = findColIdx('kedudukan');
+      const profesiCol = findColIdx('profesi') !== -1 ? findColIdx('profesi') : findColIdx('uraian');
+      const linkCol = findColIdx('link') !== -1 ? findColIdx('link') : (findColIdx('fasih') !== -1 ? findColIdx('fasih') : findColIdx('assignment'));
+
       const parsed = [];
-      jsonRows.forEach(row => {
-        const getCol = (keySub) => {
-          const key = Object.keys(row).find(k => k.toLowerCase().replace(/[^a-z]/g, '').includes(keySub.toLowerCase().replace(/[^a-z]/g, '')));
-          return key ? String(row[key]).trim() : '';
+      let totalValidWithId = 0;
+
+      // Loop setiap baris data (dari baris setelah header hingga baris akhir)
+      for (let R = headerRowIndex + 1; R <= range.e.r; ++R) {
+        const getVal = (colIndex) => {
+          if (colIndex === -1) return '';
+          const cell = worksheet[XLSX.utils.encode_cell({ r: R, c: colIndex })];
+          return cell && cell.v !== undefined ? String(cell.v).trim() : '';
         };
 
-        const kecamatan = getCol('kecamatan');
-        const desa = getCol('desa') || getCol('kelurahan');
-        const nama_sls = getCol('sls') || getCol('subsls');
-        const nama_art = getCol('nama art') || getCol('pekerja') || getCol('pelaku');
-        const kedudukan_kerja = getCol('kedudukan');
-        const uraian_profesi = getCol('profesi') || getCol('uraian');
+        // Ambil link / formula / hyperlink target khusus kolom link assignment
+        let rawLinkStr = '';
+        if (linkCol !== -1) {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: R, c: linkCol })];
+          if (cell) {
+            // 1. Cek formula (=HYPERLINK("...", "..."))
+            if (cell.f) {
+              rawLinkStr += ' ' + String(cell.f);
+            }
+            // 2. Cek hyperlink target (.l.Target)
+            if (cell.l && cell.l.Target) {
+              rawLinkStr += ' ' + String(cell.l.Target);
+            }
+            // 3. Cek formatted value (.v atau .w)
+            if (cell.v !== undefined) {
+              rawLinkStr += ' ' + String(cell.v);
+            }
+          }
+        }
 
-        // Extract assignment ID from link or assignment column
-        const linkVal = getCol('link') || getCol('fasih') || getCol('assignment');
-        const assignmentId = extractUuidFromLink(linkVal);
+        const nama_art = getVal(artCol);
+        const kecamatan = getVal(kecCol);
+        const desa = getVal(desaCol);
+        const nama_sls = getVal(slsCol);
+        const kedudukan_kerja = getVal(kedudukanCol);
+        const uraian_profesi = getVal(profesiCol);
+
+        // Ekstrak UUID assignment_id dari formula / link target
+        const assignmentId = extractUuidFromLink(rawLinkStr);
+        if (assignmentId) totalValidWithId++;
 
         if (nama_art) {
           parsed.push({
-            assignment_id: assignmentId,
+            assignment_id: assignmentId || null,
             kecamatan: kecamatan || 'LEBAK',
             desa: desa || '—',
             nama_sls: nama_sls || '—',
@@ -1273,14 +1343,25 @@ function parseExcelFile(file) {
             status: 'belum'
           });
         }
-      });
+      }
+
+      if (parsed.length === 0) {
+        alert('File Excel kosong atau kolom Nama ART tidak ditemukan.');
+        return;
+      }
 
       parsedExcelRowsForImport = parsed;
 
-      document.getElementById('previewTotalBaris').textContent = jsonRows.length.toLocaleString('id-ID');
-      document.getElementById('previewTotalValid').textContent = parsed.length.toLocaleString('id-ID');
+      document.getElementById('previewTotalBaris').textContent = (range.e.r - headerRowIndex).toLocaleString('id-ID');
+      document.getElementById('previewTotalValid').innerHTML = `
+        ${parsed.length.toLocaleString('id-ID')}
+        <div style="font-size:0.7rem; color:var(--text-muted); font-weight:400; margin-top:2px;">
+          (${totalValidWithId.toLocaleString('id-ID')} dengan Assignment ID)
+        </div>
+      `;
       document.getElementById('uploadPreviewStatArea').style.display = 'block';
     } catch (err) {
+      console.error('Error parsing excel:', err);
       alert('Gagal membaca file Excel: ' + err.message);
     }
   };
