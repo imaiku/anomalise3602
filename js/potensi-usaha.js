@@ -7,6 +7,7 @@ let currentProfile = null;
 let allData = [];
 let filteredData = [];
 let selectedRowIds = new Set();
+let bulkSelectedData = [];
 
 let currentPage = 1;
 let pageSize = 10;
@@ -21,9 +22,14 @@ let searchDebounceTimer = null;
 
 let editingRowId = null;
 let selectedStatusValue = null;
-let bulkSelectedStatusValue = null;
 
 let parsedExcelRowsForImport = [];
+
+// Helper link Fasih-SM
+function getFasihEditUrl(assignmentId) {
+  if (!assignmentId) return null;
+  return `https://fasih-sm.bps.go.id/app/assignment/fd68e454-ba45-4b85-8205-f3bf777ded24/${assignmentId}/edit`;
+}
 
 // ─── INIT & AUTH CHECK ──────────────────────────────────────
 document.addEventListener('DOMContentLoaded', async () => {
@@ -302,7 +308,8 @@ function applyFilters() {
       const matchSls = (item.nama_sls || '').toLowerCase().includes(search);
       const matchProfesi = (item.uraian_profesi || '').toLowerCase().includes(search);
       const matchKedudukan = (item.kedudukan_kerja || '').toLowerCase().includes(search);
-      if (!matchArt && !matchKec && !matchDesa && !matchSls && !matchProfesi && !matchKedudukan) {
+      const matchAssign = (item.assignment_id || '').toLowerCase().includes(search);
+      if (!matchArt && !matchKec && !matchDesa && !matchSls && !matchProfesi && !matchKedudukan && !matchAssign) {
         return false;
       }
     }
@@ -310,10 +317,7 @@ function applyFilters() {
     return true;
   });
 
-  // Sort
   sortFilteredData();
-
-  // Clear or adjust page
   currentPage = 1;
   renderActiveFilterChips();
   renderTable();
@@ -482,6 +486,7 @@ function renderTable() {
   pageRows.forEach(row => {
     const isChecked = selectedRowIds.has(row.id);
     const badge = getStatusBadge(row.status);
+    const fasihEditUrl = getFasihEditUrl(row.assignment_id);
 
     tableHtml += `
       <tr>
@@ -491,6 +496,7 @@ function renderTable() {
         </td>
         <td>
           <div style="font-weight:600;color:var(--text);">${escapeHtml(row.nama_art || '—')}</div>
+          ${row.assignment_id ? `<div style="font-size:0.7rem;font-family:monospace;color:var(--text-subtle);">${row.assignment_id.slice(0, 8)}...</div>` : ''}
         </td>
         <td>
           <div style="font-weight:500;">${escapeHtml(row.kecamatan || '—')}</div>
@@ -507,15 +513,28 @@ function renderTable() {
         <td>
           ${badge}
         </td>
-        <td style="text-align:center;">
-          <button class="btn btn-secondary btn-xs" onclick="openEditModal(${row.id})"
-            style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"></path>
-            </svg>
-            Edit
-          </button>
+        <td style="text-align:center;white-space:nowrap;">
+          <div style="display:inline-flex;gap:0.3rem;">
+            ${fasihEditUrl ? `
+              <a href="${fasihEditUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-xs"
+                style="display:inline-flex;align-items:center;gap:0.2rem;padding:0.25rem 0.45rem;text-decoration:none;color:white;" title="Edit di Fasih-SM">
+                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                  <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                </svg>
+                Fasih
+              </a>
+            ` : ''}
+            <button class="btn btn-secondary btn-xs" onclick="openEditModal(${row.id})"
+              style="display:inline-flex;align-items:center;gap:0.2rem;padding:0.25rem 0.45rem;" title="Edit Status">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+              Status
+            </button>
+          </div>
         </td>
       </tr>
     `;
@@ -541,7 +560,14 @@ function renderTable() {
               onchange="onRowCheckChange(this, ${row.id})">
             <span>Pilih</span>
           </label>
-          <button class="btn btn-secondary btn-xs" onclick="openEditModal(${row.id})">Edit Status</button>
+          <div style="display:flex;gap:0.35rem;">
+            ${fasihEditUrl ? `
+              <a href="${fasihEditUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-xs" style="text-decoration:none;color:white;">
+                Fasih
+              </a>
+            ` : ''}
+            <button class="btn btn-secondary btn-xs" onclick="openEditModal(${row.id})">Status</button>
+          </div>
         </div>
       </div>
     `;
@@ -660,7 +686,6 @@ function onRowCheckChange(checkbox, id) {
     selectedRowIds.delete(id);
   }
 
-  // Update master checkbox
   const master = document.getElementById('selectAllCheckbox');
   const startIndex = (currentPage - 1) * pageSize;
   const pageRows = filteredData.slice(startIndex, startIndex + pageSize);
@@ -704,7 +729,18 @@ function openEditModal(id) {
   document.getElementById('sheetNamaArt').textContent = row.nama_art || 'Responden';
   document.getElementById('sheetSubLoc').textContent = `${row.kecamatan || ''} / ${row.desa || ''} / ${row.nama_sls || ''}`;
 
-  // Update Option Radio State
+  // Fasih Link
+  const fasihBtn = document.getElementById('sheetFasihLink');
+  const fasihUrl = getFasihEditUrl(row.assignment_id);
+  if (fasihBtn) {
+    if (fasihUrl) {
+      fasihBtn.href = fasihUrl;
+      fasihBtn.style.display = 'inline-flex';
+    } else {
+      fasihBtn.style.display = 'none';
+    }
+  }
+
   updateRadioOptionCards();
 
   // Audit info
@@ -755,7 +791,6 @@ function updateRadioOptionCards() {
 
 function selectStatusOption(val) {
   if (selectedStatusValue === val) {
-    // Uncheck if clicked again (kembali ke belum dikerjakan)
     selectedStatusValue = 'belum';
   } else {
     selectedStatusValue = val;
@@ -807,7 +842,6 @@ async function saveEditStatus() {
 
     if (error) throw error;
 
-    // Local update
     const target = allData.find(d => d.id === editingRowId);
     if (target) {
       Object.assign(target, updatePayload);
@@ -826,114 +860,238 @@ async function saveEditStatus() {
   }
 }
 
-// ─── BULK EDIT MODAL ─────────────────────────────────────────
+// ─── BULK EDIT MODAL (IDENTIK DENGAN DASHBOARD UTAMA) ────────
 function openBulkModal() {
-  const total = selectedRowIds.size;
-  if (total === 0) return;
+  if (!selectedRowIds.size) return;
+  if (selectedRowIds.size > 50) {
+    showToast('Maksimal baris yang dapat dibuka bersamaan adalah 50!', 'warning');
+    return;
+  }
 
-  bulkSelectedStatusValue = null;
-  document.getElementById('bulkSubtitle').textContent = `${total} baris dipilih untuk diperbarui`;
-
-  const cardD = document.getElementById('bulkCardDikerjakan');
-  const cardS = document.getElementById('bulkCardSelesai');
-  cardD?.classList.remove('selected');
-  cardS?.classList.remove('selected');
-  document.getElementById('bulkRadioDikerjakan').checked = false;
-  document.getElementById('bulkRadioSelesai').checked = false;
+  bulkSelectedData = allData.filter(d => selectedRowIds.has(d.id));
+  renderBulkSheetBody();
 
   const modal = document.getElementById('bulkModal');
-  if (modal) modal.classList.add('open');
-}
-
-function selectBulkStatusOption(val) {
-  bulkSelectedStatusValue = val;
-  const cardD = document.getElementById('bulkCardDikerjakan');
-  const cardS = document.getElementById('bulkCardSelesai');
-
-  if (val === 'sudah_dikerjakan') {
-    cardD?.classList.add('selected');
-    cardS?.classList.remove('selected');
-    document.getElementById('bulkRadioDikerjakan').checked = true;
-  } else {
-    cardD?.classList.remove('selected');
-    cardS?.classList.add('selected');
-    document.getElementById('bulkRadioSelesai').checked = true;
+  if (modal) {
+    modal.classList.add('open');
+    document.body.style.overflow = 'hidden';
   }
 }
 
 function closeBulkModal() {
   const modal = document.getElementById('bulkModal');
-  if (modal) modal.classList.remove('open');
-  bulkSelectedStatusValue = null;
+  if (modal) {
+    modal.classList.remove('open');
+    document.body.style.overflow = '';
+  }
 }
 
 function handleBulkOverlayClick(e) {
-  if (e.target.id === 'bulkModal') {
-    closeBulkModal();
+  if (e.target.id === 'bulkModal') closeBulkModal();
+}
+
+function renderBulkSheetBody() {
+  const body = document.getElementById('bulkSheetBody');
+  const sub = document.getElementById('bulkSubtitle');
+  if (!body) return;
+
+  if (sub) sub.textContent = `${bulkSelectedData.length} data terpilih untuk diedit status & assignment`;
+
+  let html = `
+    <div style="overflow-x:auto">
+      <table class="table" style="width:100%; font-size:0.8rem; border-collapse:collapse">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border)">
+            <th style="padding:0.75rem; text-align:left">Nama ART / Pelaku Usaha</th>
+            <th style="padding:0.75rem; text-align:center; width:135px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem; margin:0">
+                <input type="checkbox" id="bulkMasterDikerjakan" onchange="toggleAllBulkStatus('dikerjakan', this.checked)" style="width:14px; height:14px; cursor:pointer">
+                Dikerjakan
+              </label>
+            </th>
+            <th style="padding:0.75rem; text-align:center; width:135px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem; margin:0">
+                <input type="checkbox" id="bulkMasterSelesai" onchange="toggleAllBulkStatus('selesai', this.checked)" style="width:14px; height:14px; cursor:pointer">
+                Selesai
+              </label>
+            </th>
+            <th style="padding:0.75rem; text-align:center; width:100px">Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  bulkSelectedData.forEach((row, idx) => {
+    const isDikerjakan = row.status === 'sudah_dikerjakan';
+    const isSelesai = row.status === 'sudah_selesai';
+    const fasihEditUrl = getFasihEditUrl(row.assignment_id);
+
+    html += `
+      <tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:0.75rem">
+          <div style="font-weight:600; color:var(--text)">${escapeHtml(row.nama_art)}</div>
+          <div style="font-size:0.72rem; color:var(--text-muted)">
+            ${escapeHtml(row.kecamatan)} · ${escapeHtml(row.desa)} · ${escapeHtml(row.nama_sls)}
+            ${row.assignment_id ? ` · <span style="font-family:monospace">${row.assignment_id.slice(0, 8)}...</span>` : ''}
+          </div>
+        </td>
+        <td style="padding:0.75rem; text-align:center">
+          <input type="checkbox" class="bulk-dikerjakan-cb" data-idx="${idx}" ${isDikerjakan ? 'checked' : ''}
+            onchange="onBulkRowStatusChange(${idx}, 'dikerjakan', this.checked)"
+            style="width:16px; height:16px; accent-color:var(--info); cursor:pointer">
+        </td>
+        <td style="padding:0.75rem; text-align:center">
+          <input type="checkbox" class="bulk-selesai-cb" data-idx="${idx}" ${isSelesai ? 'checked' : ''}
+            onchange="onBulkRowStatusChange(${idx}, 'selesai', this.checked)"
+            style="width:16px; height:16px; accent-color:var(--success); cursor:pointer">
+        </td>
+        <td style="padding:0.75rem; text-align:center; white-space:nowrap">
+          ${fasihEditUrl ? `
+            <a href="${fasihEditUrl}" target="_blank" rel="noopener noreferrer" class="btn btn-primary btn-sm"
+              style="padding:0.25rem 0.55rem; font-size:0.75rem; display:inline-flex; align-items:center; gap:0.25rem; text-decoration:none; color:white;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit
+            </a>
+          ` : '<span style="font-size:0.7rem; color:var(--text-subtle)">No ID</span>'}
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+  body.innerHTML = html;
+}
+
+function onBulkRowStatusChange(idx, type, checked) {
+  const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
+  const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
+
+  if (type === 'dikerjakan' && checked) {
+    // Uncheck selesai karena pilihan hanya satu
+    if (selesaiCbs[idx]) selesaiCbs[idx].checked = false;
+  } else if (type === 'selesai' && checked) {
+    // Uncheck dikerjakan
+    if (dikerjakanCbs[idx]) dikerjakanCbs[idx].checked = false;
   }
 }
 
-async function saveBulkStatus() {
-  if (!bulkSelectedStatusValue) {
-    alert('Silakan pilih salah satu status terlebih dahulu.');
-    return;
+function toggleAllBulkStatus(type, checked) {
+  const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
+  const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
+
+  if (type === 'dikerjakan') {
+    dikerjakanCbs.forEach(cb => cb.checked = checked);
+    if (checked) {
+      selesaiCbs.forEach(cb => cb.checked = false);
+      const masterSelesai = document.getElementById('bulkMasterSelesai');
+      if (masterSelesai) masterSelesai.checked = false;
+    }
+  } else {
+    selesaiCbs.forEach(cb => cb.checked = checked);
+    if (checked) {
+      dikerjakanCbs.forEach(cb => cb.checked = false);
+      const masterDikerjakan = document.getElementById('bulkMasterDikerjakan');
+      if (masterDikerjakan) masterDikerjakan.checked = false;
+    }
+  }
+}
+
+// Buka semua link tab edit Fasih-SM sekaligus (Persis dashboard utama)
+function editAllBulkTabs() {
+  if (bulkSelectedData.length === 0) return;
+  const count = bulkSelectedData.length;
+  if (count > 5) {
+    if (!confirm(`Apakah Anda yakin ingin membuka ${count} tab Edit Fasih-SM sekaligus?`)) {
+      return;
+    }
   }
 
-  const ids = Array.from(selectedRowIds);
-  if (ids.length === 0) return;
+  let openedCount = 0;
+  bulkSelectedData.forEach(row => {
+    const url = getFasihEditUrl(row.assignment_id);
+    if (url) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      openedCount++;
+    }
+  });
 
-  const btn = document.getElementById('btnSaveBulk');
-  btn.disabled = true;
-  btn.textContent = 'Menyimpan...';
+  if (openedCount > 0) {
+    showToast(`Membuka ${openedCount} tab Edit Fasih-SM. Izinkan pop-up jika terblokir.`, 'success');
+  } else {
+    showToast('Tidak ada baris yang memiliki assignment_id valid.', 'warning');
+  }
+}
+
+async function saveBulkChanges() {
+  const saveBtn = document.getElementById('bulkSaveBtn');
+  saveBtn.disabled = true;
+  saveBtn.textContent = 'Menyimpan...';
 
   try {
     const adminName = getSessionName(currentProfile);
     const nowIso = new Date().toISOString();
 
-    const updatePayload = {
-      status: bulkSelectedStatusValue,
-      updated_at: nowIso
-    };
+    const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
+    const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
 
-    if (bulkSelectedStatusValue === 'sudah_selesai') {
-      updatePayload.selesai_oleh = adminName;
-      updatePayload.selesai_at = nowIso;
-    } else {
-      updatePayload.dikerjakan_oleh = adminName;
-      updatePayload.dikerjakan_at = nowIso;
-    }
+    for (let i = 0; i < bulkSelectedData.length; i++) {
+      const row = bulkSelectedData[i];
+      const isDikerjakan = dikerjakanCbs[i]?.checked || false;
+      const isSelesai = selesaiCbs[i]?.checked || false;
 
-    // Chunked update (200 rows per batch)
-    const chunkSize = 200;
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      const chunk = ids.slice(i, i + chunkSize);
+      let newStatus = 'belum';
+      if (isSelesai) newStatus = 'sudah_selesai';
+      else if (isDikerjakan) newStatus = 'sudah_dikerjakan';
+
+      const updatePayload = {
+        status: newStatus,
+        updated_at: nowIso
+      };
+
+      if (newStatus === 'sudah_selesai') {
+        updatePayload.selesai_oleh = adminName;
+        updatePayload.selesai_at = nowIso;
+      } else if (newStatus === 'sudah_dikerjakan') {
+        updatePayload.dikerjakan_oleh = adminName;
+        updatePayload.dikerjakan_at = nowIso;
+      }
+
+      // Update ke Supabase
       const { error } = await db
         .from('potensi_usaha')
         .update(updatePayload)
-        .in('id', chunk);
+        .eq('id', row.id);
 
       if (error) throw error;
-    }
 
-    // Update local state
-    const setIds = new Set(ids);
-    allData.forEach(row => {
-      if (setIds.has(row.id)) {
-        Object.assign(row, updatePayload);
+      // Update local state
+      const target = allData.find(d => d.id === row.id);
+      if (target) {
+        Object.assign(target, updatePayload);
       }
-    });
+    }
 
     closeBulkModal();
     clearSelection();
     renderStats();
     renderKecamatanProgress();
     applyFilters();
-    showToast(`Berhasil memperbarui ${ids.length} data!`, 'success');
+    showToast('Perubahan status berhasil disimpan!', 'success');
   } catch (err) {
-    alert('Gagal memperbarui status massal: ' + err.message);
+    alert('Gagal menyimpan perubahan massal: ' + err.message);
   } finally {
-    btn.disabled = false;
-    btn.textContent = 'Simpan Semua';
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Simpan Perubahan';
   }
 }
 
@@ -1060,6 +1218,13 @@ function setupDropzone() {
   });
 }
 
+function extractUuidFromLink(linkStr) {
+  if (!linkStr) return null;
+  const str = String(linkStr).trim();
+  const match = str.match(/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/);
+  return match ? match[0] : null;
+}
+
 function parseExcelFile(file) {
   const label = document.getElementById('modalDropzoneLabel');
   if (label) label.textContent = `📄 ${file.name}`;
@@ -1078,8 +1243,6 @@ function parseExcelFile(file) {
         return;
       }
 
-      // Filter kolom & mapping:
-      // Abaikan no, admin fasih, link assignment. Ambil: kecamatan, desa, nama sls, nama art, kedudukan, uraian profesi.
       const parsed = [];
       jsonRows.forEach(row => {
         const getCol = (keySub) => {
@@ -1094,8 +1257,13 @@ function parseExcelFile(file) {
         const kedudukan_kerja = getCol('kedudukan');
         const uraian_profesi = getCol('profesi') || getCol('uraian');
 
+        // Extract assignment ID from link or assignment column
+        const linkVal = getCol('link') || getCol('fasih') || getCol('assignment');
+        const assignmentId = extractUuidFromLink(linkVal);
+
         if (nama_art) {
           parsed.push({
+            assignment_id: assignmentId,
             kecamatan: kecamatan || 'LEBAK',
             desa: desa || '—',
             nama_sls: nama_sls || '—',

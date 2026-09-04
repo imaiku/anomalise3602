@@ -9,6 +9,9 @@
 CREATE TABLE IF NOT EXISTS public.potensi_usaha (
   id                bigserial PRIMARY KEY,
 
+  -- Assignment ID Fasih-SM
+  assignment_id     text,
+
   -- Lokasi / Wilayah
   kecamatan         text NOT NULL,
   desa              text NOT NULL,
@@ -40,9 +43,10 @@ CREATE TABLE IF NOT EXISTS public.potensi_usaha (
 -- ============================================================
 -- INDEXES
 -- ============================================================
-CREATE INDEX IF NOT EXISTS idx_potensi_usaha_kecamatan ON public.potensi_usaha (kecamatan);
-CREATE INDEX IF NOT EXISTS idx_potensi_usaha_desa      ON public.potensi_usaha (desa);
-CREATE INDEX IF NOT EXISTS idx_potensi_usaha_status    ON public.potensi_usaha (status);
+CREATE INDEX IF NOT EXISTS idx_potensi_usaha_assignment ON public.potensi_usaha (assignment_id);
+CREATE INDEX IF NOT EXISTS idx_potensi_usaha_kecamatan  ON public.potensi_usaha (kecamatan);
+CREATE INDEX IF NOT EXISTS idx_potensi_usaha_desa       ON public.potensi_usaha (desa);
+CREATE INDEX IF NOT EXISTS idx_potensi_usaha_status     ON public.potensi_usaha (status);
 
 -- ============================================================
 -- UPDATED_AT TRIGGER
@@ -65,7 +69,7 @@ CREATE TRIGGER trg_potensi_usaha_updated_at
 -- ============================================================
 ALTER TABLE public.potensi_usaha ENABLE ROW LEVEL SECURITY;
 
--- Public read access (semua orang bisa lihat)
+-- Public read access
 DROP POLICY IF EXISTS "potensi_usaha_read_all" ON public.potensi_usaha;
 CREATE POLICY "potensi_usaha_read_all"
   ON public.potensi_usaha FOR SELECT
