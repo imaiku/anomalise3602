@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Potensi Usaha — SE2026 Kab. Lebak</title>
+  <meta name="description" content="Dashboard perbaikan isian dan monitoring Potensi Usaha SE2026 Kabupaten Lebak">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    .sls-code {
+      font-family: monospace;
+      font-size: 0.8rem;
+    }
+
+    .stat-grid-potensi {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 0.2rem 0.6rem;
+      border-radius: 9999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+
+    .badge-belum {
+      background: var(--bg-card-2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+
+    .badge-dikerjakan {
+      background: var(--info-bg);
+      color: var(--info);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .badge-selesai {
+      background: var(--success-bg);
+      color: var(--success);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    /* Kecamatan Progress Section */
+    .kec-progress-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+      transition: all 0.3s ease;
+      margin-top: 0.75rem;
+    }
+
+    .kec-progress-grid.collapsed {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
+    .kec-progress-card {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.6rem 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .kec-progress-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-1px);
+    }
+
+    .kec-progress-card.active-filter {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.08);
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.45rem 0.75rem;
+    }
+
+    .kec-progress-name {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .kec-progress-meta {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.725rem;
+      color: var(--text-muted);
+      margin: 0.25rem 0 0.35rem 0;
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-meta {
+      margin: 0;
+      gap: 1rem;
+    }
+
+    .kec-progress-bar {
+      height: 5px;
+      background: var(--border);
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .kec-progress-grid.collapsed .kec-progress-bar {
+      display: none;
+    }
+
+    .kec-progress-fill {
+      height: 100%;
+      border-radius: 9999px;
+      background: var(--success);
+      transition: width 0.3s ease;
+    }
+
+    .filter-active-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      background: rgba(249, 115, 22, 0.1);
+      border: 1px solid rgba(249, 115, 22, 0.3);
+      color: var(--primary);
+      padding: 0.2rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      cursor: pointer;
+    }
+
+    .filter-active-chip:hover {
+      background: rgba(249, 115, 22, 0.18);
+    }
+
+    #filterActiveBar {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      margin-top: 0.75rem;
+    }
+
+    /* Modal Backdrop */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-box {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      max-width: 540px;
+      width: 92%;
+      box-shadow: var(--shadow-lg);
+    }
+
+    /* Choice radio cards for Bottom Sheet */
+    .status-option-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.85rem 1rem;
+      border-radius: var(--radius-md);
+      border: 1.5px solid var(--border);
+      background: var(--bg-card-2);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 0.65rem;
+      user-select: none;
+    }
+
+    .status-option-card:hover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.04);
+    }
+
+    .status-option-card.selected {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.08);
+    }
+
+    .status-option-card input[type="radio"] {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      .table-wrapper {
+        display: none;
+      }
+
+      .mobile-card-list {
+        display: block !important;
+      }
+
+      .filter-bar .filter-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .filter-bar input,
+      .filter-bar select,
+      .filter-bar button {
+        width: 100% !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-inner">
+      <div class="navbar-brand">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+          style="color:var(--primary)">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+        </svg>
+        Dashboard <span>Potensi Usaha</span>
+        <span style="font-size:0.7rem;font-weight:400;color:var(--text-muted);margin-left:0.25rem">SE2026 · Kab. Lebak</span>
+      </div>
+
+      <div class="navbar-actions">
+        <!-- Tombol Import Data (Superadmin Saja) -->
+        <button id="superadminUploadBtn" class="btn btn-primary btn-sm hidden" onclick="openImportDialogModal()"
+          style="color:white; align-items:center; gap:0.35rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Upload Data
+        </button>
+
+        <!-- Profile Dropdown -->
+        <div class="profile-dropdown hidden" id="profileDropdown">
+          <div class="profile-trigger" onclick="toggleProfileDropdown(event)">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="5" />
+              <path d="M20 21a8 8 0 1 0-16 0" />
+            </svg>
+            <span id="userDisplayName">Memuat...</span>
+            <span id="userRoleBadge" class="type-badge" style="font-size:0.65rem;padding:0.15rem 0.4rem;"></span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              class="dropdown-chevron">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+          <div class="dropdown-menu" id="profileDropdownMenu">
+            <a href="/dashboard.html" class="dropdown-item" style="text-decoration:none;color:inherit">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 3v18h18" />
+                  <path d="m19 9-5 5-4-4-3 3" />
+                </svg>
+              </span>
+              Dashboard Utama
+            </a>
+            <a href="/admin.html" class="dropdown-item hidden" id="adminNavBtn"
+              style="text-decoration:none;color:inherit">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                  <line x1="9" y1="3" x2="9" y2="21" />
+                  <line x1="9" y1="9" x2="21" y2="9" />
+                  <line x1="9" y1="15" x2="21" y2="15" />
+                </svg>
+              </span>
+              Panel Admin
+            </a>
+            <div class="dropdown-divider"></div>
+
+            <button class="dropdown-item" onclick="toggleTheme(); event.stopPropagation();">
+              <span class="dropdown-item-icon">
+                <svg id="iconSun" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  class="hidden">
+                  <circle cx="12" cy="12" r="4" />
+                  <path
+                    d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+                </svg>
+                <svg id="iconMoon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z" />
+                </svg>
+              </span>
+              Mode Gelap / Terang
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item text-error" onclick="logout()">
+              <span class="dropdown-item-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" x2="9" y1="12" y2="12" />
+                </svg>
+              </span>
+              Keluar
+            </button>
+          </div>
+        </div>
+
+        <!-- Login Button (jika guest) -->
+        <a href="/login.html" class="btn btn-primary btn-sm hidden" id="loginNavBtn" style="color:white;">
+          Masuk
+        </a>
+      </div>
+    </div>
+  </nav>
+
+  <div class="page-content">
+    <!-- Akses Dibatasi Alert (Jika PPL / PML / Guest) -->
+    <div id="accessDeniedBanner" class="alert alert-error hidden" style="margin-bottom:1.5rem;">
+      <svg class="alert-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <line x1="12" y1="8" x2="12" y2="12"/>
+        <line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+      <div>
+        <strong>Akses Terbatas:</strong> Halaman Dashboard Potensi Usaha hanya dapat diakses oleh Admin atau Superadmin. Silakan hubungi koordinator tim jika memerlukan wewenang edit.
+      </div>
+    </div>
+
+    <!-- Stats Header -->
+    <div class="stat-grid-potensi" id="statsGrid">
+      <div class="stat-card">
+        <div class="stat-label">Total Potensi Usaha</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub">data responden</div>
+      </div>
+      <div class="stat-card warning">
+        <div class="stat-label">Belum Dikerjakan</div>
+        <div class="stat-value" id="statBelum" style="color:var(--error)">—</div>
+        <div class="stat-sub">belum diproses</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sudah Dikerjakan</div>
+        <div class="stat-value" id="statDikerjakan" style="color:var(--info)">—</div>
+        <div class="stat-sub">sedang / telah ditindaklanjuti</div>
+      </div>
+      <div class="stat-card success">
+        <div class="stat-label">Sudah Selesai</div>
+        <div class="stat-value" id="statSelesai" style="color:var(--success)">—</div>
+        <div class="progress-bar mb-1" style="margin-top:0.4rem;">
+          <div class="progress-fill" id="progressFill" style="width:0%"></div>
+        </div>
+        <div class="stat-sub" id="statProgressPercent">0% selesai</div>
+      </div>
+    </div>
+
+    <!-- Kecamatan Progress Section -->
+    <div class="stat-card" style="margin-bottom:1.5rem;padding:1rem 1.25rem;display:block">
+      <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <div class="table-title" style="font-size:1rem;font-weight:600;margin:0">Progres per Kecamatan</div>
+          <button class="btn btn-secondary btn-xs" id="btnToggleKecProgress" onclick="toggleKecProgress()"
+            style="padding:0.15rem 0.4rem;font-size:0.7rem;display:flex;align-items:center;gap:0.15rem;height:22px;cursor:pointer">
+            <span id="txtToggleKec">Tampilkan</span>
+            <svg id="toggleKecIcon" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24"
+              fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+              style="transition:transform 0.2s">
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+        </div>
+        <button class="btn btn-secondary btn-xs" id="btnClearKecFilter" style="display:none;" onclick="clearKecamatanFilter()">Semua Kecamatan</button>
+      </div>
+      <div class="kec-progress-grid collapsed" id="kecProgressGrid"
+        style="border:none;background:transparent;padding-left:0;padding-right:0;padding-bottom:0">
+        <div style="font-size:0.8rem; color:var(--text-muted); padding:0.5rem;">Memuat ringkasan kecamatan...</div>
+      </div>
+    </div>
+
+    <!-- Filter Bar -->
+    <div class="filter-bar" style="padding:0.75rem 1rem;margin-bottom:1rem">
+      <div class="filter-row" style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap;width:100%">
+        <!-- Search Input -->
+        <input type="text" class="filter-select" id="filterSearch" placeholder="Cari Nama ART, SLS, Profesi, atau Desa..."
+          oninput="applyFiltersDebounced()" style="flex:1;min-width:220px;height:38px;margin-bottom:0">
+
+        <!-- Status Pengerjaan Filter (Sesuai Permintaan) -->
+        <select class="filter-select" id="filterStatus" onchange="applyFilters()"
+          style="width:180px;height:38px;margin-bottom:0">
+          <option value="">Status: Semua</option>
+          <option value="belum">Belum Dikerjakan</option>
+          <option value="sudah_dikerjakan">Sudah Dikerjakan</option>
+          <option value="sudah_selesai">Sudah Selesai</option>
+        </select>
+
+        <!-- Pilih Wilayah Button -->
+        <button class="btn btn-secondary" onclick="openWilayahFilterModal()"
+          style="padding:0 0.85rem;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-card);color:var(--text);font-weight:500;font-size:0.875rem;cursor:pointer;white-space:nowrap;margin-bottom:0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right:0.35rem">
+            <polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"></polygon>
+            <line x1="8" y1="2" x2="8" y2="18"></line>
+            <line x1="16" y1="6" x2="16" y2="22"></line>
+          </svg>
+          Pilih Wilayah
+        </button>
+
+        <!-- Reset Button -->
+        <button class="btn btn-secondary" onclick="resetFilters()"
+          style="height:38px;padding:0 0.75rem;display:flex;align-items:center;gap:0.25rem;white-space:nowrap;margin-bottom:0">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+            <path d="M3 3v5h5" />
+          </svg>
+          Reset
+        </button>
+      </div>
+
+      <!-- Active Filter Chips -->
+      <div id="filterActiveBar"></div>
+    </div>
+
+    <!-- Table Header & Main Table -->
+    <div class="table-wrapper">
+      <div class="table-header">
+        <div style="display:flex;align-items:center;gap:0.75rem">
+          <div class="table-title">Daftar Potensi Usaha</div>
+          <div class="table-count" id="tableCount">Memuat...</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()"
+            style="padding:0.35rem 0.6rem;font-size:0.8rem">
+            <option value="10" selected>10 / halaman</option>
+            <option value="25">25 / halaman</option>
+            <option value="50">50 / halaman</option>
+            <option value="100">100 / halaman</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="overflow-x:auto">
+        <table id="mainTable">
+          <thead>
+            <tr>
+              <th class="col-checkbox no-sort" style="width:40px;text-align:center;">
+                <input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)"
+                  style="cursor:pointer;accent-color:var(--primary)">
+              </th>
+              <th onclick="sortTable('nama_art')">Nama ART (Pelaku Usaha) <span class="sort-icon" id="sortIcon_nama_art">↕</span></th>
+              <th onclick="sortTable('kecamatan')">Wilayah (Kecamatan / Desa / SLS) <span class="sort-icon" id="sortIcon_kecamatan">↕</span></th>
+              <th onclick="sortTable('kedudukan_kerja')">Kedudukan Kerja <span class="sort-icon" id="sortIcon_kedudukan_kerja">↕</span></th>
+              <th onclick="sortTable('uraian_profesi')">Uraian Profesi <span class="sort-icon" id="sortIcon_uraian_profesi">↕</span></th>
+              <th onclick="sortTable('status')">Status <span class="sort-icon" id="sortIcon_status">↕</span></th>
+              <th class="no-sort" style="text-align:center;width:80px;">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr>
+              <td colspan="7" style="text-align:center;padding:3rem;color:var(--text-muted)">
+                <div class="spinner" style="margin:0 auto"></div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+
+    <!-- Mobile Cards List -->
+    <div class="mobile-card-list" id="mobileCardList" style="display:none;">
+      <div style="text-align:center;padding:3rem;color:var(--text-muted)">
+        <div class="spinner" style="margin:0 auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Floating Action Bar (Bulk Edit) -->
+  <div class="fab-bar" id="fabBar">
+    <span class="fab-count" id="fabCount">0 dipilih</span>
+    <div class="fab-divider"></div>
+    <button class="fab-btn" id="fabBulkEditBtn" onclick="openBulkModal()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </svg>
+      Edit Status Terpilih
+    </button>
+    <button class="fab-close" onclick="clearSelection()" title="Batal pilih">
+      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" x2="6" y1="6" y2="18" />
+        <line x1="6" y1="18" x2="18" y2="6" />
+      </svg>
+    </button>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Bottom Sheet: Edit Status Individu -->
+  <div class="modal-overlay" id="editModal" onclick="handleEditOverlayClick(event)">
+    <div class="bottom-sheet" id="editSheet" style="max-width:560px;">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div>
+          <div class="bottom-sheet-title" id="sheetNamaArt">Edit Potensi Usaha</div>
+          <div class="bottom-sheet-subtitle" id="sheetSubLoc">Lokasi wilayah responden</div>
+        </div>
+      </div>
+      <div class="bottom-sheet-body" style="padding-top:0.5rem; padding-bottom:1.5rem;">
+        <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:0.75rem;">
+          PILIH STATUS PENGERJAAN:
+        </div>
+
+        <!-- Option 1: Sudah Dikerjakan -->
+        <label class="status-option-card" id="cardOptDikerjakan" onclick="selectStatusOption('sudah_dikerjakan')">
+          <input type="radio" name="statusOption" id="radioDikerjakan" value="sudah_dikerjakan">
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:0.9rem; color:var(--text);">Sudah Dikerjakan</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+              Responden sudah dikunjungi / isian sedang dalam proses tindak lanjut.
+            </div>
+          </div>
+          <span class="badge-status badge-dikerjakan">Dikerjakan</span>
+        </label>
+
+        <!-- Option 2: Sudah Selesai -->
+        <label class="status-option-card" id="cardOptSelesai" onclick="selectStatusOption('sudah_selesai')">
+          <input type="radio" name="statusOption" id="radioSelesai" value="sudah_selesai">
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:0.9rem; color:var(--text);">Sudah Selesai</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+              Perbaikan isian selesai. Nama Anda akan dicatat dalam riwayat penyelesaian.
+            </div>
+          </div>
+          <span class="badge-status badge-selesai">Selesai</span>
+        </label>
+
+        <!-- Audit info if already finished -->
+        <div id="auditLogInfoBox" style="display:none; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.65rem 0.85rem; font-size:0.78rem; color:var(--text-muted); margin-top:0.75rem;">
+          <!-- Populated by JS -->
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button class="btn btn-secondary" onclick="closeEditModal()">Batal</button>
+        <button class="btn btn-primary" id="btnSaveEdit" onclick="saveEditStatus()">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
+          Simpan Status
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Sheet: Bulk Edit Status -->
+  <div class="modal-overlay" id="bulkModal" onclick="handleBulkOverlayClick(event)">
+    <div class="bottom-sheet" id="bulkSheet" style="max-width:560px;">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Edit Status Massal</div>
+        <div class="bottom-sheet-subtitle" id="bulkSubtitle">Memperbarui beberapa data sekaligus</div>
+      </div>
+      <div class="bottom-sheet-body" style="padding-top:0.5rem; padding-bottom:1.5rem;">
+        <div style="font-size:0.8rem; font-weight:600; color:var(--text-muted); margin-bottom:0.75rem;">
+          ATUR STATUS UNTUK SEMUA BARIS TERPILIH:
+        </div>
+
+        <label class="status-option-card" id="bulkCardDikerjakan" onclick="selectBulkStatusOption('sudah_dikerjakan')">
+          <input type="radio" name="bulkStatusOption" id="bulkRadioDikerjakan" value="sudah_dikerjakan">
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:0.9rem; color:var(--text);">Sudah Dikerjakan</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Tandai seluruh baris terpilih sebagai sedang dikerjakan.</div>
+          </div>
+          <span class="badge-status badge-dikerjakan">Dikerjakan</span>
+        </label>
+
+        <label class="status-option-card" id="bulkCardSelesai" onclick="selectBulkStatusOption('sudah_selesai')">
+          <input type="radio" name="bulkStatusOption" id="bulkRadioSelesai" value="sudah_selesai">
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:0.9rem; color:var(--text);">Sudah Selesai</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">Tandai seluruh baris terpilih selesai dengan nama Anda sebagai petugas perbaikan.</div>
+          </div>
+          <span class="badge-status badge-selesai">Selesai</span>
+        </label>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button class="btn btn-secondary" onclick="closeBulkModal()">Batal</button>
+        <button class="btn btn-primary" id="btnSaveBulk" onclick="saveBulkStatus()">
+          Simpan Semua
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Dialog: Upload File Excel (Hanya Superadmin) -->
+  <div id="importDialogModal" class="modal-backdrop" style="display:none;">
+    <div class="modal-box" style="max-width: 560px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+        <div>
+          <h3 style="margin:0; font-size:1.1rem; font-weight:700;">Upload Data Potensi Usaha</h3>
+          <p style="margin:0.2rem 0 0; font-size:0.78rem; color:var(--text-muted);">
+            Upload file Excel (.xlsx) untuk menambahkan data potensi usaha baru ke database.
+          </p>
+        </div>
+        <button class="btn btn-secondary btn-xs" onclick="closeImportDialogModal()">Tutup</button>
+      </div>
+
+      <!-- Drag and Drop Dropzone -->
+      <div id="modalDropzone"
+        style="border:2px dashed var(--border); border-radius:var(--radius-md); padding:2rem 1.5rem; text-align:center; background:var(--bg-card); cursor:pointer; transition:all 0.2s;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="2" style="margin-bottom:0.5rem; color:var(--primary);">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        <div style="font-size:0.875rem; font-weight:600;" id="modalDropzoneLabel">Klik atau seret file Excel Potensi Usaha ke sini</div>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">Format .xlsx atau .xls (Kolom no, admin fasih, dan link assignment diabaikan secara otomatis)</div>
+        <input type="file" id="fileExcelHidden" accept=".xlsx, .xls" style="display:none;">
+      </div>
+
+      <!-- Preview Ringkasan Data Upload -->
+      <div id="uploadPreviewStatArea"
+        style="display:none; margin-top:1.25rem; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:1rem;">
+        <div style="font-size:0.85rem; font-weight:700; margin-bottom:0.75rem;">Ringkasan Data Excel Terbaca</div>
+        <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:0.75rem; font-size:0.8rem; margin-bottom:1rem;">
+          <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-muted); font-size:0.7rem;">TOTAL DATA EXCEL</div>
+            <div style="font-size:1.1rem; font-weight:700;" id="previewTotalBaris">0</div>
+          </div>
+          <div style="background:var(--bg-card); padding:0.6rem; border-radius:6px; border:1px solid var(--border);">
+            <div style="color:var(--text-muted); font-size:0.7rem;">VALID UNIK</div>
+            <div style="font-size:1.1rem; font-weight:700; color:var(--primary);" id="previewTotalValid">0</div>
+          </div>
+        </div>
+
+        <button id="btnConfirmImport" class="btn btn-primary btn-sm"
+          style="width:100%; color:white; justify-content:center; height:38px; font-weight:600;" onclick="executeUploadImport()">
+          Simpan Data ke Database
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Progress Upload -->
+  <div id="importProgressModal" class="modal-overlay hidden"
+    style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1.5rem; max-width:420px; width:90%; text-align:center; box-shadow:var(--shadow-lg);">
+      <h3 style="margin-top:0; font-size:1.1rem; font-weight:600;">Mengunggah Data...</h3>
+      <p style="font-size:0.85rem; color:var(--text-muted);" id="importModalStatus">Menyimpan batch data...</p>
+      <div class="progress-bar mb-1" style="margin-top:1rem;">
+        <div class="progress-fill" id="importProgressFill" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Filter Wilayah (Kecamatan -> Desa -> SLS) -->
+  <div class="modal-overlay" id="wilayahFilterModal" onclick="if(event.target===this)closeWilayahFilterModal()">
+    <div class="bottom-sheet" style="max-width:480px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header">
+        <div class="bottom-sheet-title">Filter Wilayah</div>
+        <div class="bottom-sheet-subtitle">Saring daftar potensi usaha berdasarkan unit wilayah</div>
+      </div>
+      <div class="bottom-sheet-body" style="display:flex;flex-direction:column;gap:0.75rem;padding-bottom:1.5rem">
+        <!-- Lvl 1: Provinsi -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Provinsi (Lvl 1)</label>
+          <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+            <option>[36] BANTEN</option>
+          </select>
+        </div>
+        <!-- Lvl 2: Kabupaten -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Kabupaten/Kota (Lvl 2)</label>
+          <select class="filter-select w-full" disabled style="background-color:var(--border);cursor:not-allowed">
+            <option>[02] LEBAK</option>
+          </select>
+        </div>
+        <!-- Lvl 3: Kecamatan -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Kecamatan (Lvl 3)</label>
+          <select class="filter-select w-full" id="filterModalKecamatan" onchange="onModalKecamatanChange()">
+            <option value="">Semua Kecamatan</option>
+          </select>
+        </div>
+        <!-- Lvl 4: Desa -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Desa / Kelurahan (Lvl 4)</label>
+          <select class="filter-select w-full" id="filterModalDesa" onchange="onModalDesaChange()">
+            <option value="">Semua Desa</option>
+          </select>
+        </div>
+        <!-- Lvl 5: SLS -->
+        <div class="filter-group w-full">
+          <label class="filter-label">Nama SLS / Sub-SLS (Lvl 5)</label>
+          <select class="filter-select w-full" id="filterModalSLS">
+            <option value="">Semua SLS</option>
+          </select>
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeWilayahFilterModal()">Batal</button>
+        <button class="btn btn-primary" onclick="applyWilayahFilterFromModal()">Terapkan Filter</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/potensi-usaha.js"></script>
+</body>
+
+</html>
