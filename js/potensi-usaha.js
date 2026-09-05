@@ -495,7 +495,7 @@ function renderActiveFilterChips() {
   if (filterStatusVal) {
     const map = {
       belum: 'Belum Dikerjakan',
-      sudah_dikerjakan: 'Sudah Dikerjakan',
+      sudah_dikerjakan: 'Dikerjakan Petugas Lain',
       sudah_selesai: 'Sudah Selesai'
     };
     chips.push({
@@ -672,7 +672,7 @@ function getStatusBadge(status) {
   if (status === 'sudah_selesai') {
     return '<span class="badge-status badge-selesai">Sudah Selesai</span>';
   } else if (status === 'sudah_dikerjakan') {
-    return '<span class="badge-status badge-dikerjakan">Sudah Dikerjakan</span>';
+    return '<span class="badge-status badge-dikerjakan">Dikerjakan Orang Lain</span>';
   }
   return '<span class="badge-status badge-belum">Belum</span>';
 }
@@ -844,7 +844,7 @@ function openEditModal(id) {
     const timeStr = row.dikerjakan_at ? new Date(row.dikerjakan_at).toLocaleString('id-ID') : '';
     auditBox.style.display = 'block';
     auditBox.innerHTML = `
-      <strong>Dikerjakan oleh:</strong> ${escapeHtml(row.dikerjakan_oleh)} <br>
+      <strong>Ditandai selesai orang lain oleh:</strong> ${escapeHtml(row.dikerjakan_oleh)} <br>
       <span style="font-size:0.72rem;">Waktu: ${timeStr}</span>
     `;
   } else {
@@ -1010,10 +1010,10 @@ function renderBulkSheetBody() {
           <tr style="border-bottom:2px solid var(--border)">
             <th style="padding:0.75rem; text-align:left; min-width:140px;">Nama ART / Responden</th>
             <th style="padding:0.75rem; text-align:left; min-width:200px;">Nama Usaha (Klik untuk Salin)</th>
-            <th style="padding:0.75rem; text-align:center; width:110px">
-              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
+            <th style="padding:0.75rem; text-align:center; width:135px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0" title="Pilih jika saat Anda buka di Fasih-SM, kasus sudah diselesaikan orang lain">
                 <input type="checkbox" id="bulkMasterDikerjakan" onchange="toggleAllBulkStatus('dikerjakan', this.checked)" style="width:14px; height:14px; cursor:pointer">
-                Dikerjakan
+                Orang Lain
               </label>
             </th>
             <th style="padding:0.75rem; text-align:center; width:110px">
