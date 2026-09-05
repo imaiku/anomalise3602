@@ -357,7 +357,7 @@
       </div>
     </div>
 
-    <!-- Stats Header -->
+    <!-- Stats Header (4 Card Seimbang) -->
     <div class="stat-grid-potensi" id="statsGrid">
       <div class="stat-card">
         <div class="stat-label">Total Potensi Usaha</div>
@@ -365,22 +365,28 @@
         <div class="stat-sub">data responden</div>
       </div>
       <div class="stat-card warning">
-        <div class="stat-label">Belum Dikerjakan</div>
+        <div class="stat-label">Belum Ditindaklanjuti</div>
         <div class="stat-value" id="statBelum" style="color:var(--error)">—</div>
         <div class="stat-sub">belum diproses</div>
       </div>
-      <div class="stat-card">
-        <div class="stat-label">Sudah Dikerjakan</div>
-        <div class="stat-value" id="statDikerjakan" style="color:var(--info)">—</div>
-        <div class="stat-sub">sedang / telah ditindaklanjuti</div>
-      </div>
       <div class="stat-card success">
-        <div class="stat-label">Sudah Selesai</div>
-        <div class="stat-value" id="statSelesai" style="color:var(--success)">—</div>
+        <div class="stat-label">Sudah Ditindaklanjuti</div>
+        <div class="stat-value" id="statDitindaklanjuti" style="color:var(--success)">—</div>
         <div class="progress-bar mb-1" style="margin-top:0.4rem;">
           <div class="progress-fill" id="progressFill" style="width:0%"></div>
         </div>
-        <div class="stat-sub" id="statProgressPercent">0% selesai</div>
+        <div class="stat-sub" id="statProgressPercent">0% selesai (0 / 0)</div>
+      </div>
+      <div class="stat-card" id="cardKontribusiPetugas" onclick="openAccountContribModal()"
+        style="cursor:pointer; border-left: 3px solid var(--primary); transition:all 0.2s;" title="Klik untuk melihat rincian capaian per akun">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div class="stat-label">Kontribusi Petugas</div>
+          <span style="font-size:0.7rem; color:var(--primary); font-weight:600; display:inline-flex; align-items:center; gap:0.2rem;">
+            Lihat Rincian ↗
+          </span>
+        </div>
+        <div class="stat-value" id="statAkunAktif" style="color:var(--primary)">—</div>
+        <div class="stat-sub" id="statAkunAktifSub">0 akun aktif · 0 selesai</div>
       </div>
     </div>
 
@@ -629,6 +635,50 @@
           </svg>
           Simpan Perubahan
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Rincian Kontribusi Akun Petugas -->
+  <div id="accountContribModal" class="modal-backdrop" style="display:none;" onclick="handleAccountContribOverlayClick(event)">
+    <div class="modal-box" style="max-width: 580px; max-height: 85vh; display: flex; flex-direction: column;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid var(--border); padding-bottom:0.75rem;">
+        <div>
+          <h3 style="margin:0; font-size:1.1rem; font-weight:700;">Rincian Kontribusi Petugas</h3>
+          <p style="margin:0.2rem 0 0; font-size:0.78rem; color:var(--text-muted);">
+            Daftar akun yang telah menyelesaikan perbaikan isian potensi usaha.
+          </p>
+        </div>
+        <button class="btn btn-secondary btn-xs" onclick="closeAccountContribModal()">Tutup</button>
+      </div>
+
+      <!-- Ringkasan Global Card Dikerjakan -->
+      <div style="background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem 1rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <div style="font-size:0.75rem; color:var(--text-muted);">Total Sedang / Telah Dikerjakan</div>
+          <div style="font-size:0.72rem; color:var(--text-subtle);">Akumulasi lapangan (dihitung gabungan 1 tim)</div>
+        </div>
+        <div style="font-size:1.15rem; font-weight:700; color:var(--info);" id="contribTotalDikerjakan">0</div>
+      </div>
+
+      <!-- Table Akun Selesai -->
+      <div style="overflow-y:auto; flex:1; max-height:360px; border:1px solid var(--border); border-radius:var(--radius-md);">
+        <table class="table" style="width:100%; font-size:0.825rem; border-collapse:collapse;">
+          <thead style="position:sticky; top:0; background:var(--bg-card); z-index:2; border-bottom:1.5px solid var(--border);">
+            <tr>
+              <th style="padding:0.65rem 0.85rem; text-align:left;">No</th>
+              <th style="padding:0.65rem 0.85rem; text-align:left;">Nama Akun Petugas</th>
+              <th style="padding:0.65rem 0.85rem; text-align:right;">Jumlah Selesai</th>
+            </tr>
+          </thead>
+          <tbody id="contribTableBody">
+            <!-- Populated by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:1rem; text-align:right;">
+        <button class="btn btn-secondary btn-sm" onclick="closeAccountContribModal()">Tutup</button>
       </div>
     </div>
   </div>

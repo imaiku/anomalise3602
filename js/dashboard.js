@@ -52,6 +52,7 @@ async function initDashboard() {
 
     const isAdmin = ['superadmin', 'admin'].includes(currentProfile.role.toLowerCase());
     adminNavBtn?.classList.toggle('hidden', !isAdmin);
+    document.getElementById('potensiUsahaNavBtn')?.classList.toggle('hidden', !isAdmin);
     document.getElementById('adminNavDivider')?.classList.toggle('hidden', !isAdmin);
     reopenToggle?.classList.toggle('hidden', !isAdmin);
 

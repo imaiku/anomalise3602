@@ -356,14 +356,17 @@
         if (!profile) throw new Error('Akun tidak ditemukan. Hubungi administrator.');
         if (!profile.is_active) throw new Error('Akun Anda telah dinonaktifkan.');
 
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+
         if (profile.role === 'admin') {
           // Show name modal
           document.getElementById('adminNameModal').classList.add('open');
           setTimeout(() => { document.getElementById('adminNameInput')?.focus(); }, 50);
         } else if (profile.role === 'superadmin') {
-          window.location.href = '/admin.html';
+          window.location.href = redirectParam || '/admin.html';
         } else {
-          window.location.href = '/dashboard.html';
+          window.location.href = redirectParam || '/dashboard.html';
         }
       } catch (err) {
         errorText.textContent = err.message.includes('Invalid login') ?
@@ -379,8 +382,11 @@
     function handleNameSubmit() {
       const input = document.getElementById('adminNameInput');
       const errorDiv = document.getElementById('nameError');
+      const urlParams = new URLSearchParams(window.location.search);
+      const redirectParam = urlParams.get('redirect');
+
       if (submitAdminName(input.value)) {
-        window.location.href = '/dashboard.html';
+        window.location.href = redirectParam || '/dashboard.html';
       } else {
         errorDiv.classList.remove('hidden');
       }
@@ -394,13 +400,16 @@
     (async () => {
       const session = await getSession();
       if (session && session.profile) {
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectParam = urlParams.get('redirect');
+
         if (session.profile.role === 'admin' && !sessionStorage.getItem('admin_session_name')) {
           document.getElementById('adminNameModal').classList.add('open');
           setTimeout(() => { document.getElementById('adminNameInput')?.focus(); }, 50);
         } else if (session.profile.role === 'superadmin') {
-          window.location.href = '/admin.html';
+          window.location.href = redirectParam || '/admin.html';
         } else {
-          window.location.href = '/dashboard.html';
+          window.location.href = redirectParam || '/dashboard.html';
         }
       }
     })();

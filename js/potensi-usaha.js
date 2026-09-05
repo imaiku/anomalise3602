@@ -81,12 +81,9 @@ async function initAuth() {
   if (!currentProfile) {
     if (loginNavBtn) loginNavBtn.classList.remove('hidden');
     if (profileDropdown) profileDropdown.classList.add('hidden');
-    if (accessDeniedBanner) accessDeniedBanner.classList.remove('hidden');
-    document.getElementById('tableBody').innerHTML = `
-      <tr><td colspan="7" style="text-align:center;padding:2.5rem;color:var(--error)">
-        Harap login terlebih dahulu sebagai Admin atau Superadmin untuk mengakses halaman ini.
-      </td></tr>
-    `;
+    // Reroute ke halaman login dengan parameter redirect
+    const targetUrl = encodeURIComponent(window.location.pathname + window.location.search);
+    window.location.href = `/login.html?redirect=${targetUrl}`;
     return;
   }
 
@@ -180,17 +177,108 @@ function renderStats() {
   const belum = allData.filter(d => !d.status || d.status === 'belum').length;
   const dikerjakan = allData.filter(d => d.status === 'sudah_dikerjakan').length;
   const selesai = allData.filter(d => d.status === 'sudah_selesai').length;
-  const percent = total > 0 ? Math.round((selesai / total) * 100) : 0;
+  const ditindaklanjuti = dikerjakan + selesai;
+  const percent = total > 0 ? Math.round((ditindaklanjuti / total) * 100) : 0;
 
-  document.getElementById('statTotal').textContent = total.toLocaleString('id-ID');
-  document.getElementById('statBelum').textContent = belum.toLocaleString('id-ID');
-  document.getElementById('statDikerjakan').textContent = dikerjakan.toLocaleString('id-ID');
-  document.getElementById('statSelesai').textContent = selesai.toLocaleString('id-ID');
+  // Hitung kontribusi per akun dari 'selesai_oleh'
+  const accountStatsMap = {};
+  allData.forEach(row => {
+    if (row.status === 'sudah_selesai' && row.selesai_oleh) {
+      const akun = String(row.selesai_oleh).trim();
+      if (!accountStatsMap[akun]) accountStatsMap[akun] = 0;
+      accountStatsMap[akun]++;
+    }
+  });
+
+  // Urutkan akun berdasarkan jumlah selesai terbanyak
+  const accountList = Object.entries(accountStatsMap)
+    .map(([nama, count]) => ({ nama, count }))
+    .sort((a, b) => b.count - a.count);
+
+  window._accountContribList = accountList;
+  window._totalDikerjakan = dikerjakan;
+
+  // Card 1: Total
+  const statTotalEl = document.getElementById('statTotal');
+  if (statTotalEl) statTotalEl.textContent = total.toLocaleString('id-ID');
+
+  // Card 2: Belum
+  const statBelumEl = document.getElementById('statBelum');
+  if (statBelumEl) statBelumEl.textContent = belum.toLocaleString('id-ID');
+
+  // Card 3: Sudah Ditindaklanjuti (Gabungan Dikerjakan + Selesai)
+  const statDitindakEl = document.getElementById('statDitindaklanjuti');
+  if (statDitindakEl) statDitindakEl.textContent = ditindaklanjuti.toLocaleString('id-ID');
 
   const progressFill = document.getElementById('progressFill');
   const progressText = document.getElementById('statProgressPercent');
   if (progressFill) progressFill.style.width = `${percent}%`;
-  if (progressText) progressText.textContent = `${percent}% selesai (${selesai}/${total})`;
+  if (progressText) {
+    progressText.textContent = `${percent}% ditindaklanjuti (${ditindaklanjuti.toLocaleString('id-ID')} / ${total.toLocaleString('id-ID')})`;
+  }
+
+  // Card 4: Kontribusi Petugas
+  const statAkunEl = document.getElementById('statAkunAktif');
+  const statAkunSubEl = document.getElementById('statAkunAktifSub');
+  if (statAkunEl) {
+    statAkunEl.textContent = `${accountList.length} Akun`;
+  }
+  if (statAkunSubEl) {
+    statAkunSubEl.textContent = `${selesai.toLocaleString('id-ID')} selesai · ${dikerjakan.toLocaleString('id-ID')} dikerjakan`;
+  }
+}
+
+// ─── MODAL KONTRIBUSI AKUN PETUGAS ───────────────────────────
+function openAccountContribModal() {
+  const modal = document.getElementById('accountContribModal');
+  const totalDikerjakanEl = document.getElementById('contribTotalDikerjakan');
+  const tbody = document.getElementById('contribTableBody');
+
+  if (totalDikerjakanEl) {
+    totalDikerjakanEl.textContent = (window._totalDikerjakan || 0).toLocaleString('id-ID');
+  }
+
+  const list = window._accountContribList || [];
+  if (tbody) {
+    if (list.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="3" style="text-align:center; padding:2rem; color:var(--text-muted);">
+            Belum ada akun yang menyelesaikan perbaikan data.
+          </td>
+        </tr>
+      `;
+    } else {
+      let html = '';
+      list.forEach((item, idx) => {
+        html += `
+          <tr style="border-bottom: 1px solid var(--border);">
+            <td style="padding:0.65rem 0.85rem; width:40px; color:var(--text-muted);">${idx + 1}</td>
+            <td style="padding:0.65rem 0.85rem; font-weight:600; color:var(--text);">
+              ${escapeHtml(item.nama)}
+            </td>
+            <td style="padding:0.65rem 0.85rem; text-align:right; font-weight:700; color:var(--success);">
+              ${item.count.toLocaleString('id-ID')}
+            </td>
+          </tr>
+        `;
+      });
+      tbody.innerHTML = html;
+    }
+  }
+
+  if (modal) modal.style.display = 'flex';
+}
+
+function closeAccountContribModal() {
+  const modal = document.getElementById('accountContribModal');
+  if (modal) modal.style.display = 'none';
+}
+
+function handleAccountContribOverlayClick(e) {
+  if (e.target.id === 'accountContribModal') {
+    closeAccountContribModal();
+  }
 }
 
 // ─── KECAMATAN PROGRESS SECTION ──────────────────────────────
@@ -890,6 +978,24 @@ function handleBulkOverlayClick(e) {
   if (e.target.id === 'bulkModal') closeBulkModal();
 }
 
+function escapeAttr(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'")
+    .replace(/"/g, '&quot;');
+}
+
+function copyNamaUsaha(text) {
+  if (!text) return;
+  navigator.clipboard.writeText(text).then(() => {
+    showToast(`Disalin: "${text}"`, 'success');
+  }).catch(err => {
+    // Fallback prompt jika clipboard API dibatasi
+    prompt('Salin teks nama usaha berikut:', text);
+  });
+}
+
 function renderBulkSheetBody() {
   const body = document.getElementById('bulkSheetBody');
   const sub = document.getElementById('bulkSubtitle');
@@ -902,20 +1008,21 @@ function renderBulkSheetBody() {
       <table class="table" style="width:100%; font-size:0.8rem; border-collapse:collapse">
         <thead>
           <tr style="border-bottom:2px solid var(--border)">
-            <th style="padding:0.75rem; text-align:left">Nama ART / Pelaku Usaha</th>
-            <th style="padding:0.75rem; text-align:center; width:135px">
-              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem; margin:0">
+            <th style="padding:0.75rem; text-align:left; min-width:140px;">Nama ART / Responden</th>
+            <th style="padding:0.75rem; text-align:left; min-width:200px;">Nama Usaha (Klik untuk Salin)</th>
+            <th style="padding:0.75rem; text-align:center; width:110px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
                 <input type="checkbox" id="bulkMasterDikerjakan" onchange="toggleAllBulkStatus('dikerjakan', this.checked)" style="width:14px; height:14px; cursor:pointer">
                 Dikerjakan
               </label>
             </th>
-            <th style="padding:0.75rem; text-align:center; width:135px">
-              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.3rem; margin:0">
+            <th style="padding:0.75rem; text-align:center; width:110px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
                 <input type="checkbox" id="bulkMasterSelesai" onchange="toggleAllBulkStatus('selesai', this.checked)" style="width:14px; height:14px; cursor:pointer">
                 Selesai
               </label>
             </th>
-            <th style="padding:0.75rem; text-align:center; width:100px">Aksi</th>
+            <th style="padding:0.75rem; text-align:center; width:90px">Aksi</th>
           </tr>
         </thead>
         <tbody>
@@ -926,15 +1033,37 @@ function renderBulkSheetBody() {
     const isSelesai = row.status === 'sudah_selesai';
     const fasihEditUrl = getFasihEditUrl(row.assignment_id);
 
+    // Formula Nama Usaha: Uraian Profesi (Nama ART)
+    const namaUsaha = row.uraian_profesi ? `${row.uraian_profesi} (${row.nama_art})` : (row.nama_art || '—');
+
     html += `
       <tr style="border-bottom:1px solid var(--border)">
+        <!-- Kolom Nama ART: hanya nama dan desa -->
         <td style="padding:0.75rem">
-          <div style="font-weight:600; color:var(--text)">${escapeHtml(row.nama_art)}</div>
-          <div style="font-size:0.72rem; color:var(--text-muted)">
-            ${escapeHtml(row.kecamatan)} · ${escapeHtml(row.desa)} · ${escapeHtml(row.nama_sls)}
-            ${row.assignment_id ? ` · <span style="font-family:monospace">${row.assignment_id.slice(0, 8)}...</span>` : ''}
+          <div style="font-weight:600; color:var(--text)">${escapeHtml(row.nama_art || '—')}</div>
+          <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+            ${escapeHtml(row.desa || '—')}
           </div>
         </td>
+
+        <!-- Kolom Nama Usaha dengan Copy to Clipboard -->
+        <td style="padding:0.75rem">
+          <div style="display:flex; align-items:center; gap:0.4rem;">
+            <span onclick="copyNamaUsaha('${escapeAttr(namaUsaha)}')" title="Klik untuk menyalin"
+              style="cursor:pointer; font-weight:500; color:var(--primary); text-decoration:underline text-decoration-style:dashed; text-underline-offset:3px; word-break:break-word;">
+              ${escapeHtml(namaUsaha)}
+            </span>
+            <button class="btn btn-secondary btn-xs" onclick="copyNamaUsaha('${escapeAttr(namaUsaha)}')" title="Salin nama usaha"
+              style="padding:0.15rem 0.35rem; cursor:pointer; flex-shrink:0;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            </button>
+          </div>
+        </td>
+
         <td style="padding:0.75rem; text-align:center">
           <input type="checkbox" class="bulk-dikerjakan-cb" data-idx="${idx}" ${isDikerjakan ? 'checked' : ''}
             onchange="onBulkRowStatusChange(${idx}, 'dikerjakan', this.checked)"
