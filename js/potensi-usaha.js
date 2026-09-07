@@ -19,10 +19,7 @@ let filterDesaVal = '';
 let filterSlsVal = '';
 let filterStatusVal = '';
 let filterProfesiVal = '';
-let fuzzyProfesiKeyword = '';
-let fuzzyProfesiThreshold = 0.6;
 let searchDebounceTimer = null;
-let fuzzyInputDebounceTimer = null;
 
 let editingRowId = null;
 let selectedStatusValue = null;
@@ -750,17 +747,9 @@ function applyFilters() {
       if (filterStatusVal !== 'belum' && item.status !== filterStatusVal) return false;
     }
 
-    // Uraian Profesi Exact Filter (dari dropdown biasa)
+    // Uraian Profesi Filter
     if (filterProfesiVal) {
       if ((item.uraian_profesi || '').trim().toLowerCase() !== filterProfesiVal.toLowerCase()) {
-        return false;
-      }
-    }
-
-    // Uraian Profesi Fuzzy Similarity Filter
-    if (fuzzyProfesiKeyword) {
-      const sim = calculateProfesiSimilarity(fuzzyProfesiKeyword, item.uraian_profesi || '');
-      if (sim < fuzzyProfesiThreshold) {
         return false;
       }
     }
@@ -797,259 +786,6 @@ function applyFilters() {
   currentPage = 1;
   renderActiveFilterChips();
   renderTable();
-}
-
-// ─── FUZZY SIMILARITY ENGINE ─────────────────────────────────
-// Algoritma kombinasi:
-// 1. Substring Exact Match (Jika source termuat utuh dalam target atau sebaliknya)
-// 2. Token Jaccard Similarity (Irisan kata penting)
-// 3. Levenshtein / Bigram String Distance (Toleransi Typo)
-function calculateProfesiSimilarity(source, target) {
-  if (!source || !target) return 0;
-
-  const cleanS = source.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, ' ');
-  const cleanT = target.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').trim().replace(/\s+/g, ' ');
-
-  if (!cleanS || !cleanT) return 0;
-  if (cleanS === cleanT) return 1.0;
-
-  // 1. Substring inclusion check (Sangat akurat untuk profesi pendek seperti "ojek", "warung", "guru")
-  if (cleanT.includes(cleanS) || cleanS.includes(cleanT)) {
-    // Skala substring berdasarkan rasio panjang
-    const lenRatio = Math.min(cleanS.length, cleanT.length) / Math.max(cleanS.length, cleanT.length);
-    return Math.max(0.75, 0.6 + 0.4 * lenRatio);
-  }
-
-  // 2. Token Jaccard Similarity (Kata per kata)
-  const tokensS = new Set(cleanS.split(' ').filter(w => w.length > 1));
-  const tokensT = new Set(cleanT.split(' ').filter(w => w.length > 1));
-
-  let intersectionCount = 0;
-  tokensS.forEach(w => {
-    if (tokensT.has(w)) {
-      intersectionCount++;
-    } else {
-      // Cek apakah ada token yang hampir sama (typo tolerance)
-      for (const tw of tokensT) {
-        if (levenshteinDistance(w, tw) <= 1 && Math.min(w.length, tw.length) >= 4) {
-          intersectionCount += 0.85;
-          break;
-        }
-      }
-    }
-  });
-
-  const unionSize = new Set([...tokensS, ...tokensT]).size;
-  const jaccardScore = unionSize > 0 ? intersectionCount / unionSize : 0;
-
-  // 3. Bigram Dice Score untuk keseluruhan string
-  const bigramScore = calculateBigramSimilarity(cleanS, cleanT);
-
-  return Math.max(jaccardScore, bigramScore);
-}
-
-function levenshteinDistance(a, b) {
-  const m = a.length, n = b.length;
-  if (m === 0) return n;
-  if (n === 0) return m;
-
-  const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-  for (let i = 0; i <= m; i++) dp[i][0] = i;
-  for (let j = 0; j <= n; j++) dp[0][j] = j;
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      dp[i][j] = Math.min(
-        dp[i - 1][j] + 1,
-        dp[i][j - 1] + 1,
-        dp[i - 1][j - 1] + cost
-      );
-    }
-  }
-  return dp[m][n];
-}
-
-function calculateBigramSimilarity(str1, str2) {
-  if (str1.length < 2 || str2.length < 2) return 0;
-
-  const getBigrams = (str) => {
-    const s = str.replace(/\s+/g, '');
-    const bg = new Map();
-    for (let i = 0; i < s.length - 1; i++) {
-      const gram = s.substr(i, 2);
-      bg.set(gram, (bg.get(gram) || 0) + 1);
-    }
-    return bg;
-  };
-
-  const bg1 = getBigrams(str1);
-  const bg2 = getBigrams(str2);
-
-  let intersection = 0;
-  bg1.forEach((count, gram) => {
-    if (bg2.has(gram)) {
-      intersection += Math.min(count, bg2.get(gram));
-    }
-  });
-
-  let totalGrams = 0;
-  bg1.forEach(c => totalGrams += c);
-  bg2.forEach(c => totalGrams += c);
-
-  return totalGrams === 0 ? 0 : (2 * intersection) / totalGrams;
-}
-
-// ─── MODAL KEMIRIPAN PROFESI (FUZZY MATCH) ───────────────────
-const FUZZY_SIMILARITY_THRESHOLD = 0.6; // Tetap 60% sesuai arahan user
-
-function openFuzzyProfesiModal(presetKeyword = '') {
-  const modal = document.getElementById('fuzzyProfesiModal');
-  const input = document.getElementById('inputFuzzyProfesiKeyword');
-  const btnReset = document.getElementById('btnResetFuzzyFilter');
-  const datalist = document.getElementById('fuzzyDatalistProfesi');
-
-  if (!modal) return;
-
-  // Isi datalist rekomendasi profesi
-  if (datalist && datalist.children.length === 0) {
-    const counts = {};
-    allData.forEach(item => {
-      const prof = (item.uraian_profesi || '').trim();
-      if (prof) counts[prof] = (counts[prof] || 0) + 1;
-    });
-    const sorted = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
-    datalist.innerHTML = sorted.slice(0, 100).map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)} (${counts[p]})</option>`).join('');
-  }
-
-  const activeKeyword = presetKeyword || fuzzyProfesiKeyword || '';
-  if (input) input.value = activeKeyword;
-
-  if (btnReset) {
-    btnReset.style.display = fuzzyProfesiKeyword ? 'inline-block' : 'none';
-  }
-
-  updateFuzzyPreview();
-  modal.classList.add('open');
-  if (input) setTimeout(() => input.focus(), 150);
-}
-
-function closeFuzzyProfesiModal() {
-  const modal = document.getElementById('fuzzyProfesiModal');
-  if (modal) modal.classList.remove('open');
-}
-
-function onFuzzyInputChange() {
-  clearTimeout(fuzzyInputDebounceTimer);
-  fuzzyInputDebounceTimer = setTimeout(() => {
-    updateFuzzyPreview();
-  }, 180);
-}
-
-function updateFuzzyPreview() {
-  const input = document.getElementById('inputFuzzyProfesiKeyword');
-  const previewBox = document.getElementById('fuzzyMatchPreviewList');
-  const countLabel = document.getElementById('txtFuzzyMatchCount');
-
-  if (!previewBox) return;
-
-  const keyword = (input?.value || '').trim();
-  const threshold = FUZZY_SIMILARITY_THRESHOLD;
-
-  if (!keyword) {
-    previewBox.innerHTML = `
-      <div style="font-size:0.75rem;color:var(--text-muted);padding:0.5rem">
-        Ketik kata kunci acuan di atas untuk melihat variasi profesi yang akan terjaring.
-      </div>
-    `;
-    if (countLabel) countLabel.textContent = '0 data cocok';
-    return;
-  }
-
-  // Cari variasi unik profesi yang skornya >= threshold
-  const matchMap = new Map(); // profesi -> { count, score }
-  let totalRowsMatched = 0;
-
-  allData.forEach(item => {
-    const prof = (item.uraian_profesi || '').trim();
-    if (!prof) return;
-
-    if (!matchMap.has(prof)) {
-      const score = calculateProfesiSimilarity(keyword, prof);
-      matchMap.set(prof, { count: 1, score });
-    } else {
-      matchMap.get(prof).count++;
-    }
-  });
-
-  const matchedItems = [];
-  matchMap.forEach((val, prof) => {
-    if (val.score >= threshold) {
-      matchedItems.push({ prof, count: val.count, score: val.score });
-      totalRowsMatched += val.count;
-    }
-  });
-
-  // Urutkan berdasarkan skor kemiripan tertinggi lalu frekuensi terbanyak
-  matchedItems.sort((a, b) => {
-    if (Math.abs(b.score - a.score) > 0.05) return b.score - a.score;
-    return b.count - a.count;
-  });
-
-  if (countLabel) {
-    countLabel.textContent = `${totalRowsMatched.toLocaleString('id-ID')} baris (${matchedItems.length} variasi)`;
-  }
-
-  if (matchedItems.length === 0) {
-    previewBox.innerHTML = `
-      <div style="font-size:0.75rem;color:var(--warning);padding:0.5rem">
-        Tidak ada profesi yang memenuhi batas kemiripan. Coba kata kunci yang lebih umum.
-      </div>
-    `;
-    return;
-  }
-
-  previewBox.innerHTML = matchedItems.slice(0, 30).map(m => `
-    <span style="display:inline-flex;align-items:center;gap:0.3rem;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0.25rem 0.5rem;font-size:0.75rem;">
-      <strong>${escapeHtml(m.prof)}</strong>
-      <span style="font-size:0.68rem;color:var(--text-muted);background:var(--bg-card-2);padding:0.1rem 0.35rem;border-radius:4px;">
-        ${m.count}x • ${Math.round(m.score * 100)}%
-      </span>
-    </span>
-  `).join('') + (matchedItems.length > 30 ? `<span style="font-size:0.72rem;color:var(--text-muted);align-self:center;padding:0.25rem;">+${matchedItems.length - 30} lainnya...</span>` : '');
-}
-
-function applyFuzzyProfesiFilter() {
-  const input = document.getElementById('inputFuzzyProfesiKeyword');
-
-  const kw = (input?.value || '').trim();
-  if (!kw) {
-    clearFuzzyProfesiFilter();
-    closeFuzzyProfesiModal();
-    return;
-  }
-
-  fuzzyProfesiKeyword = kw;
-  fuzzyProfesiThreshold = FUZZY_SIMILARITY_THRESHOLD;
-
-  // Reset filter dropdown profesi persis jika fuzzy aktif agar tidak bentrok
-  filterProfesiVal = '';
-  const selProfesi = document.getElementById('filterProfesi');
-  if (selProfesi) selProfesi.value = '';
-
-  closeFuzzyProfesiModal();
-  applyFilters();
-  showToast(`Filter kemiripan "${fuzzyProfesiKeyword}" diterapkan.`, 'info');
-}
-
-function clearFuzzyProfesiFilter() {
-  fuzzyProfesiKeyword = '';
-  const input = document.getElementById('inputFuzzyProfesiKeyword');
-  if (input) input.value = '';
-
-  closeFuzzyProfesiModal();
-  applyFilters();
-  showToast('Filter kemiripan profesi dihapus.', 'info');
 }
 
 function populateProfesiOptions() {
@@ -1121,14 +857,11 @@ function resetFilters() {
   document.getElementById('filterStatus').value = '';
   const profesiSelect = document.getElementById('filterProfesi');
   if (profesiSelect) profesiSelect.value = '';
-  const fuzzyInput = document.getElementById('inputFuzzyProfesiKeyword');
-  if (fuzzyInput) fuzzyInput.value = '';
   filterKecamatanVal = '';
   filterDesaVal = '';
   filterSlsVal = '';
   filterStatusVal = '';
   filterProfesiVal = '';
-  fuzzyProfesiKeyword = '';
   renderKecamatanProgress();
   applyFilters();
 }
@@ -1186,15 +919,6 @@ function renderActiveFilterChips() {
         const sel = document.getElementById('filterProfesi');
         if (sel) sel.value = '';
         applyFilters();
-      }
-    });
-  }
-
-  if (fuzzyProfesiKeyword) {
-    chips.push({
-      label: `Kemiripan: "${fuzzyProfesiKeyword}"`,
-      onRemove: () => {
-        clearFuzzyProfesiFilter();
       }
     });
   }
@@ -1313,21 +1037,7 @@ function renderTable() {
           <div style="font-size:0.825rem;">${escapeHtml(row.kedudukan_kerja || '—')}</div>
         </td>
         <td>
-          <div style="font-size:0.825rem;display:flex;align-items:center;gap:0.35rem;justify-content:space-between">
-            <span style="color:var(--text-muted);word-break:break-word">${escapeHtml(row.uraian_profesi || '—')}</span>
-            ${row.uraian_profesi ? `
-              <button class="btn btn-secondary btn-xs" onclick="openFuzzyProfesiModal('${escapeAttr(row.uraian_profesi)}')" 
-                title="Cari semua profesi yang mirip dengan '${escapeAttr(row.uraian_profesi)}'"
-                style="padding:0.1rem 0.35rem;cursor:pointer;flex-shrink:0;opacity:0.75;font-size:0.68rem;display:inline-flex;align-items:center;gap:0.2rem">
-                <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                Mirip
-              </button>
-            ` : ''}
-          </div>
+          <div style="font-size:0.825rem;color:var(--text-muted);">${escapeHtml(row.uraian_profesi || '—')}</div>
         </td>
         <td>
           ${badge}
@@ -1372,15 +1082,7 @@ function renderTable() {
         </div>
         <div class="mobile-card-meta" style="flex-direction:column;gap:0.2rem;">
           <div style="font-size:0.8rem;"><strong>Kedudukan:</strong> ${escapeHtml(row.kedudukan_kerja || '—')}</div>
-          <div style="font-size:0.8rem;color:var(--text-muted);display:flex;align-items:center;gap:0.4rem;justify-content:space-between">
-            <span><strong>Profesi:</strong> ${escapeHtml(row.uraian_profesi || '—')}</span>
-            ${row.uraian_profesi ? `
-              <button class="btn btn-secondary btn-xs" onclick="openFuzzyProfesiModal('${escapeAttr(row.uraian_profesi)}')"
-                style="padding:0.1rem 0.35rem;font-size:0.68rem;cursor:pointer">
-                Mirip
-              </button>
-            ` : ''}
-          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);"><strong>Profesi:</strong> ${escapeHtml(row.uraian_profesi || '—')}</div>
         </div>
         <div class="mobile-card-footer">
           <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;cursor:${isLockedOther ? 'not-allowed' : 'pointer'};margin:0;">
