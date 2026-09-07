@@ -210,6 +210,11 @@
       cursor: pointer;
     }
 
+    .mobile-card.row-locked {
+      background-color: rgba(239, 68, 68, 0.03);
+      border-color: rgba(239, 68, 68, 0.25);
+    }
+
     @media (max-width: 768px) {
       .table-wrapper {
         display: none;
@@ -472,6 +477,14 @@
           <div class="table-count" id="tableCount">Memuat...</div>
         </div>
         <div style="display:flex;align-items:center;gap:0.5rem">
+          <!-- Toggle Live Sync Auto-Refresh Button -->
+          <button id="toggleSyncBtn" class="btn btn-secondary btn-sm" onclick="toggleLockSync()"
+            title="Klik untuk menghidupkan/mematikan sinkronisasi status live kunci baris"
+            style="padding:0.35rem 0.65rem;font-size:0.78rem;display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;border-radius:var(--radius-sm)">
+            <span id="syncStatusDot" style="width:7px;height:7px;border-radius:50%;background:var(--success);display:inline-block"></span>
+            <span id="syncBtnText">Live Sync: ON</span>
+          </button>
+
           <select class="filter-select" id="pageSizeSelect" onchange="changePageSize()"
             style="padding:0.35rem 0.6rem;font-size:0.8rem">
             <option value="10" selected>10 / halaman</option>

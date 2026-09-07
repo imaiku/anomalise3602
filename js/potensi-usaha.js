@@ -25,6 +25,368 @@ let selectedStatusValue = null;
 
 let parsedExcelRowsForImport = [];
 
+// ============================================================
+// LOCK SYNC MODULE (COLLABORATION & ANTI-COLLISION — 1 JAM TIMEOUT)
+// ============================================================
+const LOCK_TIMEOUT_MS = 60 * 60 * 1000; // 1 Jam (sesuai arahan user)
+let activeLockChannel = null;
+let lockHeartbeatInterval = null;
+let lockPollInterval = null;
+let lastInteractionTimestamp = Date.now();
+let isLockSyncEnabled = localStorage.getItem('live_lock_sync_enabled_potensi') !== 'false'; // default: true
+
+// Set event listener untuk mendeteksi keaktifan pengguna (mouse, keyboard, scroll)
+['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart'].forEach(evt => {
+  window.addEventListener(evt, () => {
+    lastInteractionTimestamp = Date.now();
+  }, { passive: true });
+});
+
+// Helper: Cek apakah sebuah baris sedang dikunci oleh orang lain
+function isRowLockedByOther(row, profile) {
+  if (!row || !row.locked_by_id) return false;
+  if (!profile) return true;
+
+  const currentUserId = profile.id;
+  const currentSessionName = typeof getSessionName === 'function' ? getSessionName(profile) : (profile.nama || '');
+
+  // Jika akun admin bersama: bedakan berdasarkan nama sesi (locked_by_nama)
+  if (profile.role === 'admin') {
+    if (row.locked_by_nama && row.locked_by_nama.toLowerCase() === currentSessionName.toLowerCase()) {
+      return false; // Dikunci oleh diri sendiri di sesi ini
+    }
+  } else {
+    if (row.locked_by_id === currentUserId) {
+      return false; // Dikunci oleh diri sendiri
+    }
+  }
+
+  // Cek apakah kunci sudah kadaluarsa (> 1 jam)
+  if (row.locked_at) {
+    const lockTime = new Date(row.locked_at).getTime();
+    if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
+      return false; // Kunci sudah kadaluarsa
+    }
+  }
+
+  return true;
+}
+
+// Helper: Cek apakah sebuah baris sedang dikunci oleh diri sendiri
+function isRowLockedBySelf(row, profile) {
+  if (!row || !row.locked_by_id || !profile) return false;
+
+  // Cek apakah kunci sudah kadaluarsa (> 1 jam)
+  if (row.locked_at) {
+    const lockTime = new Date(row.locked_at).getTime();
+    if (Date.now() - lockTime > LOCK_TIMEOUT_MS) {
+      return false;
+    }
+  }
+
+  const currentUserId = profile.id;
+  const currentSessionName = typeof getSessionName === 'function' ? getSessionName(profile) : (profile.nama || '');
+
+  if (profile.role === 'admin') {
+    return Boolean(row.locked_by_nama && row.locked_by_nama.toLowerCase() === currentSessionName.toLowerCase());
+  } else {
+    return (row.locked_by_id === currentUserId);
+  }
+}
+
+// Broadcast event helper
+function broadcastLockChange(rowIds, lockedById, lockedByNama, lockedAt) {
+  if (activeLockChannel) {
+    activeLockChannel.send({
+      type: 'broadcast',
+      event: 'lock_state_change',
+      payload: {
+        row_ids: rowIds,
+        locked_by_id: lockedById,
+        locked_by_nama: lockedByNama,
+        locked_at: lockedAt
+      }
+    }).catch(err => console.warn('[LOCK] Broadcast send error:', err));
+  }
+}
+
+// Klaim Kunci Baris Potensi Usaha (Atomic RPC + Instant Broadcast)
+async function acquireRowLocks(rowIds, profile) {
+  if (!rowIds || !rowIds.length || !profile) return { success: true, claimed_count: 0 };
+
+  const sessionName = typeof getSessionName === 'function' ? getSessionName(profile) : (profile.nama || 'Petugas');
+  const nowIso = new Date().toISOString();
+
+  // Instant broadcast peer-to-peer tanpa delay
+  broadcastLockChange(rowIds, profile.id, sessionName, nowIso);
+
+  // Update memori lokal segera
+  rowIds.forEach(rid => {
+    const target = allData.find(d => d.id === rid);
+    if (target) {
+      target.locked_by_id = profile.id;
+      target.locked_by_nama = sessionName;
+      target.locked_at = nowIso;
+    }
+  });
+
+  try {
+    const { data, error } = await db.rpc('claim_potensi_usaha_locks', {
+      p_ids: rowIds,
+      p_user_id: profile.id,
+      p_user_nama: sessionName
+    });
+
+    if (error) {
+      console.warn('[LOCK] RPC claim_potensi_usaha_locks error:', error.message);
+      return { success: true, claimed_count: rowIds.length, failed_ids: [] };
+    }
+    return data || { success: true, claimed_count: rowIds.length, failed_ids: [] };
+  } catch (err) {
+    console.error('[LOCK] Error acquiring row locks:', err);
+    return { success: true, claimed_count: rowIds.length, failed_ids: [] };
+  }
+}
+
+// Lepas Kunci Baris Potensi Usaha (Atomic RPC + Instant Broadcast)
+async function releaseRowLocks(rowIds, profile) {
+  if (!rowIds || !rowIds.length || !profile) return 0;
+
+  const sessionName = typeof getSessionName === 'function' ? getSessionName(profile) : (profile.nama || 'Petugas');
+
+  // Instant broadcast uncheck/release ke semua tab/rekan lain
+  broadcastLockChange(rowIds, null, null, null);
+
+  // Update memori lokal segera
+  rowIds.forEach(rid => {
+    const target = allData.find(d => d.id === rid);
+    if (target) {
+      target.locked_by_id = null;
+      target.locked_by_nama = null;
+      target.locked_at = null;
+    }
+  });
+
+  try {
+    const { data, error } = await db.rpc('release_potensi_usaha_locks', {
+      p_ids: rowIds,
+      p_user_id: profile.id,
+      p_user_nama: sessionName
+    });
+
+    if (error) throw error;
+    return data || 0;
+  } catch (err) {
+    console.error('[LOCK] Error releasing row locks:', err);
+    return 0;
+  }
+}
+
+// Inisialisasi Realtime Listener untuk Lock State (Postgres CDC + Broadcast Channel)
+function initLockRealtime(onLockUpdateCallback) {
+  if (activeLockChannel) {
+    try { db.removeChannel(activeLockChannel); } catch (e) {}
+  }
+
+  const applyLockUpdate = (rowId, lockedById, lockedByNama, lockedAt) => {
+    let found = false;
+    const updateInList = (list) => {
+      if (!list || !list.length) return false;
+      list.forEach(item => {
+        if (Number(item.id) === Number(rowId)) {
+          item.locked_by_id = lockedById;
+          item.locked_by_nama = lockedByNama;
+          item.locked_at = lockedAt;
+          found = true;
+        }
+      });
+      return found;
+    };
+
+    updateInList(allData || []);
+    updateInList(filteredData || []);
+
+    if (found && typeof onLockUpdateCallback === 'function') {
+      onLockUpdateCallback(rowId);
+    }
+  };
+
+  activeLockChannel = db.channel('potensi_usaha_locks', {
+    config: {
+      broadcast: { self: false }
+    }
+  })
+    // 1. Instant Peer-to-Peer Broadcast
+    .on('broadcast', { event: 'lock_state_change' }, (payload) => {
+      const data = payload.payload;
+      if (data && data.row_ids) {
+        data.row_ids.forEach(rid => {
+          applyLockUpdate(rid, data.locked_by_id, data.locked_by_nama, data.locked_at);
+        });
+      }
+    })
+    // 2. Database Postgres Changes (CDC)
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'potensi_usaha'
+      },
+      (payload) => {
+        const newRow = payload.new;
+        if (!newRow || !newRow.id) return;
+        applyLockUpdate(newRow.id, newRow.locked_by_id, newRow.locked_by_nama, newRow.locked_at);
+      }
+    )
+    .subscribe((status) => {
+      console.log('[LOCK] Realtime potensi_usaha lock channel status:', status);
+    });
+
+  // Heartbeat idle release timer: periksa tiap 1 menit
+  if (lockHeartbeatInterval) clearInterval(lockHeartbeatInterval);
+  lockHeartbeatInterval = setInterval(async () => {
+    const idleDuration = Date.now() - lastInteractionTimestamp;
+
+    // Jika idle lebih dari 1 jam (60 menit) dan ada baris yang sedang dipilih/dikunci sendiri
+    if (idleDuration >= LOCK_TIMEOUT_MS && selectedRowIds.size > 0) {
+      const idsToRelease = Array.from(selectedRowIds);
+      if (currentProfile && currentProfile.id) {
+        await releaseRowLocks(idsToRelease, currentProfile);
+      }
+
+      selectedRowIds.clear();
+      const master = document.getElementById('selectAllCheckbox');
+      if (master) master.checked = false;
+      updateFab();
+      renderTable();
+
+      showToast('Klaim baris dilepas otomatis karena tidak ada aktivitas selama 1 jam.', 'warning');
+    }
+  }, 60 * 1000);
+
+  // Polling fallback berkala tiap 5 detik
+  if (lockPollInterval) clearInterval(lockPollInterval);
+  lockPollInterval = setInterval(() => {
+    if (!document.hidden && isLockSyncEnabled) {
+      pollLockState();
+    }
+  }, 5000);
+
+  updateSyncButtonUI();
+}
+
+// Polling lock state untuk halaman aktif saat ini
+async function pollLockState() {
+  if (!isLockSyncEnabled || !currentProfile || !allData || allData.length === 0) return;
+
+  try {
+    const startIndex = (currentPage - 1) * pageSize;
+    const pageRows = filteredData.slice(startIndex, startIndex + pageSize);
+    const currentPageIds = pageRows.map(r => r.id).filter(Boolean);
+
+    if (currentPageIds.length === 0) return;
+
+    const { data: lockRows, error } = await db
+      .from('potensi_usaha')
+      .select('id, locked_by_id, locked_by_nama, locked_at')
+      .in('id', currentPageIds);
+
+    if (error) {
+      console.warn('[LOCK POLL] Error:', error.message);
+      return;
+    }
+
+    const lockMap = {};
+    (lockRows || []).forEach(row => {
+      lockMap[row.id] = {
+        locked_by_id: row.locked_by_id || null,
+        locked_by_nama: row.locked_by_nama || null,
+        locked_at: row.locked_at || null
+      };
+    });
+
+    let changed = false;
+    pageRows.forEach(r => {
+      const remote = lockMap[r.id];
+      if (remote) {
+        if (r.locked_by_id !== remote.locked_by_id ||
+            r.locked_by_nama !== remote.locked_by_nama ||
+            r.locked_at !== remote.locked_at) {
+          r.locked_by_id = remote.locked_by_id;
+          r.locked_by_nama = remote.locked_by_nama;
+          r.locked_at = remote.locked_at;
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      renderTable();
+    }
+  } catch (err) {
+    console.warn('[LOCK POLL] Exception:', err);
+  }
+}
+
+// Toggle Live Sync Button
+function toggleLockSync() {
+  isLockSyncEnabled = !isLockSyncEnabled;
+  localStorage.setItem('live_lock_sync_enabled_potensi', isLockSyncEnabled ? 'true' : 'false');
+  updateSyncButtonUI();
+
+  if (isLockSyncEnabled) {
+    showToast('Live Sync diaktifkan (sinkronisasi kunci tiap 5 detik).', 'info');
+    pollLockState();
+  } else {
+    showToast('Live Sync dimatikan.', 'info');
+  }
+}
+
+function updateSyncButtonUI() {
+  const dot = document.getElementById('syncStatusDot');
+  const text = document.getElementById('syncBtnText');
+  const btn = document.getElementById('toggleSyncBtn');
+  if (!dot || !text) return;
+
+  if (isLockSyncEnabled) {
+    dot.style.background = 'var(--success)';
+    text.textContent = 'Live Sync: ON';
+    if (btn) btn.style.borderColor = 'rgba(16, 185, 129, 0.4)';
+  } else {
+    dot.style.background = 'var(--text-subtle)';
+    text.textContent = 'Live Sync: OFF';
+    if (btn) btn.style.borderColor = 'var(--border)';
+  }
+}
+
+// Lepaskan kunci secara otomatis saat tab/jendela browser ditutup
+window.addEventListener('beforeunload', () => {
+  if (selectedRowIds && selectedRowIds.size > 0 && currentProfile && currentProfile.id) {
+    const ids = Array.from(selectedRowIds);
+    const sessionName = typeof getSessionName === 'function' ? getSessionName(currentProfile) : (currentProfile.nama || 'Petugas');
+    const url = `${SUPABASE_URL}/rest/v1/rpc/release_potensi_usaha_locks`;
+    const payload = JSON.stringify({
+      p_ids: ids,
+      p_user_id: currentProfile.id,
+      p_user_nama: sessionName
+    });
+
+    try {
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`
+        },
+        body: payload,
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
+  }
+});
+
 // Helper link Fasih-SM
 function getFasihEditUrl(assignmentId) {
   if (!assignmentId) return null;
@@ -158,6 +520,11 @@ async function loadData() {
     renderKecamatanProgress();
     populateModalWilayahOptions();
     applyFilters();
+
+    // Inisialisasi Sinkronisasi Realtime Lock Kunci Baris
+    initLockRealtime(() => {
+      renderTable();
+    });
   } catch (err) {
     console.error('Error loading data:', err);
     tbody.innerHTML = `
@@ -576,15 +943,40 @@ function renderTable() {
     const badge = getStatusBadge(row.status);
     const fasihEditUrl = getFasihEditUrl(row.assignment_id);
 
+    // Deteksi status penguncian (anti-collision)
+    const isLockedOther = isRowLockedByOther(row, currentProfile);
+    const isLockedSelf = isRowLockedBySelf(row, currentProfile);
+
+    let lockBadgeHtml = '';
+    if (isLockedOther) {
+      lockBadgeHtml = `
+        <span class="lock-badge" title="Sedang dikerjakan oleh ${escapeAttr(row.locked_by_nama || 'Petugas lain')}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Dikerjakan: ${escapeHtml(row.locked_by_nama || 'Rekan')}
+        </span>`;
+    } else if (isLockedSelf) {
+      lockBadgeHtml = `
+        <span class="lock-badge lock-badge-self" title="Sedang Anda kerjakan">
+          <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Sedang Anda kerjakan
+        </span>`;
+    }
+
     tableHtml += `
-      <tr>
+      <tr class="${isLockedOther ? 'row-locked' : ''}">
         <td style="text-align:center;">
-          <input type="checkbox" class="row-checkbox" data-id="${row.id}" ${isChecked ? 'checked' : ''}
-            onchange="onRowCheckChange(this, ${row.id})" style="cursor:pointer;accent-color:var(--primary)">
+          <input type="checkbox" class="row-checkbox ${isLockedOther ? 'checkbox-disabled-locked' : ''}" 
+            data-id="${row.id}" 
+            ${isChecked ? 'checked' : ''}
+            ${isLockedOther ? 'disabled' : ''}
+            onchange="onRowCheckChange(this, ${row.id})" 
+            style="cursor:${isLockedOther ? 'not-allowed' : 'pointer'};accent-color:var(--primary)"
+            title="${isLockedOther ? `Sedang dikerjakan oleh ${escapeAttr(row.locked_by_nama || 'Petugas lain')}` : ''}">
         </td>
         <td>
           <div style="font-weight:600;color:var(--text);">${escapeHtml(row.nama_art || '—')}</div>
           ${row.assignment_id ? `<div style="font-size:0.7rem;font-family:monospace;color:var(--text-subtle);">${row.assignment_id.slice(0, 8)}...</div>` : ''}
+          ${lockBadgeHtml ? `<div style="margin-top:0.3rem">${lockBadgeHtml}</div>` : ''}
         </td>
         <td>
           <div style="font-weight:500;">${escapeHtml(row.kecamatan || '—')}</div>
@@ -629,12 +1021,13 @@ function renderTable() {
 
     // Mobile Card
     mobileHtml += `
-      <div class="mobile-card">
+      <div class="mobile-card ${isLockedOther ? 'row-locked' : ''}">
         <div class="mobile-card-header">
           <div>
             <div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(row.kecamatan || '')} • ${escapeHtml(row.desa || '')}</div>
             <div class="mobile-card-name">${escapeHtml(row.nama_art || '—')}</div>
             <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(row.nama_sls || '—')}</div>
+            ${lockBadgeHtml ? `<div style="margin-top:0.35rem">${lockBadgeHtml}</div>` : ''}
           </div>
           <div>${badge}</div>
         </div>
@@ -643,8 +1036,11 @@ function renderTable() {
           <div style="font-size:0.8rem;color:var(--text-muted);"><strong>Profesi:</strong> ${escapeHtml(row.uraian_profesi || '—')}</div>
         </div>
         <div class="mobile-card-footer">
-          <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;cursor:pointer;margin:0;">
-            <input type="checkbox" class="row-checkbox" data-id="${row.id}" ${isChecked ? 'checked' : ''}
+          <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.8rem;cursor:${isLockedOther ? 'not-allowed' : 'pointer'};margin:0;">
+            <input type="checkbox" class="row-checkbox ${isLockedOther ? 'checkbox-disabled-locked' : ''}" 
+              data-id="${row.id}" 
+              ${isChecked ? 'checked' : ''}
+              ${isLockedOther ? 'disabled' : ''}
               onchange="onRowCheckChange(this, ${row.id})">
             <span>Pilih</span>
           </label>
@@ -747,39 +1143,62 @@ function changePageSize() {
 }
 
 // ─── CHECKBOX & FAB ──────────────────────────────────────────
-function toggleSelectAll(masterCheckbox) {
+async function toggleSelectAll(masterCheckbox) {
   const checked = masterCheckbox.checked;
   const startIndex = (currentPage - 1) * pageSize;
   const pageRows = filteredData.slice(startIndex, startIndex + pageSize);
 
-  pageRows.forEach(row => {
-    if (checked) {
-      selectedRowIds.add(row.id);
-    } else {
-      selectedRowIds.delete(row.id);
+  // Hanya pilih baris yang TIDAK dikunci oleh orang lain
+  const targetRows = pageRows.filter(r => !isRowLockedByOther(r, currentProfile));
+  const targetIds = targetRows.map(r => r.id);
+
+  if (checked) {
+    targetIds.forEach(id => selectedRowIds.add(id));
+    if (currentProfile && targetIds.length > 0) {
+      await acquireRowLocks(targetIds, currentProfile);
     }
-  });
+  } else {
+    const idsToRelease = targetIds.filter(id => selectedRowIds.has(id));
+    idsToRelease.forEach(id => selectedRowIds.delete(id));
+    if (currentProfile && idsToRelease.length > 0) {
+      await releaseRowLocks(idsToRelease, currentProfile);
+    }
+  }
 
-  document.querySelectorAll('.row-checkbox').forEach(cb => {
-    cb.checked = checked;
-  });
-
+  renderTable();
   updateFab();
 }
 
-function onRowCheckChange(checkbox, id) {
+async function onRowCheckChange(checkbox, id) {
+  const row = allData.find(d => d.id === id);
+
   if (checkbox.checked) {
+    // Validasi apakah sedang dikunci orang lain
+    if (row && isRowLockedByOther(row, currentProfile)) {
+      showToast(`Baris ini sedang dikerjakan oleh ${row.locked_by_nama || 'rekan lain'}.`, 'warning');
+      checkbox.checked = false;
+      return;
+    }
+
     selectedRowIds.add(id);
+    if (currentProfile) {
+      await acquireRowLocks([id], currentProfile);
+    }
   } else {
     selectedRowIds.delete(id);
+    if (currentProfile) {
+      await releaseRowLocks([id], currentProfile);
+    }
   }
 
   const master = document.getElementById('selectAllCheckbox');
   const startIndex = (currentPage - 1) * pageSize;
   const pageRows = filteredData.slice(startIndex, startIndex + pageSize);
-  const allInPageChecked = pageRows.every(r => selectedRowIds.has(r.id));
-  if (master) master.checked = allInPageChecked && pageRows.length > 0;
+  const eligibleRows = pageRows.filter(r => !isRowLockedByOther(r, currentProfile));
+  const allEligibleChecked = eligibleRows.length > 0 && eligibleRows.every(r => selectedRowIds.has(r.id));
+  if (master) master.checked = allEligibleChecked;
 
+  renderTable();
   updateFab();
 }
 
@@ -798,21 +1217,39 @@ function updateFab() {
   }
 }
 
-function clearSelection() {
+async function clearSelection() {
+  if (selectedRowIds.size > 0 && currentProfile) {
+    const idsToRelease = Array.from(selectedRowIds);
+    await releaseRowLocks(idsToRelease, currentProfile);
+  }
+
   selectedRowIds.clear();
   const master = document.getElementById('selectAllCheckbox');
   if (master) master.checked = false;
   document.querySelectorAll('.row-checkbox').forEach(cb => cb.checked = false);
+  renderTable();
   updateFab();
 }
 
 // ─── EDIT MODAL (BOTTOM SHEET INDIVIDUAL) ────────────────────
-function openEditModal(id) {
+async function openEditModal(id) {
   const row = allData.find(d => d.id === id);
   if (!row) return;
 
+  // Cek apakah sedang dikunci orang lain
+  if (isRowLockedByOther(row, currentProfile)) {
+    showToast(`Baris ini sedang dikerjakan oleh ${row.locked_by_nama || 'rekan lain'}.`, 'warning');
+    return;
+  }
+
   editingRowId = id;
   selectedStatusValue = row.status || null;
+
+  // Klaim kunci baris saat modal edit dibuka
+  if (currentProfile) {
+    await acquireRowLocks([id], currentProfile);
+    renderTable();
+  }
 
   document.getElementById('sheetNamaArt').textContent = row.nama_art || 'Responden';
   document.getElementById('sheetSubLoc').textContent = `${row.kecamatan || ''} / ${row.desa || ''} / ${row.nama_sls || ''}`;
@@ -886,9 +1323,16 @@ function selectStatusOption(val) {
   updateRadioOptionCards();
 }
 
-function closeEditModal() {
+async function closeEditModal() {
   const modal = document.getElementById('editModal');
   if (modal) modal.classList.remove('open');
+
+  // Jika baris ini tidak sedang dicentang di tabel utama, lepaskan kuncinya
+  if (editingRowId && !selectedRowIds.has(editingRowId) && currentProfile) {
+    await releaseRowLocks([editingRowId], currentProfile);
+    renderTable();
+  }
+
   editingRowId = null;
   selectedStatusValue = null;
 }
@@ -905,6 +1349,8 @@ async function saveEditStatus() {
   const btn = document.getElementById('btnSaveEdit');
   btn.disabled = true;
   btn.textContent = 'Menyimpan...';
+
+  const rowIdToSave = editingRowId;
 
   try {
     const adminName = getSessionName(currentProfile);
@@ -926,19 +1372,26 @@ async function saveEditStatus() {
     const { error } = await db
       .from('potensi_usaha')
       .update(updatePayload)
-      .eq('id', editingRowId);
+      .eq('id', rowIdToSave);
 
     if (error) throw error;
 
-    const target = allData.find(d => d.id === editingRowId);
+    const target = allData.find(d => d.id === rowIdToSave);
     if (target) {
       Object.assign(target, updatePayload);
+    }
+
+    // Lepas kunci dan uncheck baris yang sudah tersimpan
+    selectedRowIds.delete(rowIdToSave);
+    if (currentProfile) {
+      await releaseRowLocks([rowIdToSave], currentProfile);
     }
 
     closeEditModal();
     renderStats();
     renderKecamatanProgress();
     applyFilters();
+    updateFab();
     showToast('Status berhasil diperbarui!', 'success');
   } catch (err) {
     alert('Gagal menyimpan perubahan: ' + err.message);
@@ -949,14 +1402,34 @@ async function saveEditStatus() {
 }
 
 // ─── BULK EDIT MODAL (IDENTIK DENGAN DASHBOARD UTAMA) ────────
-function openBulkModal() {
+async function openBulkModal() {
   if (!selectedRowIds.size) return;
-  if (selectedRowIds.size > 50) {
+
+  // Saring baris terpilih: pastikan tidak ada yang terkunci oleh orang lain
+  const validRows = allData.filter(d => selectedRowIds.has(d.id) && !isRowLockedByOther(d, currentProfile));
+  
+  if (validRows.length === 0) {
+    showToast('Semua baris yang Anda pilih saat ini sedang dikerjakan oleh rekan lain.', 'warning');
+    selectedRowIds.clear();
+    renderTable();
+    updateFab();
+    return;
+  }
+
+  if (validRows.length > 50) {
     showToast('Maksimal baris yang dapat dibuka bersamaan adalah 50!', 'warning');
     return;
   }
 
-  bulkSelectedData = allData.filter(d => selectedRowIds.has(d.id));
+  // Update selectedRowIds dengan hanya baris yang valid
+  selectedRowIds = new Set(validRows.map(r => r.id));
+  bulkSelectedData = validRows;
+
+  // Pastikan kunci terpasang di database
+  if (currentProfile && validRows.length > 0) {
+    await acquireRowLocks(Array.from(selectedRowIds), currentProfile);
+  }
+
   renderBulkSheetBody();
 
   const modal = document.getElementById('bulkModal');
@@ -1211,10 +1684,20 @@ async function saveBulkChanges() {
     }
 
     closeBulkModal();
-    clearSelection();
+    // Lepaskan kunci dari semua baris yang telah disimpan
+    if (currentProfile && bulkSelectedData.length > 0) {
+      const savedIds = bulkSelectedData.map(r => r.id);
+      await releaseRowLocks(savedIds, currentProfile);
+    }
+
+    selectedRowIds.clear();
+    const master = document.getElementById('selectAllCheckbox');
+    if (master) master.checked = false;
+
     renderStats();
     renderKecamatanProgress();
     applyFilters();
+    updateFab();
     showToast('Perubahan status berhasil disimpan!', 'success');
   } catch (err) {
     alert('Gagal menyimpan perubahan massal: ' + err.message);
