@@ -441,6 +441,24 @@
           <option value="sudah_selesai">Sudah Selesai</option>
         </select>
 
+        <!-- Uraian Profesi Filter -->
+        <select class="filter-select" id="filterProfesi" onchange="applyFilters()"
+          style="width:220px;height:38px;margin-bottom:0">
+          <option value="">Profesi: Semua</option>
+        </select>
+
+        <!-- Tombol Cari Kemiripan Profesi (Fuzzy Similarity) -->
+        <button class="btn btn-secondary" id="btnFuzzyProfesi" onclick="openFuzzyProfesiModal()"
+          title="Cari kemiripan uraian profesi (misal: 'ojek' mencakup 'ojol', 'driver gojek', dll)"
+          style="height:38px;padding:0 0.85rem;display:flex;align-items:center;gap:0.35rem;white-space:nowrap;margin-bottom:0;border:1px solid var(--border);background:var(--bg-card);color:var(--text)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary)">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <span>Kemiripan Profesi</span>
+        </button>
+
         <!-- Pilih Wilayah Button -->
         <button class="btn btn-secondary" onclick="openWilayahFilterModal()"
           style="padding:0 0.85rem;height:38px;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);border-radius:var(--radius-md);background:var(--bg-card);color:var(--text);font-weight:500;font-size:0.875rem;cursor:pointer;white-space:nowrap;margin-bottom:0">
@@ -833,6 +851,67 @@
       <div class="bottom-sheet-footer" style="display:flex;justify-content:flex-end;gap:0.75rem">
         <button class="btn btn-secondary" onclick="closeWilayahFilterModal()">Batal</button>
         <button class="btn btn-primary" onclick="applyWilayahFilterFromModal()">Terapkan Filter</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Pencarian Kemiripan Profesi (Fuzzy Similarity Matching) -->
+  <div class="modal-overlay" id="fuzzyProfesiModal" onclick="if(event.target===this)closeFuzzyProfesiModal()">
+    <div class="bottom-sheet" style="max-width:540px;border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="border-bottom:1px solid var(--border);padding-bottom:0.75rem">
+        <div style="display:flex;align-items:center;gap:0.5rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--primary)">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <div class="bottom-sheet-title">Filter Kemiripan Profesi (Fuzzy)</div>
+        </div>
+        <div class="bottom-sheet-subtitle" style="margin-top:0.3rem">
+          Cari seluruh variasi atau typo teks profesi sejenis (misal: <em>ojol, ojek online, driver motor</em>) secara cerdas.
+        </div>
+      </div>
+      <div class="bottom-sheet-body" style="display:flex;flex-direction:column;gap:1rem;padding-bottom:1.25rem;overflow-y:auto;max-height:68vh">
+        <!-- Input Kata Kunci Acuan -->
+        <div class="form-group" style="margin-bottom:0">
+          <label class="form-label" style="font-weight:600">Kata Kunci Acuan Profesi</label>
+          <div style="position:relative">
+            <input type="text" id="inputFuzzyProfesiKeyword" class="form-input" list="fuzzyDatalistProfesi"
+              placeholder="Ketik profesi acuan (contoh: Ojek, Warung, Pedagang, Buruh)..."
+              oninput="onFuzzyInputChange()" onkeydown="if(event.key==='Enter')applyFuzzyProfesiFilter()"
+              style="width:100%;height:38px;padding-right:2rem">
+            <datalist id="fuzzyDatalistProfesi"></datalist>
+          </div>
+          <div style="font-size:0.72rem;color:var(--text-muted);margin-top:0.3rem">
+            Tips: Anda bisa mengetik profesi apa pun atau memilih rekomendasi dari daftar di atas.
+          </div>
+        </div>
+
+        <!-- Area Hasil Cocok / Live Preview -->
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem">
+            <span style="font-size:0.8rem;font-weight:600">Pratinjau Variasi yang Terjaring:</span>
+            <span id="txtFuzzyMatchCount" style="font-size:0.75rem;font-weight:600;color:var(--info)">0 data cocok</span>
+          </div>
+          <div id="fuzzyMatchPreviewList"
+            style="min-height:90px;max-height:160px;overflow-y:auto;background:var(--bg-card-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:0.6rem;display:flex;flex-wrap:wrap;gap:0.4rem;align-content:flex-start">
+            <div style="font-size:0.75rem;color:var(--text-muted);padding:0.5rem">
+              Ketik kata kunci acuan di atas untuk melihat variasi profesi yang akan terjaring.
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem">
+        <button class="btn btn-secondary" onclick="clearFuzzyProfesiFilter()" id="btnResetFuzzyFilter" style="display:none">
+          Hapus Filter
+        </button>
+        <div style="display:flex;gap:0.5rem;margin-left:auto">
+          <button class="btn btn-secondary" onclick="closeFuzzyProfesiModal()">Batal</button>
+          <button class="btn btn-primary" onclick="applyFuzzyProfesiFilter()">
+            Terapkan Filter
+          </button>
+        </div>
       </div>
     </div>
   </div>
