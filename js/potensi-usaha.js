@@ -757,12 +757,11 @@ function applyFilters() {
       }
     }
 
-    // Petugas Filter (selesai_oleh atau dikerjakan_oleh)
+    // Petugas Filter (sama seperti statcard: status 'sudah_selesai' dan 'selesai_oleh')
     if (filterPetugasVal) {
       const pVal = filterPetugasVal.toLowerCase();
       const pSelesai = (item.selesai_oleh || '').trim().toLowerCase();
-      const pDikerjakan = (item.dikerjakan_oleh || '').trim().toLowerCase();
-      if (pSelesai !== pVal && pDikerjakan !== pVal) {
+      if (item.status !== 'sudah_selesai' || pSelesai !== pVal) {
         return false;
       }
     }
@@ -831,28 +830,21 @@ function populatePetugasOptions() {
   if (!select) return;
 
   const currentVal = filterPetugasVal;
-  // Hitung berapa kali masing-masing petugas mengerjakan (baik selesai_oleh maupun dikerjakan_oleh)
-  const counts = {};
+  // Kumpulkan nama unik petugas yang menyelesaikan data (sama persis dengan perhitungan statcard)
+  const petugasSet = new Set();
   allData.forEach(item => {
-    const pSelesai = (item.selesai_oleh || '').trim();
-    const pDikerjakan = (item.dikerjakan_oleh || '').trim();
-
-    // Baris dihitung ke nama petugas
-    const petugasSet = new Set();
-    if (pSelesai) petugasSet.add(pSelesai);
-    if (pDikerjakan) petugasSet.add(pDikerjakan);
-
-    petugasSet.forEach(p => {
-      counts[p] = (counts[p] || 0) + 1;
-    });
+    if (item.status === 'sudah_selesai' && item.selesai_oleh) {
+      const nama = String(item.selesai_oleh).trim();
+      if (nama) petugasSet.add(nama);
+    }
   });
 
-  const sortedPetugas = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'id'));
+  const sortedPetugas = Array.from(petugasSet).sort((a, b) => a.localeCompare(b, 'id'));
 
   let optionsHtml = '<option value="">Petugas: Semua</option>';
   sortedPetugas.forEach(p => {
     const isSelected = p.toLowerCase() === currentVal.toLowerCase() ? 'selected' : '';
-    optionsHtml += `<option value="${escapeHtml(p)}" ${isSelected}>${escapeHtml(p)} (${counts[p]})</option>`;
+    optionsHtml += `<option value="${escapeHtml(p)}" ${isSelected}>${escapeHtml(p)}</option>`;
   });
 
   select.innerHTML = optionsHtml;
