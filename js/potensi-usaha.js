@@ -19,6 +19,7 @@ let filterDesaVal = '';
 let filterSlsVal = '';
 let filterStatusVal = '';
 let filterProfesiVal = '';
+let filterPetugasVal = '';
 let searchDebounceTimer = null;
 
 let editingRowId = null;
@@ -521,6 +522,7 @@ async function loadData() {
     renderKecamatanProgress();
     populateModalWilayahOptions();
     populateProfesiOptions();
+    populatePetugasOptions();
     applyFilters();
 
     // Inisialisasi Sinkronisasi Realtime Lock Kunci Baris
@@ -739,6 +741,7 @@ function applyFilters() {
   const search = (document.getElementById('filterSearch')?.value || '').toLowerCase().trim();
   filterStatusVal = document.getElementById('filterStatus')?.value || '';
   filterProfesiVal = document.getElementById('filterProfesi')?.value || '';
+  filterPetugasVal = document.getElementById('filterPetugas')?.value || '';
 
   filteredData = allData.filter(item => {
     // Status Filter
@@ -750,6 +753,16 @@ function applyFilters() {
     // Uraian Profesi Filter
     if (filterProfesiVal) {
       if ((item.uraian_profesi || '').trim().toLowerCase() !== filterProfesiVal.toLowerCase()) {
+        return false;
+      }
+    }
+
+    // Petugas Filter (selesai_oleh atau dikerjakan_oleh)
+    if (filterPetugasVal) {
+      const pVal = filterPetugasVal.toLowerCase();
+      const pSelesai = (item.selesai_oleh || '').trim().toLowerCase();
+      const pDikerjakan = (item.dikerjakan_oleh || '').trim().toLowerCase();
+      if (pSelesai !== pVal && pDikerjakan !== pVal) {
         return false;
       }
     }
@@ -807,7 +820,39 @@ function populateProfesiOptions() {
   let optionsHtml = '<option value="">Profesi: Semua</option>';
   sortedProfesi.forEach(prof => {
     const isSelected = prof.toLowerCase() === currentVal.toLowerCase() ? 'selected' : '';
-    optionsHtml += `<option value="${escapeHtml(prof)}" ${isSelected}>${escapeHtml(prof)} (${counts[prof]})</option>`;
+    optionsHtml += `<option value="${escapeHtml(prof)}" ${isSelected}>${escapeHtml(prof)}</option>`;
+  });
+
+  select.innerHTML = optionsHtml;
+}
+
+function populatePetugasOptions() {
+  const select = document.getElementById('filterPetugas');
+  if (!select) return;
+
+  const currentVal = filterPetugasVal;
+  // Hitung berapa kali masing-masing petugas mengerjakan (baik selesai_oleh maupun dikerjakan_oleh)
+  const counts = {};
+  allData.forEach(item => {
+    const pSelesai = (item.selesai_oleh || '').trim();
+    const pDikerjakan = (item.dikerjakan_oleh || '').trim();
+
+    // Baris dihitung ke nama petugas
+    const petugasSet = new Set();
+    if (pSelesai) petugasSet.add(pSelesai);
+    if (pDikerjakan) petugasSet.add(pDikerjakan);
+
+    petugasSet.forEach(p => {
+      counts[p] = (counts[p] || 0) + 1;
+    });
+  });
+
+  const sortedPetugas = Object.keys(counts).sort((a, b) => a.localeCompare(b, 'id'));
+
+  let optionsHtml = '<option value="">Petugas: Semua</option>';
+  sortedPetugas.forEach(p => {
+    const isSelected = p.toLowerCase() === currentVal.toLowerCase() ? 'selected' : '';
+    optionsHtml += `<option value="${escapeHtml(p)}" ${isSelected}>${escapeHtml(p)} (${counts[p]})</option>`;
   });
 
   select.innerHTML = optionsHtml;
@@ -857,11 +902,14 @@ function resetFilters() {
   document.getElementById('filterStatus').value = '';
   const profesiSelect = document.getElementById('filterProfesi');
   if (profesiSelect) profesiSelect.value = '';
+  const petugasSelect = document.getElementById('filterPetugas');
+  if (petugasSelect) petugasSelect.value = '';
   filterKecamatanVal = '';
   filterDesaVal = '';
   filterSlsVal = '';
   filterStatusVal = '';
   filterProfesiVal = '';
+  filterPetugasVal = '';
   renderKecamatanProgress();
   applyFilters();
 }
@@ -917,6 +965,17 @@ function renderActiveFilterChips() {
       label: `Profesi: ${filterProfesiVal}`,
       onRemove: () => {
         const sel = document.getElementById('filterProfesi');
+        if (sel) sel.value = '';
+        applyFilters();
+      }
+    });
+  }
+
+  if (filterPetugasVal) {
+    chips.push({
+      label: `Petugas: ${filterPetugasVal}`,
+      onRemove: () => {
+        const sel = document.getElementById('filterPetugas');
         if (sel) sel.value = '';
         applyFilters();
       }
@@ -1439,6 +1498,7 @@ async function saveEditStatus() {
     closeEditModal();
     renderStats();
     renderKecamatanProgress();
+    populatePetugasOptions();
     applyFilters();
     updateFab();
     showToast('Status berhasil diperbarui!', 'success');
@@ -1745,6 +1805,7 @@ async function saveBulkChanges() {
 
     renderStats();
     renderKecamatanProgress();
+    populatePetugasOptions();
     applyFilters();
     updateFab();
     showToast('Perubahan status berhasil disimpan!', 'success');
