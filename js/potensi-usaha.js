@@ -940,6 +940,7 @@ function renderActiveFilterChips() {
   if (filterStatusVal) {
     const map = {
       belum: 'Belum Dikerjakan',
+      belum_approve: 'Belum Approve',
       sudah_dikerjakan: 'Dikerjakan Petugas Lain',
       sudah_selesai: 'Sudah Selesai'
     };
@@ -1169,6 +1170,8 @@ function getStatusBadge(status) {
     return '<span class="badge-status badge-selesai">Sudah Selesai</span>';
   } else if (status === 'sudah_dikerjakan') {
     return '<span class="badge-status badge-dikerjakan">Dikerjakan Orang Lain</span>';
+  } else if (status === 'belum_approve') {
+    return '<span class="badge-status badge-belum-approve">Belum Approve</span>';
   }
   return '<span class="badge-status badge-belum">Belum</span>';
 }
@@ -1384,6 +1387,13 @@ async function openEditModal(id) {
       <strong>Ditandai selesai orang lain oleh:</strong> ${escapeHtml(row.dikerjakan_oleh)} <br>
       <span style="font-size:0.72rem;">Waktu: ${timeStr}</span>
     `;
+  } else if (row.status === 'belum_approve') {
+    const timeStr = row.updated_at ? new Date(row.updated_at).toLocaleString('id-ID') : '';
+    auditBox.style.display = 'block';
+    auditBox.innerHTML = `
+      <strong style="color:#b45309;">Status: Belum Approve (PML)</strong> <br>
+      <span style="font-size:0.72rem;">Belum dapat diedit oleh admin hingga diapprove oleh PML. ${timeStr ? `(Diperbarui: ${timeStr})` : ''}</span>
+    `;
   } else {
     auditBox.style.display = 'none';
   }
@@ -1393,24 +1403,28 @@ async function openEditModal(id) {
 }
 
 function updateRadioOptionCards() {
+  const cardBelumApprove = document.getElementById('cardOptBelumApprove');
   const cardDikerjakan = document.getElementById('cardOptDikerjakan');
   const cardSelesai = document.getElementById('cardOptSelesai');
+  const radioBelumApprove = document.getElementById('radioBelumApprove');
   const radioDikerjakan = document.getElementById('radioDikerjakan');
   const radioSelesai = document.getElementById('radioSelesai');
 
-  if (selectedStatusValue === 'sudah_dikerjakan') {
+  // Reset semua selection card & radio
+  [cardBelumApprove, cardDikerjakan, cardSelesai].forEach(c => c?.classList.remove('selected'));
+  if (radioBelumApprove) radioBelumApprove.checked = false;
+  if (radioDikerjakan) radioDikerjakan.checked = false;
+  if (radioSelesai) radioSelesai.checked = false;
+
+  if (selectedStatusValue === 'belum_approve') {
+    cardBelumApprove?.classList.add('selected');
+    if (radioBelumApprove) radioBelumApprove.checked = true;
+  } else if (selectedStatusValue === 'sudah_dikerjakan') {
     cardDikerjakan?.classList.add('selected');
-    cardSelesai?.classList.remove('selected');
     if (radioDikerjakan) radioDikerjakan.checked = true;
   } else if (selectedStatusValue === 'sudah_selesai') {
-    cardDikerjakan?.classList.remove('selected');
     cardSelesai?.classList.add('selected');
     if (radioSelesai) radioSelesai.checked = true;
-  } else {
-    cardDikerjakan?.classList.remove('selected');
-    cardSelesai?.classList.remove('selected');
-    if (radioDikerjakan) radioDikerjakan.checked = false;
-    if (radioSelesai) radioSelesai.checked = false;
   }
 }
 
@@ -1584,13 +1598,19 @@ function renderBulkSheetBody() {
           <tr style="border-bottom:2px solid var(--border)">
             <th style="padding:0.75rem; text-align:left; min-width:140px;">Nama ART / Responden</th>
             <th style="padding:0.75rem; text-align:left; min-width:200px;">Nama Usaha (Klik untuk Salin)</th>
-            <th style="padding:0.75rem; text-align:center; width:135px">
+            <th style="padding:0.75rem; text-align:center; width:120px">
+              <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0" title="Pilih jika assignment belum diapprove oleh PML sehingga belum dapat diedit">
+                <input type="checkbox" id="bulkMasterBelumApprove" onchange="toggleAllBulkStatus('belum_approve', this.checked)" style="width:14px; height:14px; cursor:pointer">
+                Belum Approve
+              </label>
+            </th>
+            <th style="padding:0.75rem; text-align:center; width:125px">
               <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0" title="Pilih jika saat Anda buka di Fasih-SM, kasus sudah diselesaikan orang lain">
                 <input type="checkbox" id="bulkMasterDikerjakan" onchange="toggleAllBulkStatus('dikerjakan', this.checked)" style="width:14px; height:14px; cursor:pointer">
                 Orang Lain
               </label>
             </th>
-            <th style="padding:0.75rem; text-align:center; width:110px">
+            <th style="padding:0.75rem; text-align:center; width:100px">
               <label style="cursor:pointer; display:inline-flex; align-items:center; gap:0.25rem; margin:0">
                 <input type="checkbox" id="bulkMasterSelesai" onchange="toggleAllBulkStatus('selesai', this.checked)" style="width:14px; height:14px; cursor:pointer">
                 Selesai
@@ -1603,6 +1623,7 @@ function renderBulkSheetBody() {
   `;
 
   bulkSelectedData.forEach((row, idx) => {
+    const isBelumApprove = row.status === 'belum_approve';
     const isDikerjakan = row.status === 'sudah_dikerjakan';
     const isSelesai = row.status === 'sudah_selesai';
     const fasihEditUrl = getFasihEditUrl(row.assignment_id);
@@ -1639,6 +1660,11 @@ function renderBulkSheetBody() {
         </td>
 
         <td style="padding:0.75rem; text-align:center">
+          <input type="checkbox" class="bulk-belum-approve-cb" data-idx="${idx}" ${isBelumApprove ? 'checked' : ''}
+            onchange="onBulkRowStatusChange(${idx}, 'belum_approve', this.checked)"
+            style="width:16px; height:16px; accent-color:#eab308; cursor:pointer">
+        </td>
+        <td style="padding:0.75rem; text-align:center">
           <input type="checkbox" class="bulk-dikerjakan-cb" data-idx="${idx}" ${isDikerjakan ? 'checked' : ''}
             onchange="onBulkRowStatusChange(${idx}, 'dikerjakan', this.checked)"
             style="width:16px; height:16px; accent-color:var(--info); cursor:pointer">
@@ -1670,34 +1696,53 @@ function renderBulkSheetBody() {
 }
 
 function onBulkRowStatusChange(idx, type, checked) {
+  const belumApproveCbs = document.querySelectorAll('.bulk-belum-approve-cb');
   const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
   const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
 
-  if (type === 'dikerjakan' && checked) {
-    // Uncheck selesai karena pilihan hanya satu
+  if (type === 'belum_approve' && checked) {
+    if (dikerjakanCbs[idx]) dikerjakanCbs[idx].checked = false;
+    if (selesaiCbs[idx]) selesaiCbs[idx].checked = false;
+  } else if (type === 'dikerjakan' && checked) {
+    if (belumApproveCbs[idx]) belumApproveCbs[idx].checked = false;
     if (selesaiCbs[idx]) selesaiCbs[idx].checked = false;
   } else if (type === 'selesai' && checked) {
-    // Uncheck dikerjakan
+    if (belumApproveCbs[idx]) belumApproveCbs[idx].checked = false;
     if (dikerjakanCbs[idx]) dikerjakanCbs[idx].checked = false;
   }
 }
 
 function toggleAllBulkStatus(type, checked) {
+  const belumApproveCbs = document.querySelectorAll('.bulk-belum-approve-cb');
   const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
   const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
 
-  if (type === 'dikerjakan') {
-    dikerjakanCbs.forEach(cb => cb.checked = checked);
-    if (checked) {
-      selesaiCbs.forEach(cb => cb.checked = false);
-      const masterSelesai = document.getElementById('bulkMasterSelesai');
-      if (masterSelesai) masterSelesai.checked = false;
-    }
-  } else {
-    selesaiCbs.forEach(cb => cb.checked = checked);
+  const masterBelumApprove = document.getElementById('bulkMasterBelumApprove');
+  const masterDikerjakan = document.getElementById('bulkMasterDikerjakan');
+  const masterSelesai = document.getElementById('bulkMasterSelesai');
+
+  if (type === 'belum_approve') {
+    belumApproveCbs.forEach(cb => cb.checked = checked);
     if (checked) {
       dikerjakanCbs.forEach(cb => cb.checked = false);
-      const masterDikerjakan = document.getElementById('bulkMasterDikerjakan');
+      selesaiCbs.forEach(cb => cb.checked = false);
+      if (masterDikerjakan) masterDikerjakan.checked = false;
+      if (masterSelesai) masterSelesai.checked = false;
+    }
+  } else if (type === 'dikerjakan') {
+    dikerjakanCbs.forEach(cb => cb.checked = checked);
+    if (checked) {
+      belumApproveCbs.forEach(cb => cb.checked = false);
+      selesaiCbs.forEach(cb => cb.checked = false);
+      if (masterBelumApprove) masterBelumApprove.checked = false;
+      if (masterSelesai) masterSelesai.checked = false;
+    }
+  } else if (type === 'selesai') {
+    selesaiCbs.forEach(cb => cb.checked = checked);
+    if (checked) {
+      belumApproveCbs.forEach(cb => cb.checked = false);
+      dikerjakanCbs.forEach(cb => cb.checked = false);
+      if (masterBelumApprove) masterBelumApprove.checked = false;
       if (masterDikerjakan) masterDikerjakan.checked = false;
     }
   }
@@ -1744,17 +1789,20 @@ async function saveBulkChanges() {
     const adminName = getSessionName(currentProfile);
     const nowIso = new Date().toISOString();
 
+    const belumApproveCbs = document.querySelectorAll('.bulk-belum-approve-cb');
     const dikerjakanCbs = document.querySelectorAll('.bulk-dikerjakan-cb');
     const selesaiCbs = document.querySelectorAll('.bulk-selesai-cb');
 
     for (let i = 0; i < bulkSelectedData.length; i++) {
       const row = bulkSelectedData[i];
+      const isBelumApprove = belumApproveCbs[i]?.checked || false;
       const isDikerjakan = dikerjakanCbs[i]?.checked || false;
       const isSelesai = selesaiCbs[i]?.checked || false;
 
       let newStatus = 'belum';
       if (isSelesai) newStatus = 'sudah_selesai';
       else if (isDikerjakan) newStatus = 'sudah_dikerjakan';
+      else if (isBelumApprove) newStatus = 'belum_approve';
 
       const updatePayload = {
         status: newStatus,

@@ -39,6 +39,12 @@
       border: 1px solid var(--border);
     }
 
+    .badge-belum-approve {
+      background: var(--warning-bg);
+      color: #b45309;
+      border: 1px solid rgba(234, 179, 8, 0.4);
+    }
+
     .badge-dikerjakan {
       background: var(--info-bg);
       color: var(--info);
@@ -437,6 +443,7 @@
           style="width:200px;height:38px;margin-bottom:0">
           <option value="">Status: Semua</option>
           <option value="belum">Belum Dikerjakan</option>
+          <option value="belum_approve">Belum Approve</option>
           <option value="sudah_dikerjakan">Dikerjakan Petugas Lain</option>
           <option value="sudah_selesai">Sudah Selesai</option>
         </select>
@@ -598,7 +605,19 @@
           PILIH STATUS PENGERJAAN:
         </div>
 
-        <!-- Option 1: Sudah Dikerjakan Petugas Lain -->
+        <!-- Option 1: Belum Approve (Pilihan Pertama) -->
+        <label class="status-option-card" id="cardOptBelumApprove" onclick="selectStatusOption('belum_approve')">
+          <input type="radio" name="statusOption" id="radioBelumApprove" value="belum_approve">
+          <div style="flex:1;">
+            <div style="font-weight:600; font-size:0.9rem; color:var(--text);">Belum Approve</div>
+            <div style="font-size:0.75rem; color:var(--text-muted); margin-top:2px;">
+              Admin belum bisa edit karena assignment belum diapprove oleh PML.
+            </div>
+          </div>
+          <span class="badge-status badge-belum-approve">Belum Approve</span>
+        </label>
+
+        <!-- Option 2: Sudah Dikerjakan Petugas Lain -->
         <label class="status-option-card" id="cardOptDikerjakan" onclick="selectStatusOption('sudah_dikerjakan')">
           <input type="radio" name="statusOption" id="radioDikerjakan" value="sudah_dikerjakan">
           <div style="flex:1;">
@@ -610,7 +629,7 @@
           <span class="badge-status badge-dikerjakan">Oleh Petugas Lain</span>
         </label>
 
-        <!-- Option 2: Sudah Selesai -->
+        <!-- Option 3: Sudah Selesai -->
         <label class="status-option-card" id="cardOptSelesai" onclick="selectStatusOption('sudah_selesai')">
           <input type="radio" name="statusOption" id="radioSelesai" value="sudah_selesai">
           <div style="flex:1;">

@@ -23,9 +23,9 @@ CREATE TABLE IF NOT EXISTS public.potensi_usaha (
   uraian_profesi    text,
 
   -- Status Pengerjaan
-  -- Nilai: 'belum' | 'sudah_dikerjakan' | 'sudah_selesai'
+  -- Nilai: 'belum' | 'belum_approve' | 'sudah_dikerjakan' | 'sudah_selesai'
   status            text NOT NULL DEFAULT 'belum'
-                    CHECK (status IN ('belum', 'sudah_dikerjakan', 'sudah_selesai')),
+                    CHECK (status IN ('belum', 'belum_approve', 'sudah_dikerjakan', 'sudah_selesai')),
 
   -- Audit: Sudah Dikerjakan
   dikerjakan_oleh   text,
@@ -49,6 +49,11 @@ CREATE TABLE IF NOT EXISTS public.potensi_usaha (
 ALTER TABLE public.potensi_usaha ADD COLUMN IF NOT EXISTS locked_by_id uuid;
 ALTER TABLE public.potensi_usaha ADD COLUMN IF NOT EXISTS locked_by_nama text;
 ALTER TABLE public.potensi_usaha ADD COLUMN IF NOT EXISTS locked_at timestamptz;
+
+-- Migrasi update check constraint status untuk mendukung 'belum_approve':
+ALTER TABLE public.potensi_usaha DROP CONSTRAINT IF EXISTS potensi_usaha_status_check;
+ALTER TABLE public.potensi_usaha ADD CONSTRAINT potensi_usaha_status_check 
+  CHECK (status IN ('belum', 'belum_approve', 'sudah_dikerjakan', 'sudah_selesai'));
 
 -- ============================================================
 -- INDEXES
