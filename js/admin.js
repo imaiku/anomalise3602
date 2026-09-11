@@ -245,6 +245,14 @@ function showSection(sectionId, updateHash = true) {
   if (sectionId === 'kelola-petugas-sls') {
     if (typeof loadKelolaData === 'function') loadKelolaData();
   }
+  if (sectionId === 'berkas-lainnya') {
+    (async () => {
+      try {
+        const { count } = await db.from('user_sls_termin2').select('*', { count: 'exact', head: true });
+        if (count && count > 0) updateSnapshotBtnState(true);
+      } catch (e) {}
+    })();
+  }
 
   if (updateHash) {
     window.location.hash = sectionId;
@@ -4845,11 +4853,14 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     pdf.setFont('Bookman', 'normal');
     pdf.setFontSize(10);
 
-    const tgt = parseInt(row.target) || 0;
-    const real = parseInt(row.realisasi) || 0;
-    const pct = row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%');
-    pplTgt += tgt;
-    pplReal += real;
+    const isBlank = row.is_replacement_blank || row.target === '' || row.target === undefined;
+    const tgt = isBlank ? '' : (parseInt(row.target) || 0);
+    const real = isBlank ? '' : (parseInt(row.realisasi) || 0);
+    const pct = isBlank ? '' : (row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%'));
+    if (!isBlank) {
+      pplTgt += (parseInt(row.target) || 0);
+      pplReal += (parseInt(row.realisasi) || 0);
+    }
 
     let cx = tX;
     [
@@ -4892,11 +4903,14 @@ function buildSuperEvaluasiT1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBa
     pdf.setFont('Bookman', 'normal');
     pdf.setFontSize(10);
 
-    const tgt = parseInt(row.target) || 0;
-    const real = parseInt(row.realisasi) || 0;
-    const pct = row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%');
-    pmlTgt += tgt;
-    pmlReal += real;
+    const isBlank = row.is_replacement_blank || row.target === '' || row.target === undefined;
+    const tgt = isBlank ? '' : (parseInt(row.target) || 0);
+    const real = isBlank ? '' : (parseInt(row.realisasi) || 0);
+    const pct = isBlank ? '' : (row.persentase || (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%'));
+    if (!isBlank) {
+      pmlTgt += (parseInt(row.target) || 0);
+      pmlReal += (parseInt(row.realisasi) || 0);
+    }
 
     let cx = tX;
     [
@@ -5144,15 +5158,14 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, 
 
   // Cek seluruh isi
   rows.forEach((row, i) => {
-    const tgt = parseInt(row.total_target) || 0;
-    const real = getRowReal(row);
-    const pct = tgt > 0
-      ? ((real / tgt) * 100).toFixed(2) + "%"
-      : "0.00%";
+    const isBlank = row.is_replacement_blank || row.target === '' || row.total_target === '';
+    const tgt = isBlank ? '' : (parseInt(row.total_target ?? row.target) || 0);
+    const real = isBlank ? '' : getRowReal(row);
+    const pct = isBlank ? '' : (tgt > 0 ? ((real / tgt) * 100).toFixed(2) + "%" : "0.00%");
 
     const values = [
       String(i + 1),
-      (row.nama_ppl || "").toUpperCase(),
+      (row.nama_ppl || row.nama || "").toUpperCase(),
       String(tgt),
       String(real),
       pct
@@ -5220,20 +5233,23 @@ function buildSPTermin1Pages(pdf, pml, rekapData, addedBefore, ttdYulianBase64, 
       tY = 20;
       tY = drawTableHeader(tY);
     }
-    const tgt = parseInt(row.total_target) || 0;
-    const real = getRowReal(row);
-    const pct = tgt > 0 ? ((real / tgt) * 100).toFixed(2) : '0.00';
-    totalTgt += tgt;
-    totalReal += real;
+    const isBlank = row.is_replacement_blank || row.target === '' || row.total_target === '';
+    const tgt = isBlank ? '' : (parseInt(row.total_target ?? row.target) || 0);
+    const real = isBlank ? '' : getRowReal(row);
+    const pct = isBlank ? '' : (tgt > 0 ? ((real / tgt) * 100).toFixed(2) : '0.00');
+    if (!isBlank) {
+      totalTgt += (parseInt(row.total_target ?? row.target) || 0);
+      totalReal += getRowReal(row);
+    }
     let cx = tX;
     pdf.setFont('Bookman', 'normal');
     pdf.setFontSize(12);
     [
       (i + 1).toString(),
-      (row.nama_ppl || '-').toUpperCase(),
+      (row.nama_ppl || row.nama || '-').toUpperCase(),
       tgt.toString(),
       real.toString(),
-      pct + '%',
+      pct ? pct + '%' : '',
     ].forEach((val, ci) => {
       pdf.rect(cx, tY, colW[ci], rH);
       if (ci === 1) {
@@ -8249,4 +8265,1921 @@ function buildSuperPPLDocumentCustom(pdf, ppl, ttdYulianBase64, tanggalStr) {
   pdf.text('YULIAN SARWO EDI', 25, ttdY + 80);
   pdf.text('NIP. 197707101999121001', 25, ttdY + 85);
 }
+
+// ============================================================
+// TERMIN II FUNCTIONS & BAST MODULE
+// ============================================================
+
+let bappEligibilityMapT2 = {
+  1: new Set(),
+  2: new Set(),
+  3: new Set(),
+  4: new Set()
+};
+let isBappEligibilityLoadedT2 = false;
+
+/**
+ * 1. Inisialisasi Snapshot Termin 2
+ * Menyalin data user_sls aktif ke user_sls_termin2 dengan user_id_asal = user_id
+ */
+async function inisialisasiTermin2() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang dapat melakukan inisialisasi Termin 2.', 'warning');
+    return;
+  }
+
+  // Cek apakah sudah pernah diinisialisasi
+  const { count, error: countErr } = await db.from('user_sls_termin2').select('*', { count: 'exact', head: true });
+  if (!countErr && count && count > 0) {
+    showToast(`Snapshot Termin 2 sudah aktif (${count} penugasan). Snapshot hanya dilakukan 1x di awal agar histori Termin 1 terkunci.`, 'info');
+    updateSnapshotBtnState(true);
+    return;
+  }
+
+  const konfirmasi = confirm(
+    "Apakah Anda yakin ingin melakukan Inisialisasi Snapshot Termin 2?\n\n" +
+    "Sistem akan menyalin seluruh penugasan user_sls ke tabel user_sls_termin2 sebagai basis awal penugasan Termin 2. " +
+    "Setelah ini, penugasan Termin 1 akan terkunci permanen."
+  );
+  if (!konfirmasi) return;
+
+  showToast('Memulai inisialisasi snapshot Termin 2...', 'info');
+
+  try {
+    let allActiveSls = [];
+    let from = 0;
+    let hasMore = true;
+    while (hasMore) {
+      const { data, error } = await db.from('user_sls')
+        .select('user_id, kode_sls, status')
+        .eq('status', 'aktif')
+        .range(from, from + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) hasMore = false;
+      else {
+        allActiveSls = allActiveSls.concat(data);
+        if (data.length < 1000) hasMore = false;
+        else from += 1000;
+      }
+    }
+
+    if (allActiveSls.length === 0) {
+      showToast('Tidak ada data user_sls aktif yang ditemukan.', 'warning');
+      return;
+    }
+
+    const toInsert = allActiveSls.map(x => ({
+      user_id: x.user_id,
+      kode_sls: x.kode_sls,
+      status: x.status || 'aktif',
+      user_id_asal: x.user_id,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
+    const chunkSize = 500;
+    for (let i = 0; i < toInsert.length; i += chunkSize) {
+      const chunk = toInsert.slice(i, i + chunkSize);
+      const { error } = await db.from('user_sls_termin2').insert(chunk);
+      if (error) throw error;
+    }
+
+    showToast(`✅ Berhasil menginisialisasi ${toInsert.length} data penugasan ke Termin 2!`, 'success');
+    updateSnapshotBtnState(true);
+    isBappEligibilityLoadedT2 = false;
+  } catch (err) {
+    console.error('Gagal inisialisasi Termin 2:', err);
+    showToast('Gagal inisialisasi Termin 2: ' + err.message, 'error');
+  }
+}
+
+function updateSnapshotBtnState(isCompleted) {
+  const btn = document.getElementById('btnInisiasiT2');
+  if (!btn) return;
+  if (isCompleted) {
+    btn.disabled = true;
+    btn.style.opacity = '0.7';
+    btn.style.cursor = 'not-allowed';
+    btn.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2">
+        <path d="M20 6 9 17l-5-5"/>
+      </svg>
+      Snapshot T2 Sudah Diinisiasi
+    `;
+  }
+}
+
+
+/**
+ * 2. Hitung Kelayakan Termin 2 secara Murni dari capaian_termin2 & user_sls_termin2
+ */
+async function loadBappEligibilityDataT2(force = false) {
+  if (isBappEligibilityLoadedT2 && !force) return;
+  try {
+    // 1. Relasi PML-PPL
+    let relations = [];
+    let fromRel = 0;
+    let hasMoreRel = true;
+    while (hasMoreRel) {
+      const { data, error } = await db.from('pml_ppl').select('pml_id, ppl_id').range(fromRel, fromRel + 999);
+      if (error) throw error;
+      if (!data || data.length === 0) hasMoreRel = false;
+      else {
+        relations = relations.concat(data);
+        if (data.length < 1000) hasMoreRel = false;
+        else fromRel += 1000;
+      }
+    }
+
+    const pmlToPpl = {};
+    relations.forEach(r => {
+      if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = new Set();
+      pmlToPpl[r.pml_id].add(r.ppl_id);
+    });
+
+    // 2. Relasi user_sls_termin2
+    let userSlsT2 = [];
+    let fromSls = 0;
+    let hasMoreSls = true;
+    while (hasMoreSls) {
+      const { data, error } = await db.from('user_sls_termin2').select('user_id, kode_sls').eq('status', 'aktif').range(fromSls, fromSls + 999);
+      if (!error && data && data.length > 0) {
+        userSlsT2 = userSlsT2.concat(data);
+        if (data.length < 1000) hasMoreSls = false;
+        else fromSls += 1000;
+      } else {
+        hasMoreSls = false;
+      }
+    }
+
+    const userSlsMap = {};
+    userSlsT2.forEach(us => {
+      if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+      userSlsMap[us.user_id].push(us.kode_sls);
+    });
+
+    // 3. Ambil data capaian_termin2 (Target & Hasil Verif)
+    let capaianT2 = [];
+    let fromCap = 0;
+    let hasMoreCap = true;
+    while (hasMoreCap) {
+      const { data, error } = await db.from('capaian_termin2').select('*').range(fromCap, fromCap + 999);
+      if (!error && data && data.length > 0) {
+        capaianT2 = capaianT2.concat(data);
+        if (data.length < 1000) hasMoreCap = false;
+        else fromCap += 1000;
+      } else {
+        hasMoreCap = false;
+      }
+    }
+
+    const targetMap = {};
+    const hasilMapG = { 1: {}, 2: {}, 3: {}, 4: {} };
+    const slsSelesaiMapG = { 1: {}, 2: {}, 3: {}, 4: {} };
+
+    capaianT2.forEach(c => {
+      targetMap[c.kode_subsls] = c.targetsls || 0;
+      [1, 2, 3, 4].forEach(g => {
+        hasilMapG[g][c.kode_subsls] = c[`hasilverif${g}`] || 0;
+        slsSelesaiMapG[g][c.kode_subsls] = c[`sls_selesai${g}`] || 0;
+      });
+    });
+
+    // 4. Ambil hold honorarium
+    let holdsRaw = [];
+    try {
+      const { data } = await db.from('honorarium_hold').select('user_id, gelombang').eq('is_active', true);
+      if (data) holdsRaw = data;
+    } catch (e) {}
+
+    const holdSet = new Set();
+    holdsRaw.forEach(h => {
+      if (h.gelombang === null || h.gelombang === undefined) {
+        [1, 2, 3, 4].forEach(g => holdSet.add(`${h.user_id}:${g}`));
+      } else {
+        holdSet.add(`${h.user_id}:${h.gelombang}`);
+      }
+    });
+
+    const isOnHold = (uid, g) => holdSet.has(`${uid}:${g}`);
+
+    // Reset maps
+    [1, 2, 3, 4].forEach(g => {
+      if (!bappEligibilityMapT2[g]) bappEligibilityMapT2[g] = new Set();
+      else bappEligibilityMapT2[g].clear();
+    });
+
+    // Evaluasi kelayakan PPL & PML per gelombang
+    let userProfiles = (allUsers && allUsers.length > 0) ? allUsers : [];
+    if (userProfiles.length === 0) {
+      const { data } = await db.from('profiles').select('id, sobatid, nama, email_ref, role').in('role', ['ppl', 'pml']).eq('is_active', true);
+      if (data) userProfiles = data;
+    }
+
+    const checkPplEligibilityT2 = (uid, g) => {
+      const codes = userSlsMap[uid] || [];
+      if (codes.length === 0 || capaianT2.length === 0) return false;
+      let targetSum = 0;
+      let hasilSum = 0;
+      let sls100Count = 0;
+      codes.forEach(code => {
+        targetSum += targetMap[code] || 0;
+        hasilSum += hasilMapG[g][code] || 0;
+        if ((slsSelesaiMapG[g][code] || 0) === 100) sls100Count++;
+      });
+      // Eligible jika hasilverif >= target (atau 100%) dan tidak hold
+      const eligible = (targetSum > 0 && hasilSum >= targetSum) || (codes.length > 0 && sls100Count === codes.length);
+      return eligible && !isOnHold(uid, g);
+    };
+
+    const checkPmlEligibilityT2 = (uid, g) => {
+      const supervised = pmlToPpl[uid] || new Set();
+      const allSlsSet = new Set(userSlsMap[uid] || []);
+      supervised.forEach(pplId => {
+        (userSlsMap[pplId] || []).forEach(code => allSlsSet.add(code));
+      });
+      if (allSlsSet.size === 0 || capaianT2.length === 0) return false;
+      let targetSum = 0;
+      let hasilSum = 0;
+      allSlsSet.forEach(code => {
+        targetSum += targetMap[code] || 0;
+        hasilSum += hasilMapG[g][code] || 0;
+      });
+      const eligible = targetSum > 0 && hasilSum >= targetSum;
+      return eligible && !isOnHold(uid, g);
+    };
+
+    [1, 2, 3, 4].forEach(g => {
+      const eligibleSet = bappEligibilityMapT2[g];
+      userProfiles.forEach(u => {
+        if (u.role === 'ppl') {
+          const e1 = checkPplEligibilityT2(u.id, 1);
+          const e2 = checkPplEligibilityT2(u.id, 2);
+          const e3 = checkPplEligibilityT2(u.id, 3);
+          const e4 = checkPplEligibilityT2(u.id, 4);
+          if (g === 1 && e1) eligibleSet.add(u.id);
+          else if (g === 2 && e2 && !e1) eligibleSet.add(u.id);
+          else if (g === 3 && e3 && !e1 && !e2) eligibleSet.add(u.id);
+          else if (g === 4 && e4 && !e1 && !e2 && !e3) eligibleSet.add(u.id);
+        } else if (u.role === 'pml') {
+          const e1 = checkPmlEligibilityT2(u.id, 1);
+          const e2 = checkPmlEligibilityT2(u.id, 2);
+          const e3 = checkPmlEligibilityT2(u.id, 3);
+          const e4 = checkPmlEligibilityT2(u.id, 4);
+          if (g === 1 && e1) eligibleSet.add(u.id);
+          else if (g === 2 && e2 && !e1) eligibleSet.add(u.id);
+          else if (g === 3 && e3 && !e1 && !e2) eligibleSet.add(u.id);
+          else if (g === 4 && e4 && !e1 && !e2 && !e3) eligibleSet.add(u.id);
+        }
+      });
+    });
+
+    isBappEligibilityLoadedT2 = true;
+  } catch (err) {
+    console.error('Gagal menghitung kelayakan Termin 2:', err);
+  }
+}
+
+/**
+ * 3. Generate Data Laporan LK Beban Kerja Termin 2 Murni
+ */
+async function generateCapaianReportDataT2(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+
+  // Ambil data penugasan T2
+  let userSlsT2 = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data, error } = await db.from('user_sls_termin2').select('user_id, kode_sls').eq('status', 'aktif').range(fromSls, fromSls + 999);
+    if (!error && data && data.length > 0) {
+      userSlsT2 = userSlsT2.concat(data);
+      if (data.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
+    } else {
+      hasMoreSls = false;
+    }
+  }
+
+  const userSlsMap = {};
+  userSlsT2.forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+  });
+
+  // Ambil capaian_termin2
+  let capaianT2 = [];
+  let fromCap = 0;
+  let hasMoreCap = true;
+  while (hasMoreCap) {
+    const { data, error } = await db.from('capaian_termin2').select('*').range(fromCap, fromCap + 999);
+    if (!error && data && data.length > 0) {
+      capaianT2 = capaianT2.concat(data);
+      if (data.length < 1000) hasMoreCap = false;
+      else fromCap += 1000;
+    } else {
+      hasMoreCap = false;
+    }
+  }
+
+  const targetMap = {};
+  const hasilMap = {};
+  capaianT2.forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  // Ambil PML-PPL
+  const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+  const pmlToPpls = {};
+  (rels || []).forEach(r => {
+    if (!pmlToPpls[r.pml_id]) pmlToPpls[r.pml_id] = [];
+    pmlToPpls[r.pml_id].push(r.ppl_id);
+  });
+
+  const pmlUsers = allUsers.filter(u => u.role === 'pml' && u.is_active);
+  const pplUsers = allUsers.filter(u => u.role === 'ppl' && u.is_active);
+
+  const excelRows = [];
+  const rowTypes = [];
+  let grandTotalTarget = 0;
+  let grandTotalRealisasi = 0;
+
+  pmlUsers.forEach(pml => {
+    const pplIds = pmlToPpls[pml.id] || [];
+    let pmlSubtotalTarget = 0;
+    let pmlSubtotalRealisasi = 0;
+
+    pplIds.forEach(pplId => {
+      const ppl = pplUsers.find(u => u.id === pplId);
+      if (!ppl) return;
+      const codes = userSlsMap[ppl.id] || [];
+
+      if (codes.length === 0) {
+        excelRows.push({
+          'Nama PML': pml.nama,
+          'Email PML': pml.email_ref || '—',
+          'Nama PPL': ppl.nama,
+          'Email PPL': ppl.email_ref || '—',
+          'Kode Kec': '—',
+          'Kode Desa': '—',
+          'Kode SLS+SubSLS': '—',
+          'Target': 0,
+          'Realisasi': 0,
+          'Persentase': '0.00%',
+          'Coverage': '0/0',
+          'Min Coverage': '0',
+          'Eligible': '✗'
+        });
+        rowTypes.push('data');
+      } else {
+        codes.forEach(code => {
+          const tgt = targetMap[code] || 0;
+          const real = hasilMap[code] || 0;
+          pmlSubtotalTarget += tgt;
+          pmlSubtotalRealisasi += real;
+
+          excelRows.push({
+            'Nama PML': pml.nama,
+            'Email PML': pml.email_ref || '—',
+            'Nama PPL': ppl.nama,
+            'Email PPL': ppl.email_ref || '—',
+            'Kode Kec': code.substring(4, 7),
+            'Kode Desa': code.substring(7, 10),
+            'Kode SLS+SubSLS': code.substring(10, 16),
+            'Target': tgt,
+            'Realisasi': real,
+            'Persentase': tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%',
+            'Coverage': '',
+            'Min Coverage': '',
+            'Eligible': ''
+          });
+          rowTypes.push('data');
+        });
+      }
+    });
+
+    // Subtotal PML
+    excelRows.push({
+      'Nama PML': `SUBTOTAL ${pml.nama.toUpperCase()}`,
+      'Email PML': '',
+      'Nama PPL': '',
+      'Email PPL': '',
+      'Kode Kec': '',
+      'Kode Desa': '',
+      'Kode SLS+SubSLS': '',
+      'Target': pmlSubtotalTarget,
+      'Realisasi': pmlSubtotalRealisasi,
+      'Persentase': pmlSubtotalTarget > 0 ? ((pmlSubtotalRealisasi / pmlSubtotalTarget) * 100).toFixed(2) + '%' : '0.00%',
+      'Coverage': '',
+      'Min Coverage': '',
+      'Eligible': bappEligibilityMapT2[gelombang].has(pml.id) ? '✓' : '✗'
+    });
+    rowTypes.push('subtotal_pml');
+
+    grandTotalTarget += pmlSubtotalTarget;
+    grandTotalRealisasi += pmlSubtotalRealisasi;
+  });
+
+  // 4 Petugas Pengganti Khusus (Masing-masing 2 baris kosong untuk entri/penyesuaian manual)
+  for (let p = 1; p <= 4; p++) {
+    for (let r = 1; r <= 2; r++) {
+      excelRows.push({
+        'Nama PML': '',
+        'Email PML': '',
+        'Nama PPL': `................................................ (Petugas Pengganti ${p} - Baris ${r})`,
+        'Email PPL': '',
+        'Kode Kec': '',
+        'Kode Desa': '',
+        'Kode SLS+SubSLS': '',
+        'Target': '',
+        'Realisasi': '',
+        'Persentase': '',
+        'Coverage': '',
+        'Min Coverage': '',
+        'Eligible': ''
+      });
+      rowTypes.push('data');
+    }
+  }
+
+  excelRows.push({
+    'Nama PML': 'TOTAL KABUPATEN (TERMIN II)',
+    'Email PML': '',
+    'Nama PPL': '',
+    'Email PPL': '',
+    'Kode Kec': '',
+    'Kode Desa': '',
+    'Kode SLS+SubSLS': '',
+    'Target': grandTotalTarget,
+    'Realisasi': grandTotalRealisasi,
+    'Persentase': grandTotalTarget > 0 ? ((grandTotalRealisasi / grandTotalTarget) * 100).toFixed(2) + '%' : '0.00%',
+    'Coverage': '',
+    'Min Coverage': '',
+    'Eligible': ''
+  });
+  rowTypes.push('grand_total');
+
+  return { excelRows, rowTypes };
+}
+
+/**
+ * 4. Preview LK Beban Kerja T2
+ */
+async function previewCapaianT2(gelombang = 1) {
+  const modal = document.getElementById('previewLkModal');
+  const title = document.getElementById('previewLkTitle');
+  const tbody = document.getElementById('previewLkTableBody');
+
+  if (title) title.textContent = `Preview LK Beban Kerja Termin II - Gelombang ${gelombang}`;
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:2rem"><span class="spinner"></span> Memuat data Termin II...</td></tr>';
+  }
+  if (modal) modal.classList.add('open');
+
+  try {
+    const { excelRows, rowTypes } = await generateCapaianReportDataT2(gelombang);
+    allPreviewLkRows = excelRows.map((r, i) => ({ ...r, _rowType: rowTypes[i] }));
+    filterPreviewLk();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="13" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
+  }
+}
+
+async function exportCapaianT2ToExcel(gelombang = 1) {
+  showToast(`Memproses ekspor LK Beban Kerja Termin II Gelombang ${gelombang}...`, 'info');
+  try {
+    const { excelRows } = await generateCapaianReportDataT2(gelombang);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(excelRows);
+    XLSX.utils.book_append_sheet(wb, ws, `LK_T2_G${gelombang}`);
+    XLSX.writeFile(wb, `lk_beban_kerja_termin2_gelombang_${gelombang}.xlsx`);
+    showToast('✓ Berhasil mengunduh Excel LK Beban Kerja Termin II!', 'success');
+  } catch (err) {
+    showToast('Gagal ekspor Excel: ' + err.message, 'error');
+  }
+}
+
+/**
+ * 5. Dokumen Super PPL, PML & Kepala Termin 2 Murni
+ */
+async function previewSuperPPLT2(gelombang = 1) {
+  generateSuperPPLActionT2(gelombang, false);
+}
+
+async function downloadSuperPPLT2(gelombang = 1) {
+  generateSuperPPLActionT2(gelombang, true);
+}
+
+async function generateSuperPPLActionT2(gelombang = 1, isDownload = false) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada data PPL eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  showToast(`Memproses Surat Pernyataan PPL Termin II Gelombang ${gelombang}...`, 'info');
+  // Generator PPL Termin 2
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      const pplList = await fetchSuperPPLDataT2(gelombang);
+      if (pplList.length === 0) {
+        showToast('Tidak ada PPL yang eligible di gelombang ini.', 'warning');
+        indicator.remove();
+        return;
+      }
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      for (let i = 0; i < pplList.length; i++) {
+        if (i > 0) pdf.addPage("a4", "portrait");
+        buildSuperPPLDocumentT2(pdf, pplList[i], ttdYulianBase64, gelombang);
+      }
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = '✓ Selesai memproses PDF Super PPL T2!';
+
+      if (isDownload) {
+        pdf.save(`super_ppl_termin2_gelombang_${gelombang}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+      setTimeout(() => { indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membuat PDF: ' + err.message, 'error');
+      if (indicator) indicator.remove();
+    }
+  });
+}
+
+async function fetchSuperPPLDataT2(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) return [];
+
+  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t2');
+  const noSuratMap = {};
+  (noSurats || []).forEach(n => {
+    if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
+  });
+
+  const { data: capaianT2 } = await db.from('capaian_termin2').select('*');
+  const targetMap = {};
+  const hasilMap = {};
+  (capaianT2 || []).forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  const { data: userSlsT2 } = await db.from('user_sls_termin2').select('user_id, kode_sls').eq('status', 'aktif');
+  const userSlsMap = {};
+  (userSlsT2 || []).forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+  });
+
+  const pplProfiles = (allUsers || []).filter(u => u.role === 'ppl' && u.is_active && eligibleIds.has(u.id));
+  const result = [];
+
+  pplProfiles.forEach(ppl => {
+    const codes = userSlsMap[ppl.id] || [];
+    let tgt = 0, real = 0;
+    codes.forEach(code => {
+      tgt += targetMap[code] || 0;
+      real += hasilMap[code] || 0;
+    });
+
+    const key = String(ppl.sobatid).trim();
+    const noEntry = noSuratMap[key] || {};
+
+    result.push({
+      nama: ppl.nama,
+      nik: ppl.nik,
+      sobatid: ppl.sobatid,
+      kecamatan: ppl.kecamatan || '',
+      no_spk: noEntry.no_spk || '',
+      no_sp_pemeriksaan_t2: noEntry.no_sp_pemeriksaan_t2 || '',
+      target: tgt,
+      realisasi: real,
+      capaian_pct: tgt > 0 ? (real / tgt) * 100 : 0
+    });
+  });
+
+  result.sort((a, b) => (a.kdkec || '').localeCompare(b.kdkec || '') || (a.nama || '').localeCompare(b.nama || ''));
+  return result;
+}
+
+function buildSuperPPLDocumentT2(pdf, ppl, ttdYulianBase64, gelombang = 1) {
+  const tanggal = new Date().toLocaleDateString("id-ID", {
+    year: "numeric",
+    month: "long",
+    day: "numeric"
+  });
+
+  const pct = ppl.capaian_pct !== undefined ? ppl.capaian_pct.toFixed(2) + "%" : "0.00%";
+  const targetStr = (ppl.target || 0).toString();
+  const realisasiStr = (ppl.realisasi || 0).toString();
+
+  pdf.setLineHeightFactor(1.0);
+  const M = 25;
+  const W = 160;
+  const MR = 185;
+  const lh = 5;
+
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("SURAT PERNYATAAN PENYELESAIAN", 105, 30, { align: "center" });
+  pdf.text("PENDATAAN LAPANGAN SENSUS EKONOMI 2026 TERMIN II", 105, 36, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${ppl.no_sp_pemeriksaan_t2 || "......./SE2026/.../.../2026"}`, 105, 44, { align: "center" });
+
+  let y = 56;
+  pdf.text("Yang bertanda tangan di bawah ini:", M, y);
+  y += 8;
+
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+
+  const identitas = [
+    ["Nama", ppl.nama ? ppl.nama.toUpperCase() : "....................................."],
+    ["NIK", ppl.nik || "....................................."],
+    ["Jabatan", `Petugas Pendataan Lapangan Sensus Ekonomi 2026 Kecamatan ${ppl.kecamatan || "..."}`]
+  ];
+
+  identitas.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], MR - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+
+  y += 3;
+  pdf.text("Dengan ini menyatakan:", M, y);
+  y += 6;
+
+  const poin = [
+    `bahwa telah menyelesaikan seluruh target pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${ppl.no_spk || "..."}, dengan rincian target prelist sebanyak ${targetStr} dan realisasi hasil pendataan sebanyak ${realisasiStr} (${pct});`,
+    `bahwa seluruh hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 termin II telah diserahkan dan diperiksa oleh Pemeriksa Lapangan;`,
+    `bahwa seluruh hasil pekerjaan termin II yang diserahkan adalah benar, akurat, dan dapat dipertanggungjawabkan sesuai dengan kondisi di lapangan; dan`,
+    `apabila di kemudian hari ditemukan ketidaksesuaian, kekeliruan, atau penyimpangan atas pekerjaan yang saya lakukan, maka saya bersedia bertanggung jawab sepenuhnya sesuai dengan ketentuan peraturan perundang-undangan.`
+  ];
+
+  const numX = M;
+  const textX = M + 8;
+  const textWidth = MR - textX;
+
+  poin.forEach((teks, i) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${i + 1}.`, numX, y);
+    drawJustifiedText(pdf, teks, textX, y, textWidth, 5);
+    y += lines.length * 5;
+  });
+
+  y += 2;
+  const penutup =
+    "Demikian Surat Pernyataan ini dibuat dengan sebenarnya dalam keadaan sadar, tanpa paksaan dari pihak manapun, untuk digunakan sebagaimana mestinya.";
+
+  const penutupLines = pdf.splitTextToSize(penutup, W);
+  drawJustifiedText(pdf, penutup, M, y, W, 5);
+  y += penutupLines.length * 5 + 10;
+
+  const ttdX = 152;
+  let dateStr = "Lebak, 16 Juli 2026";
+  if (gelombang === 2) dateStr = "Lebak, 23 Juli 2026";
+  if (gelombang === 3) dateStr = "Lebak, 28 Juli 2026";
+  if (gelombang === 4) dateStr = "Lebak, 10 Agustus 2026";
+
+  pdf.text(dateStr, ttdX, y, { align: "center" });
+  pdf.text("Yang membuat pernyataan,", ttdX, y + lh, { align: "center" });
+  y += 28;
+  pdf.text(`(${(ppl.nama || "").toUpperCase()})`, ttdX, y, { align: "center" });
+}
+
+async function previewSuperPMLT2(gelombang = 1) {
+  generateSuperPMLActionT2(gelombang, false);
+}
+
+async function downloadSuperPMLT2(gelombang = 1) {
+  generateSuperPMLActionT2(gelombang, true);
+}
+
+async function generateSuperPMLActionT2(gelombang = 1, isDownload = false) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada data PML eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  showToast(`Memproses Surat Pernyataan PML Termin II Gelombang ${gelombang}...`, 'info');
+  // Generator PML Termin 2
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat data PML T2...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      const pmlList = await fetchSuperPMLDataT2(gelombang);
+      if (pmlList.length === 0) {
+        showToast('Tidak ada PML eligible di gelombang ini.', 'warning');
+        indicator.remove();
+        return;
+      }
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      for (let i = 0; i < pmlList.length; i++) {
+        if (i > 0) pdf.addPage("a4", "portrait");
+        buildSPTermin1Pages(pdf, pmlList[i], pmlList[i].rekapData, i > 0, ttdYulianBase64, gelombang);
+      }
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = '✓ Selesai membuat PDF Super PML T2!';
+
+      if (isDownload) {
+        pdf.save(`super_pml_termin2_gelombang_${gelombang}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+      setTimeout(() => { indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membuat PDF: ' + err.message, 'error');
+      if (indicator) indicator.remove();
+    }
+  });
+}
+
+async function fetchSuperPMLDataT2(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) return [];
+
+  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t2');
+  const noSuratMap = {};
+  (noSurats || []).forEach(n => {
+    if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
+  });
+
+  const { data: capaianT2 } = await db.from('capaian_termin2').select('*');
+  const targetMap = {};
+  const hasilMap = {};
+  (capaianT2 || []).forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+  const pmlToPpl = {};
+  const pplToPml = {};
+  (rels || []).forEach(r => {
+    if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
+    pmlToPpl[r.pml_id].push(r.ppl_id);
+    pplToPml[r.ppl_id] = r.pml_id;
+  });
+
+  const { data: userSlsT2 } = await db.from('user_sls_termin2').select('user_id, kode_sls, user_id_asal').eq('status', 'aktif');
+  const userSlsMap = {};
+  (userSlsT2 || []).forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+
+    // Inherit PML pembina dari SLS / user_id_asal jika petugas merupakan PPL pengganti
+    if (us.user_id_asal && pplToPml[us.user_id_asal]) {
+      const pmlId = pplToPml[us.user_id_asal];
+      if (pmlToPpl[pmlId] && !pmlToPpl[pmlId].includes(us.user_id)) {
+        pmlToPpl[pmlId].push(us.user_id);
+      }
+    }
+  });
+
+  const pmlProfiles = (allUsers || []).filter(u => u.role === 'pml' && u.is_active && eligibleIds.has(u.id));
+  const pplProfiles = (allUsers || []).filter(u => u.role === 'ppl' && u.is_active);
+
+  const result = [];
+
+  pmlProfiles.forEach(pml => {
+    const pplIds = pmlToPpl[pml.id] || [];
+    const rekapData = [];
+
+    pplIds.forEach(pplId => {
+      const ppl = pplProfiles.find(u => u.id === pplId);
+      if (!ppl) return;
+      const codes = userSlsMap[ppl.id] || [];
+      let tgt = 0, real = 0;
+      codes.forEach(code => {
+        tgt += targetMap[code] || 0;
+        real += hasilMap[code] || 0;
+      });
+
+      const keyPpl = String(ppl.sobatid).trim();
+      const noEntryPpl = noSuratMap[keyPpl] || {};
+      const pct = tgt > 0 ? (real / tgt) * 100 : 0;
+
+      rekapData.push({
+        nama: ppl.nama,
+        nik: ppl.nik,
+        sobatid: ppl.sobatid,
+        kdkec: ppl.kecamatan || '',
+        no_spk: noEntryPpl.no_spk || '',
+        no_sp_pemeriksaan_t2: noEntryPpl.no_sp_pemeriksaan_t2 || '',
+        target: tgt,
+        realisasi: real,
+        capaian_pct: pct
+      });
+    });
+
+    // Tambahkan 2 baris kosong untuk masing-masing dari 4 petugas pengganti
+    for (let p = 1; p <= 4; p++) {
+      for (let r = 1; r <= 2; r++) {
+        rekapData.push({
+          nama: `................................................ (Petugas Pengganti ${p})`,
+          nik: '',
+          sobatid: '',
+          kdkec: '',
+          no_spk: '',
+          no_sp_pemeriksaan_t2: '',
+          target: '',
+          realisasi: '',
+          capaian_pct: '',
+          is_replacement_blank: true
+        });
+      }
+    }
+
+    const keyPml = String(pml.sobatid).trim();
+    const noEntryPml = noSuratMap[keyPml] || {};
+
+    result.push({
+      nama: pml.nama,
+      nik: pml.nik,
+      sobatid: pml.sobatid,
+      kecamatan: pml.kecamatan || '',
+      no_spk: noEntryPml.no_spk || '',
+      no_sp_pemeriksaan_t1: noEntryPml.no_sp_pemeriksaan_t2 || '',
+      rekapData
+    });
+  });
+
+  return result;
+}
+
+/**
+ * Super Kepala T2 & Lampiran T2 Murni
+ */
+async function printSuperEvaluasiT2(isDownload = false, gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada data eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #38bdf8; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat Super Kepala T2 G${gelombang}...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      const dummyPml = {
+        nama: "YULIAN SARWO EDI",
+        nik: "1234567890123456",
+        kecamatan: "Rangkasbitung",
+        no_sp_pemeriksaan_t1: "001/SE2026/SP-PEM/01/2026",
+        no_spk: "001/SPK/BPS/2026"
+      };
+
+      const rekapData = await fetchSuperEvaluasiT2Data(gelombang);
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      buildSuperEvaluasiT1Pages(pdf, dummyPml, rekapData, false, ttdYulianBase64, gelombang);
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = `✓ Berhasil membuat PDF Super Evaluasi T2 G${gelombang}!`;
+
+      if (isDownload) {
+        pdf.save(`super_kepala_termin2_g${gelombang}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+      setTimeout(() => { indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error(err);
+      showToast('Gagal membuat PDF: ' + err.message, 'error');
+      if (indicator) indicator.remove();
+    }
+  });
+}
+
+async function fetchSuperEvaluasiT2Data(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) return [];
+
+  const { data: capaianT2 } = await db.from('capaian_termin2').select('*');
+  const targetMap = {};
+  const hasilMap = {};
+  (capaianT2 || []).forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  const { data: userSlsT2 } = await db.from('user_sls_termin2').select('user_id, kode_sls, user_id_asal').eq('status', 'aktif');
+  const userSlsMap = {};
+  const userAsalMap = {};
+  (userSlsT2 || []).forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+    if (us.user_id_asal) userAsalMap[us.user_id] = us.user_id_asal;
+  });
+
+  const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+  const pplToPml = {};
+  (rels || []).forEach(r => {
+    pplToPml[r.ppl_id] = r.pml_id;
+  });
+
+  const users = (allUsers || []).filter(u => u.is_active && eligibleIds.has(u.id));
+  const reportData = [];
+
+  users.forEach(p => {
+    const codes = userSlsMap[p.id] || [];
+    let tgt = 0, real = 0;
+    codes.forEach(c => {
+      tgt += targetMap[c] || 0;
+      real += hasilMap[c] || 0;
+    });
+
+    const pmlId = pplToPml[p.id] || (userAsalMap[p.id] && pplToPml[userAsalMap[p.id]]);
+    const pmlUser = pmlId ? allUsers.find(u => u.id === pmlId) : null;
+
+    reportData.push({
+      nama_pml: pmlUser ? pmlUser.nama : '—',
+      email_pml: pmlUser ? pmlUser.email_ref : '',
+      nama_ppl: p.role === 'ppl' ? p.nama : '',
+      email_ppl: p.role === 'ppl' ? p.email_ref : '',
+      nama: p.nama,
+      kdkec: p.kecamatan || '',
+      jabatan: p.role.toUpperCase(),
+      target: tgt,
+      realisasi: real,
+      persentase: tgt > 0 ? ((real / tgt) * 100).toFixed(2) + '%' : '0.00%'
+    });
+  });
+
+  reportData.sort((a, b) => (a.jabatan === 'PPL' ? -1 : 1) || (a.kdkec || '').localeCompare(b.kdkec || '') || (a.nama || '').localeCompare(b.nama || ''));
+
+  // Tambahkan 2 baris kosong untuk masing-masing dari 4 petugas pengganti
+  for (let p = 1; p <= 4; p++) {
+    for (let r = 1; r <= 2; r++) {
+      reportData.push({
+        nama_pml: '',
+        email_pml: '',
+        nama_ppl: `................................................ (Petugas Pengganti ${p})`,
+        email_ppl: '',
+        nama: `................................................ (Petugas Pengganti ${p})`,
+        kdkec: '',
+        jabatan: 'PPL',
+        target: '',
+        realisasi: '',
+        persentase: '',
+        is_replacement_blank: true
+      });
+    }
+  }
+
+  return reportData;
+}
+
+async function previewSuperKepalaLampiranT2(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada data eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+  printSuperEvaluasiT2(false, gelombang);
+}
+
+async function exportSuperKepalaLampiranT2ToExcel(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada data eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  showToast(`Mengekspor Lampiran Super Kepala T2 Gelombang ${gelombang}...`, 'info');
+  try {
+    const reportData = await fetchSuperEvaluasiT2Data(gelombang);
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(reportData);
+    XLSX.utils.book_append_sheet(wb, ws, `Lampiran_T2_G${gelombang}`);
+    XLSX.writeFile(wb, `lampiran_super_kepala_termin2_gelombang_${gelombang}.xlsx`);
+    showToast('✓ Berhasil mengunduh Excel Lampiran Super Kepala T2!', 'success');
+  } catch (err) {
+    showToast('Gagal ekspor Excel: ' + err.message, 'error');
+  }
+}
+
+function openPmlNoSuratModalT2(gelombang = 1) {
+  openPmlNoSuratModal(gelombang);
+}
+
+function openPplNoSuratModalT2(gelombang = 1) {
+  openPplNoSuratModal(gelombang);
+}
+
+function openCustomSuperPPLModalT2() {
+  openCustomSuperPPLModal();
+}
+
+/**
+ * 6. BAPP Termin II Modal Management
+ */
+let allBappT2Officers = [];
+
+async function openBappModalT2() {
+  const modal = document.getElementById('bappModal');
+  const title = document.querySelector('#bappModal .bottom-sheet-title');
+  const sub = document.querySelector('#bappModal .bottom-sheet-header div div:nth-child(2)');
+
+  if (title) title.textContent = 'Tabel BAPP Pencairan Termin II';
+  if (sub) sub.textContent = 'Daftar kelayakan pencairan BAPP Termin II berdasarkan capaian FASIH murni.';
+  if (modal) modal.classList.add('open');
+
+  await loadBAPPT2Data();
+}
+
+async function loadBAPPT2Data() {
+  const tbody = document.getElementById('bappTableBody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div> Memuat data BAPP Termin II...</td></tr>';
+  }
+
+  try {
+    await loadBappEligibilityDataT2(true);
+
+    const { data: uploadsT2 } = await db.from('bapp_uploads_t2').select('profile_id, screenshot, screenshot_uninstall, created_at');
+    const uploadT2Map = {};
+    (uploadsT2 || []).forEach(u => uploadT2Map[u.profile_id] = u);
+
+    const officers = (allUsers || []).filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml'));
+    allBappUploads = officers.map(u => {
+      let gelombang = '—';
+      if (bappEligibilityMapT2[1]?.has(u.id)) gelombang = 'Gelombang 1';
+      else if (bappEligibilityMapT2[2]?.has(u.id)) gelombang = 'Gelombang 2';
+      else if (bappEligibilityMapT2[3]?.has(u.id)) gelombang = 'Gelombang 3';
+      else if (bappEligibilityMapT2[4]?.has(u.id)) gelombang = 'Gelombang 4';
+
+      const up = uploadT2Map[u.id];
+
+      return {
+        id: u.id,
+        profile_id: u.id,
+        kode_kec: u.kecamatan || '—',
+        screenshot: up?.screenshot || null,
+        screenshot_uninstall: up?.screenshot_uninstall || null,
+        created_at: up?.created_at || null,
+        profiles: {
+          nama: u.nama,
+          role: u.role,
+          sobatid: u.sobatid
+        },
+        wilayah_kec: {
+          nmkec: u.kecamatan || '—'
+        },
+        gelombang_text: gelombang
+      };
+    });
+
+    filterBAPP();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
+  }
+}
+
+/**
+ * 7. BAST (BERITA ACARA SERAH TERIMA) FUNCTIONS
+ */
+async function previewBAST(gelombang = 1) {
+  generateBASTAction(gelombang, false);
+}
+
+async function downloadBAST(gelombang = 1) {
+  generateBASTAction(gelombang, true);
+}
+
+async function generateBASTAction(gelombang = 1, isDownload = false) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+
+  if (!eligibleIds || eligibleIds.size === 0) {
+    showToast(`Belum ada petugas eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    return;
+  }
+
+  showToast(`Memproses BAST Termin II Gelombang ${gelombang}...`, 'info');
+
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #10b981; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      const bastOfficers = await fetchBASTData(gelombang);
+      if (bastOfficers.length === 0) {
+        showToast('Tidak ada petugas eligible untuk dicetak BAST.', 'warning');
+        indicator.remove();
+        return;
+      }
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+      for (let i = 0; i < bastOfficers.length; i++) {
+        const officer = bastOfficers[i];
+        indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat BAST (${i + 1}/${bastOfficers.length})...`;
+        if (i > 0) pdf.addPage("a4", "portrait");
+        buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang);
+      }
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = '✓ Selesai membuat dokumen BAST!';
+
+      if (isDownload) {
+        pdf.save(`bast_termin2_gelombang_${gelombang}.pdf`);
+      } else {
+        window.open(pdf.output('bloburl'), '_blank');
+      }
+      setTimeout(() => { indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error('Failed to generate BAST:', err);
+      showToast('Gagal membuat BAST: ' + err.message, 'error');
+      if (indicator) indicator.remove();
+    }
+  });
+}
+
+async function fetchBASTData(gelombang = 1) {
+  await loadBappEligibilityDataT2(true);
+  const eligibleIds = bappEligibilityMapT2[gelombang];
+  if (!eligibleIds || eligibleIds.size === 0) return [];
+
+  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t2');
+  const noSuratMap = {};
+  (noSurats || []).forEach(n => {
+    if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
+  });
+
+  const { data: capaianT2 } = await db.from('capaian_termin2').select('*');
+  const targetMap = {};
+  const hasilMap = {};
+  (capaianT2 || []).forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  const { data: userSlsT2 } = await db.from('user_sls_termin2').select('user_id, kode_sls, user_id_asal').eq('status', 'aktif');
+  const userSlsMap = {};
+  const userAsalMap = {};
+  (userSlsT2 || []).forEach(us => {
+    if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+    userSlsMap[us.user_id].push(us.kode_sls);
+    if (us.user_id_asal) userAsalMap[us.user_id] = us.user_id_asal;
+  });
+
+  const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+  const pmlToPpl = {};
+  const pplToPml = {};
+  (rels || []).forEach(r => {
+    if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
+    pmlToPpl[r.pml_id].push(r.ppl_id);
+    pplToPml[r.ppl_id] = r.pml_id;
+  });
+
+  // Hubungkan replacement PPL ke PML pembinanya
+  Object.keys(userAsalMap).forEach(pplId => {
+    const asalId = userAsalMap[pplId];
+    const pmlId = pplToPml[asalId];
+    if (pmlId && pmlToPpl[pmlId] && !pmlToPpl[pmlId].includes(pplId)) {
+      pmlToPpl[pmlId].push(pplId);
+    }
+  });
+
+  const officers = (allUsers || []).filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml') && eligibleIds.has(u.id));
+  const result = [];
+
+  officers.forEach(u => {
+    let slsCodes = [];
+    if (u.role === 'ppl') {
+      slsCodes = userSlsMap[u.id] || [];
+    } else {
+      const pplIds = pmlToPpl[u.id] || [];
+      const setCodes = new Set(userSlsMap[u.id] || []);
+      pplIds.forEach(pid => {
+        (userSlsMap[pid] || []).forEach(c => setCodes.add(c));
+      });
+      slsCodes = Array.from(setCodes);
+    }
+
+    let tgt = 0, real = 0;
+    slsCodes.forEach(code => {
+      tgt += targetMap[code] || 0;
+      real += hasilMap[code] || 0;
+    });
+
+    const key = String(u.sobatid).trim();
+    const noEntry = noSuratMap[key] || {};
+
+    result.push({
+      nama: u.nama,
+      nik: u.nik,
+      sobatid: u.sobatid,
+      role: u.role,
+      kecamatan: u.kecamatan || '',
+      no_spk: noEntry.no_spk || '',
+      no_bast: noEntry.no_sp_pemeriksaan_t2 || '',
+      target: tgt,
+      realisasi: real
+    });
+  });
+
+  result.sort((a, b) => (a.role === 'ppl' ? -1 : 1) || (a.kecamatan || '').localeCompare(b.kecamatan || '') || (a.nama || '').localeCompare(b.nama || ''));
+  return result;
+}
+
+function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang = 1) {
+  let tanggalText = "Lebak, 31 Juli 2026";
+  const isPml = officer.role === 'pml';
+  const roleTitle = isPml ? "Petugas Pemeriksa Lapangan (PML)" : "Petugas Pendataan Lapangan (PPL)";
+
+  pdf.setFont("Bookman", "bold");
+  pdf.setFontSize(12);
+  pdf.text("BERITA ACARA SERAH TERIMA HASIL PEKERJAAN", 105, 25, { align: "center" });
+  pdf.text(`SENSUS EKONOMI 2026 TAHUN 2026`, 105, 31, { align: "center" });
+
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(12);
+  pdf.text(`Nomor: ${officer.no_bast || "......./BAST/3602/2026"}`, 105, 38, { align: "center" });
+
+  let y = 48;
+  const intro = `Pada hari ini, tanggal ......................... bertempat di Badan Pusat Statistik Kabupaten Lebak, yang bertanda tangan di bawah ini:`;
+  const introLines = pdf.splitTextToSize(intro, 160);
+  drawJustifiedText(pdf, intro, 25, y, 160, 5);
+  y += introLines.length * 5 + 4;
+
+  const labelX = 30;
+  const colonX = 62;
+  const valueX = 66;
+  const lh = 5;
+
+  pdf.text("1.", 25, y);
+  const pihak1 = [
+    ["Nama", (officer.nama || "").toUpperCase()],
+    ["NIK", officer.nik || "....................................."],
+    ["Jabatan", `${roleTitle} Sensus Ekonomi 2026`],
+    ["Kecamatan", officer.kecamatan || "....................................."]
+  ];
+  pihak1.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+  pdf.text("selanjutnya disebut sebagai PIHAK PERTAMA.", 30, y);
+  y += 7;
+
+  pdf.text("2.", 25, y);
+  const pihak2 = [
+    ["Nama", "YULIAN SARWO EDI"],
+    ["NIP", "197707101999121001"],
+    ["Jabatan", "Ketua Tim Pelaksana Sensus Ekonomi 2026 Kabupaten Lebak"]
+  ];
+  pihak2.forEach(item => {
+    pdf.text(item[0], labelX, y);
+    pdf.text(":", colonX, y);
+    const wrap = pdf.splitTextToSize(item[1], 185 - valueX);
+    pdf.text(wrap, valueX, y);
+    y += wrap.length * lh;
+  });
+  pdf.text("selanjutnya disebut sebagai PIHAK KEDUA.", 30, y);
+  y += 7;
+
+  const pasal = [
+    `PIHAK PERTAMA telah menyerahkan seluruh hasil pekerjaan pelaksanaan Sensus Ekonomi 2026 kepada PIHAK KEDUA sesuai dengan Perjanjian Kerja Nomor: ${officer.no_spk || "....................................."}, dengan rincian hasil pekerjaan sebanyak ${officer.realisasi || 0} unit usaha/keluarga selesai dari total target ${officer.target || 0}.`,
+    `PIHAK KEDUA telah memeriksa dan menerima hasil pekerjaan tersebut dengan baik, lengkap, dan memenuhi standar mutu yang telah ditetapkan.`,
+    `Berita Acara Serah Terima ini dibuat dalam rangkap 2 (dua) untuk dipergunakan sebagaimana mestinya.`
+  ];
+
+  const textWidth = 185 - 33;
+  pasal.forEach((teks, idx) => {
+    const lines = pdf.splitTextToSize(teks, textWidth);
+    pdf.text(`${idx + 1}.`, 25, y);
+    drawJustifiedText(pdf, teks, 33, y, textWidth, 5);
+    y += lines.length * 5 + 2;
+  });
+
+  y += 6;
+  const ttdY = y + 10;
+  pdf.setFont("Bookman", "normal");
+  pdf.setFontSize(11);
+
+  pdf.text("PIHAK KEDUA", 55, ttdY, { align: "center" });
+  pdf.text("Ketua Tim Pelaksana SE2026", 55, ttdY + 5, { align: "center" });
+
+  pdf.text("PIHAK PERTAMA", 155, ttdY, { align: "center" });
+  pdf.text(roleTitle, 155, ttdY + 5, { align: "center" });
+
+  if (ttdYulianBase64) {
+    pdf.addImage(ttdYulianBase64, 'PNG', 45, ttdY + 12, 18, 25);
+  }
+
+  pdf.text("YULIAN SARWO EDI", 55, ttdY + 40, { align: "center" });
+  pdf.text("NIP. 197707101999121001", 55, ttdY + 45, { align: "center" });
+
+  pdf.text((officer.nama || "").toUpperCase(), 155, ttdY + 40, { align: "center" });
+  pdf.text(`NIK. ${officer.nik || "....................................."}`, 155, ttdY + 45, { align: "center" });
+}
+
+/**
+ * Custom BAST Modal Handlers
+ */
+function openCustomBastModal() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan membuat custom BAST.', 'warning');
+    return;
+  }
+  const modal = document.getElementById('customBastModal');
+  if (modal) modal.classList.add('open');
+  onCustomBastRoleChange();
+}
+
+function closeCustomBastModal() {
+  const modal = document.getElementById('customBastModal');
+  if (modal) modal.classList.remove('open');
+}
+
+function onCustomBastRoleChange() {
+  const role = document.getElementById('customBastRole')?.value || 'ppl';
+  const sel = document.getElementById('customBastUserSelect');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">-- Pilih Petugas --</option>';
+
+  const filtered = (allUsers || []).filter(u => u.role === role && u.is_active);
+  filtered.sort((a, b) => (a.nama || '').localeCompare(b.nama || ''));
+  filtered.forEach(u => {
+    sel.innerHTML += `<option value="${u.id}">${escHtml(u.nama)} (${escHtml(u.kecamatan || '—')})</option>`;
+  });
+  onCustomBastUserChange();
+}
+
+async function onCustomBastUserChange() {
+  const uid = document.getElementById('customBastUserSelect')?.value;
+  const infoBox = document.getElementById('customBastInfoBox');
+  if (!uid) {
+    if (infoBox) infoBox.style.display = 'none';
+    return;
+  }
+
+  const u = (allUsers || []).find(x => x.id === uid);
+  if (!u) return;
+
+  if (infoBox) infoBox.style.display = 'block';
+  document.getElementById('customBastNIK').textContent = u.nik || '—';
+  document.getElementById('customBastSobatID').textContent = u.sobatid || '—';
+  document.getElementById('customBastKecamatan').textContent = u.kecamatan || '—';
+
+  try {
+    const { data } = await db.from('no_surat_se').select('no_spk, no_sp_pemeriksaan_t2').eq('sobatid', String(u.sobatid).trim()).single();
+    document.getElementById('customBastNoSPK').textContent = data?.no_spk || '—';
+    if (data?.no_sp_pemeriksaan_t2) {
+      document.getElementById('customBastNoSurat').value = data.no_sp_pemeriksaan_t2;
+    }
+  } catch (e) {}
+}
+
+function generateCustomBastPDF(isDownload = false) {
+  const uid = document.getElementById('customBastUserSelect')?.value;
+  if (!uid) {
+    showToast('Pilih petugas terlebih dahulu.', 'warning');
+    return;
+  }
+  const u = (allUsers || []).find(x => x.id === uid);
+  if (!u) return;
+
+  const role = document.getElementById('customBastRole')?.value || u.role;
+  const noSurat = document.getElementById('customBastNoSurat')?.value || '';
+  const tanggal = document.getElementById('customBastTanggal')?.value || '31 Juli 2026';
+  const target = parseInt(document.getElementById('customBastTarget')?.value) || 0;
+  const realisasi = parseInt(document.getElementById('customBastRealisasi')?.value) || 0;
+
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    await registerBookmanFont(pdf);
+    const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+
+    const officer = {
+      nama: u.nama,
+      nik: u.nik,
+      role: role,
+      kecamatan: u.kecamatan || '',
+      no_spk: document.getElementById('customBastNoSPK')?.textContent || '',
+      no_bast: noSurat,
+      target,
+      realisasi
+    };
+
+    buildBASTSingleDocument(pdf, officer, ttdYulianBase64, 1);
+
+    if (isDownload) {
+      pdf.save(`bast_custom_${(u.nama || '').replace(/\s+/g, '_').toLowerCase()}.pdf`);
+    } else {
+      window.open(pdf.output('bloburl'), '_blank');
+    }
+  });
+}
+
+/**
+ * Nomor Surat BAST Modal Handlers
+ */
+let allBastNoSuratRows = [];
+
+async function openBastNoSuratModal(gelombang = 1) {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengedit nomor surat.', 'warning');
+    return;
+  }
+  const modal = document.getElementById('bastNoSuratModal');
+  if (modal) modal.classList.add('open');
+
+  const gelFilter = document.getElementById('bastNoSuratGelombangFilter');
+  if (gelFilter) gelFilter.value = gelombang;
+
+  const kecFilter = document.getElementById('bastNoSuratKecamatanFilter');
+  if (kecFilter && kecFilter.options.length <= 1) {
+    kecFilter.innerHTML = '<option value="">Semua Kecamatan</option>';
+    const uniqueKec = new Set((allUsers || []).map(u => u.kecamatan).filter(Boolean));
+    Array.from(uniqueKec).sort().forEach(k => {
+      kecFilter.innerHTML += `<option value="${escHtml(k)}">${escHtml(k)}</option>`;
+    });
+  }
+
+  await loadBastNoSuratTable();
+}
+
+function closeBastNoSuratModal() {
+  const modal = document.getElementById('bastNoSuratModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function loadBastNoSuratTable() {
+  const tbody = document.getElementById('bastNoSuratTableBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem"><span class="spinner"></span> Memuat nomor surat BAST...</td></tr>';
+
+  try {
+    const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t2');
+    const map = {};
+    (noSurats || []).forEach(n => {
+      if (n.sobatid) map[String(n.sobatid).trim()] = n;
+    });
+
+    const officers = (allUsers || []).filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml'));
+    allBastNoSuratRows = officers.map(u => {
+      const key = String(u.sobatid).trim();
+      return {
+        id: u.id,
+        nama: u.nama,
+        sobatid: u.sobatid,
+        role: u.role,
+        kecamatan: u.kecamatan || '—',
+        no_spk: map[key]?.no_spk || '',
+        no_bast: map[key]?.no_sp_pemeriksaan_t2 || '',
+        is_edited: false
+      };
+    });
+
+    filterBastNoSuratTable();
+  } catch (err) {
+    if (tbody) tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
+  }
+}
+
+function filterBastNoSuratTable() {
+  const tbody = document.getElementById('bastNoSuratTableBody');
+  if (!tbody) return;
+
+  const role = document.getElementById('bastNoSuratRoleFilter')?.value || '';
+  const kec = document.getElementById('bastNoSuratKecamatanFilter')?.value || '';
+
+  let filtered = allBastNoSuratRows.filter(r => {
+    if (role && r.role !== role) return false;
+    if (kec && r.kecamatan !== kec) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.5rem">Tidak ada petugas yang cocok dengan filter.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filtered.map(r => `
+    <tr>
+      <td><strong>${escHtml(r.nama)}</strong><br><small style="color:var(--text-muted)">${escHtml(r.sobatid)}</small></td>
+      <td style="text-align:center"><span class="badge" style="background:${r.role === 'pml' ? '#0ea5e9' : '#16a34a'};color:#fff">${r.role.toUpperCase()}</span></td>
+      <td style="text-align:center">${escHtml(r.kecamatan)}</td>
+      <td><input type="text" class="form-input" style="font-size:0.8rem;padding:0.25rem 0.5rem" value="${escHtml(r.no_spk)}" onchange="onBastNoSuratRowChange('${r.id}', 'no_spk', this.value)"></td>
+      <td><input type="text" class="form-input" style="font-size:0.8rem;padding:0.25rem 0.5rem" value="${escHtml(r.no_bast)}" placeholder="B-.../3602/BAST/2026" onchange="onBastNoSuratRowChange('${r.id}', 'no_bast', this.value)"></td>
+    </tr>
+  `).join('');
+}
+
+function onBastNoSuratRowChange(id, field, value) {
+  const row = allBastNoSuratRows.find(r => r.id === id);
+  if (row) {
+    row[field] = value.trim();
+    row.is_edited = true;
+  }
+}
+
+async function saveBastNoSuratAll() {
+  const edited = allBastNoSuratRows.filter(r => r.is_edited);
+  if (edited.length === 0) {
+    showToast('Tidak ada perubahan yang perlu disimpan.', 'info');
+    return;
+  }
+
+  showToast('Menyimpan perubahan nomor surat BAST...', 'info');
+  try {
+    const payload = edited.map(r => ({
+      sobatid: String(r.sobatid).trim(),
+      no_spk: r.no_spk,
+      no_sp_pemeriksaan_t2: r.no_bast,
+      updated_at: new Date().toISOString()
+    }));
+
+    const { error } = await db.from('no_surat_se').upsert(payload, { onConflict: 'sobatid' });
+    if (error) throw error;
+
+    edited.forEach(r => r.is_edited = false);
+    showToast(`✓ Berhasil menyimpan ${edited.length} nomor surat BAST!`, 'success');
+  } catch (err) {
+    showToast('Gagal menyimpan: ' + err.message, 'error');
+  }
+}
+
+/**
+ * 8. IN-PAGE MODAL UPLOAD CAPAIAN FASIH TERMIN II LOGIC
+ */
+let modalT2File1Data = null;
+let modalT2File2Data = null;
+let modalT2MergedRows = [];
+
+function openUploadCapaianT2Modal() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengunggah data capaian.', 'warning');
+    return;
+  }
+  const modal = document.getElementById('uploadCapaianT2Modal');
+  if (modal) modal.classList.add('open');
+  resetModalT2Upload();
+}
+
+function closeUploadCapaianT2Modal() {
+  const modal = document.getElementById('uploadCapaianT2Modal');
+  if (modal) modal.classList.remove('open');
+}
+
+function onModalT2GelombangChange() {
+  const g = document.getElementById('modalT2SelectGelombang')?.value || '1';
+  const lbl = document.getElementById('modalT2LblKolom');
+  if (lbl) lbl.textContent = `prelist${g}, baru${g}, hasilverif${g}, sls_selesai${g}`;
+}
+
+function handleModalT2File1Select(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById('modalT2StatusFile1').innerHTML = `⏳ Membaca: <strong>${escHtml(file.name)}</strong>...`;
+  parseModalT2File1(file);
+}
+
+function handleModalT2File2Select(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  document.getElementById('modalT2StatusFile2').innerHTML = `⏳ Membaca: <strong>${escHtml(file.name)}</strong>...`;
+  parseModalT2File2(file);
+}
+
+function cleanKodeSubSLS(val) {
+  if (val === null || val === undefined) return '';
+  return String(val).replace(/\D/g, '').trim();
+}
+
+async function parseModalT2File1(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    let headerRowIdx = -1;
+    for (let r = 0; r < Math.min(10, raw.length); r++) {
+      const row = raw[r].map(c => String(c || '').toLowerCase().trim());
+      if (row.some(c => c === 'kode' || c.includes('kode'))) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+    if (headerRowIdx === -1) throw new Error('Kolom "Kode" tidak ditemukan pada File 1.');
+
+    const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
+    let colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
+    let colPrelist = headers.findIndex(c => c.includes('prelist'));
+    let colBaru = headers.findIndex(c => c.includes('baru'));
+    let colHasilVerif = headers.findIndex(c => c.includes('hasil verifikasi') || c.includes('hasilverif') || c.includes('verifikasi'));
+
+    if (colPrelist === -1 || colHasilVerif === -1) {
+      const nextH = (raw[headerRowIdx + 1] || []).map(c => String(c || '').toLowerCase().trim());
+      if (colPrelist === -1) colPrelist = nextH.findIndex(c => c.includes('prelist'));
+      if (colBaru === -1) colBaru = nextH.findIndex(c => c.includes('baru'));
+      if (colHasilVerif === -1) colHasilVerif = nextH.findIndex(c => c.includes('hasil verifikasi') || c.includes('verifikasi'));
+    }
+
+    modalT2File1Data = new Map();
+    for (let r = headerRowIdx + 1; r < raw.length; r++) {
+      const row = raw[r];
+      const code = cleanKodeSubSLS(row[colKode]);
+      if (code.length === 16 && code.startsWith('3602')) {
+        modalT2File1Data.set(code, {
+          prelist: parseInt(row[colPrelist]) || 0,
+          baru: parseInt(row[colBaru]) || 0,
+          hasilverif: parseInt(row[colHasilVerif]) || 0
+        });
+      }
+    }
+
+    document.getElementById('modalT2StatusFile1').innerHTML = `✅ Terbaca: <strong>${modalT2File1Data.size} Sub-SLS 16-Digit</strong> (${escHtml(file.name)})`;
+    document.getElementById('modalT2StatusFile1').style.color = '#16a34a';
+    checkModalT2Ready();
+  } catch (err) {
+    modalT2File1Data = null;
+    document.getElementById('modalT2StatusFile1').innerHTML = `❌ Error: ${err.message}`;
+    document.getElementById('modalT2StatusFile1').style.color = '#ef4444';
+  }
+}
+
+async function parseModalT2File2(file) {
+  try {
+    const buffer = await file.arrayBuffer();
+    const wb = XLSX.read(buffer, { type: 'array' });
+    const sheet = wb.Sheets[wb.SheetNames[0]];
+    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+    let headerRowIdx = -1;
+    for (let r = 0; r < Math.min(10, raw.length); r++) {
+      const row = raw[r].map(c => String(c || '').toLowerCase().trim());
+      if (row.some(c => c === 'kode' || c.includes('kode'))) {
+        headerRowIdx = r;
+        break;
+      }
+    }
+    if (headerRowIdx === -1) throw new Error('Kolom "Kode" tidak ditemukan pada File 2.');
+
+    const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
+    const colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
+    const colTarget = headers.findIndex(c => c.includes('target'));
+    const colPct = headers.findIndex(c => c.includes('persentase') || c.includes('%') || c.includes('selesai'));
+
+    modalT2File2Data = new Map();
+    for (let r = headerRowIdx + 1; r < raw.length; r++) {
+      const row = raw[r];
+      const code = cleanKodeSubSLS(row[colKode]);
+      if (code.length === 16 && code.startsWith('3602')) {
+        let pctVal = parseFloat(String(row[colPct]).replace('%', '').replace(',', '.').trim()) || 0;
+        modalT2File2Data.set(code, {
+          targetsls: parseInt(row[colTarget]) || 0,
+          sls_selesai: pctVal
+        });
+      }
+    }
+
+    document.getElementById('modalT2StatusFile2').innerHTML = `✅ Terbaca: <strong>${modalT2File2Data.size} Sub-SLS 16-Digit</strong> (${escHtml(file.name)})`;
+    document.getElementById('modalT2StatusFile2').style.color = '#16a34a';
+    checkModalT2Ready();
+  } catch (err) {
+    modalT2File2Data = null;
+    document.getElementById('modalT2StatusFile2').innerHTML = `❌ Error: ${err.message}`;
+    document.getElementById('modalT2StatusFile2').style.color = '#ef4444';
+  }
+}
+
+function checkModalT2Ready() {
+  const btn = document.getElementById('modalT2BtnValidasi');
+  const btnReset = document.getElementById('modalT2BtnReset');
+  if (modalT2File1Data && modalT2File2Data && modalT2File1Data.size > 0 && modalT2File2Data.size > 0) {
+    btn.disabled = false;
+    btnReset.style.display = 'inline-block';
+  } else {
+    btn.disabled = true;
+  }
+}
+
+function resetModalT2Upload() {
+  modalT2File1Data = null;
+  modalT2File2Data = null;
+  modalT2MergedRows = [];
+  document.getElementById('modalT2InputFile1').value = '';
+  document.getElementById('modalT2InputFile2').value = '';
+  document.getElementById('modalT2StatusFile1').innerHTML = 'Belum ada file dipilih';
+  document.getElementById('modalT2StatusFile1').style.color = 'var(--text-muted)';
+  document.getElementById('modalT2StatusFile2').innerHTML = 'Belum ada file dipilih';
+  document.getElementById('modalT2StatusFile2').style.color = 'var(--text-muted)';
+  document.getElementById('modalT2AlertContainer').innerHTML = '';
+  document.getElementById('modalT2PreviewSection').style.display = 'none';
+  checkModalT2Ready();
+}
+
+async function validasiDanPreviewModalT2() {
+  const alertContainer = document.getElementById('modalT2AlertContainer');
+  alertContainer.innerHTML = '<div class="alert alert-info">⏳ Menjalankan validasi pencocokan Sub-SLS 16-digit dan non-regresi...</div>';
+
+  const keys1 = Array.from(modalT2File1Data.keys());
+  const keys2 = Array.from(modalT2File2Data.keys());
+
+  const onlyInFile1 = keys1.filter(k => !modalT2File2Data.has(k));
+  const onlyInFile2 = keys2.filter(k => !modalT2File1Data.has(k));
+
+  if (onlyInFile1.length > 0 || onlyInFile2.length > 0) {
+    alertContainer.innerHTML = `
+      <div class="alert alert-error" style="line-height:1.5">
+        <strong>❌ Validasi Gagal: Sub-SLS File 1 dan File 2 Tidak Cocok!</strong><br>
+        • ${onlyInFile1.length} Sub-SLS hanya ada di File 1.<br>
+        • ${onlyInFile2.length} Sub-SLS hanya ada di File 2.
+      </div>
+    `;
+    document.getElementById('modalT2PreviewSection').style.display = 'none';
+    return;
+  }
+
+  const gel = document.getElementById('modalT2SelectGelombang')?.value || '1';
+  const { data: existingRows } = await db.from('capaian_termin2').select(`kode_subsls, targetsls, hasilverif${gel}, sls_selesai${gel}`);
+  const existMap = new Map();
+  (existingRows || []).forEach(r => existMap.set(r.kode_subsls, r));
+
+  modalT2MergedRows = [];
+  const warnings = [];
+
+  keys1.forEach(kode => {
+    const d1 = modalT2File1Data.get(kode);
+    const d2 = modalT2File2Data.get(kode);
+    const ex = existMap.get(kode);
+
+    if (ex) {
+      const prevHasil = ex[`hasilverif${gel}`] || 0;
+      const prevSls = ex[`sls_selesai${gel}`] || 0;
+      if (d1.hasilverif < prevHasil) {
+        warnings.push(`Kode ${kode}: Hasil verifikasi turun dari ${prevHasil} menjadi ${d1.hasilverif}`);
+      }
+      if (prevSls === 100 && d2.sls_selesai < 100) {
+        warnings.push(`Kode ${kode}: Status SLS selesai turun dari 100% menjadi ${d2.sls_selesai}%`);
+      }
+    }
+
+    modalT2MergedRows.push({
+      kode_subsls: kode,
+      targetsls: d2.targetsls,
+      prelist: d1.prelist,
+      baru: d1.baru,
+      hasilverif: d1.hasilverif,
+      sls_selesai: d2.sls_selesai
+    });
+  });
+
+  let warnHtml = '';
+  if (warnings.length > 0) {
+    warnHtml = `
+      <div class="alert alert-warning" style="margin-top:0.5rem;max-height:100px;overflow-y:auto;font-size:0.8rem">
+        <strong>⚠️ Peringatan Nilai Regresi (${warnings.length}):</strong><br>
+        ${warnings.slice(0, 5).map(w => `• ${w}`).join('<br>')}
+        ${warnings.length > 5 ? `<br><em>...dan ${warnings.length - 5} peringatan lainnya</em>` : ''}
+      </div>
+    `;
+  }
+
+  alertContainer.innerHTML = `
+    <div class="alert alert-success">
+      <strong>✅ Validasi Berhasil!</strong> ${modalT2MergedRows.length} baris Sub-SLS 16-digit siap diperbarui untuk <strong>Gelombang ${gel} (Termin II)</strong>.
+    </div>
+    ${warnHtml}
+  `;
+
+  document.getElementById('modalT2PreviewStats').textContent = `Total: ${modalT2MergedRows.length} Sub-SLS 16-Digit | Gelombang ${gel}`;
+  const tbody = document.getElementById('modalT2PreviewTableBody');
+  tbody.innerHTML = modalT2MergedRows.slice(0, 50).map((row, idx) => `
+    <tr>
+      <td style="text-align:center">${idx + 1}</td>
+      <td><code>${row.kode_subsls}</code></td>
+      <td style="text-align:right">${row.prelist.toLocaleString()}</td>
+      <td style="text-align:right">${row.baru.toLocaleString()}</td>
+      <td style="text-align:right;font-weight:600;color:#0284c7">${row.hasilverif.toLocaleString()}</td>
+      <td style="text-align:right">${row.targetsls}</td>
+      <td style="text-align:right;font-weight:600;color:${row.sls_selesai === 100 ? '#16a34a' : 'inherit'}">${row.sls_selesai}%</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('modalT2PreviewSection').style.display = 'block';
+}
+
+async function commitModalT2Capaian() {
+  if (!modalT2MergedRows || modalT2MergedRows.length === 0) return;
+  const gel = document.getElementById('modalT2SelectGelombang')?.value || '1';
+  const btn = document.getElementById('modalT2BtnSimpan');
+  btn.disabled = true;
+  btn.innerHTML = '⏳ Menyimpan...';
+
+  try {
+    const payload = modalT2MergedRows.map(r => {
+      const item = {
+        kode_subsls: r.kode_subsls,
+        targetsls: r.targetsls,
+        updated_at: new Date().toISOString()
+      };
+      item[`prelist${gel}`] = r.prelist;
+      item[`baru${gel}`] = r.baru;
+      item[`hasilverif${gel}`] = r.hasilverif;
+      item[`sls_selesai${gel}`] = r.sls_selesai;
+      return item;
+    });
+
+    const chunkSize = 500;
+    for (let i = 0; i < payload.length; i += chunkSize) {
+      const chunk = payload.slice(i, i + chunkSize);
+      const { error } = await db.from('capaian_termin2').upsert(chunk, { onConflict: 'kode_subsls' });
+      if (error) throw error;
+    }
+
+    showToast(`✓ Sukses! ${payload.length} data capaian Sub-SLS untuk Gelombang ${gel} berhasil disimpan.`, 'success');
+    closeUploadCapaianT2Modal();
+    isBappEligibilityLoadedT2 = false;
+  } catch (err) {
+    console.error('Error committing capaian:', err);
+    showToast('Gagal menyimpan capaian ke database: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = '✓ Simpan Capaian ke Database';
+  }
+}
+
 

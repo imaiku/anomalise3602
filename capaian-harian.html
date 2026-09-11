@@ -1,12 +1,508 @@
-<!-- Fitur Capaian Harian telah di-undo -->
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="refresh" content="0; url=dashboard.html">
-  <title>Redirecting...</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload Capaian Harian Termin 2 - SE2026</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .upload-box {
+      border: 2px dashed var(--border);
+      border-radius: var(--radius-lg);
+      padding: 1.5rem;
+      text-align: center;
+      background: var(--bg-card);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .upload-box:hover, .upload-box.dragover {
+      border-color: var(--primary);
+      background: rgba(14, 165, 233, 0.04);
+    }
+    .file-status {
+      margin-top: 0.75rem;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .diff-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    .diff-table th, .diff-table td {
+      border: 1px solid var(--border);
+      padding: 0.4rem 0.6rem;
+    }
+    .diff-table th {
+      background: var(--bg-card-2);
+      text-align: left;
+    }
+  </style>
 </head>
+
 <body>
-  <p>Fitur Capaian Harian telah dinonaktifkan. Mengalihkan ke <a href="dashboard.html">Dashboard Anomali</a>...</p>
+  <!-- Navbar -->
+  <nav class="admin-navbar">
+    <div class="nav-container">
+      <div class="nav-brand">
+        <a href="admin.html#berkas-lainnya" class="btn btn-secondary btn-sm" style="margin-right:0.75rem; padding:0.25rem 0.5rem">
+          ← Kembali ke Admin
+        </a>
+        <span class="nav-brand-title">Upload Capaian Termin II</span>
+        <span class="badge" style="background:#7c3aed; color:#fff; font-size:0.7rem; margin-left:0.5rem">Superadmin Only</span>
+      </div>
+      <div class="nav-actions">
+        <span id="userGreeting" style="font-size:0.85rem; color:var(--text-muted)"></span>
+      </div>
+    </div>
+  </nav>
+
+  <div class="container" style="max-width: 1000px; padding: 2rem 1rem;">
+    <!-- Card Utama -->
+    <div class="card" style="padding: 1.75rem; margin-bottom: 1.5rem;">
+      <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem; color: var(--text);">
+        Unggah Data Capaian Harian FASIH (Termin II)
+      </h2>
+      <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem;">
+        Pilih target gelombang, lalu upload kedua file Excel ekspor dari FASIH. Sistem akan memfilter <strong>hanya kode Sub-SLS 16-digit</strong>, mencocokkan kode di antara kedua file, dan melakukan validasi non-regresi sebelum data diperbarui.
+      </p>
+
+      <!-- Pilih Gelombang -->
+      <div style="display: flex; gap: 1rem; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap;">
+        <div>
+          <label style="font-size: 0.85rem; font-weight: 600; display: block; margin-bottom: 0.35rem;">Pilih Gelombang Termin 2:</label>
+          <select id="selectGelombang" class="form-select" style="min-width: 220px; font-weight: 600;">
+            <option value="1">Gelombang 1 (Termin II)</option>
+            <option value="2">Gelombang 2 (Termin II)</option>
+            <option value="3">Gelombang 3 (Termin II)</option>
+            <option value="4">Gelombang 4 (Termin II)</option>
+          </select>
+        </div>
+        <div style="margin-top: 1.2rem;">
+          <span class="badge" style="background: rgba(14, 165, 233, 0.1); color: #0284c7; border: 1px solid rgba(14, 165, 233, 0.2); padding: 0.4rem 0.8rem; font-size: 0.8rem;">
+            ℹ️ Kolom yang diperbarui: <strong id="lblKolomTarget">prelist1, baru1, hasilverif1, sls_selesai1</strong>
+          </span>
+        </div>
+      </div>
+
+      <!-- Grid 2 File Upload -->
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.25rem; margin-bottom: 1.5rem;">
+        <!-- File 1: Progres Pendataan -->
+        <div class="upload-box" id="boxFile1" onclick="document.getElementById('inputProgFile').click()">
+          <input type="file" id="inputProgFile" accept=".xlsx,.xls" style="display: none" onchange="handleFile1Select(event)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.5rem;">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <line x1="12" y1="18" x2="12" y2="12"/>
+            <line x1="9" y1="15" x2="15" y2="15"/>
+          </svg>
+          <div style="font-weight: 600; font-size: 0.95rem;">1. File Progres Pendataan</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Format Excel FASIH (Kolom Prelist, Usaha Baru, Hasil Verifikasi)
+          </div>
+          <div id="statusFile1" class="file-status" style="color: var(--text-muted);">Belum ada file dipilih</div>
+        </div>
+
+        <!-- File 2: Status SLS -->
+        <div class="upload-box" id="boxFile2" onclick="document.getElementById('inputStatusFile').click()">
+          <input type="file" id="inputStatusFile" accept=".xlsx,.xls" style="display: none" onchange="handleFile2Select(event)">
+          <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom: 0.5rem;">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <polyline points="14 2 14 8 20 8"/>
+            <polyline points="9 15 11 17 15 13"/>
+          </svg>
+          <div style="font-weight: 600; font-size: 0.95rem;">2. File Status SLS Selesai</div>
+          <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Format Excel FASIH (Kolom Target SLS, Selesai, % SLS Selesai)
+          </div>
+          <div id="statusFile2" class="file-status" style="color: var(--text-muted);">Belum ada file dipilih</div>
+        </div>
+      </div>
+
+      <!-- Action Button: Validasi -->
+      <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+        <button id="btnReset" class="btn btn-secondary" onclick="resetUpload()" style="display: none;">Reset File</button>
+        <button id="btnValidasi" class="btn btn-primary" onclick="validasiDanPreview()" disabled style="display: flex; align-items: center; gap: 0.4rem;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+          Validasi & Preview Data
+        </button>
+      </div>
+    </div>
+
+    <!-- Alert / Validation Log Container -->
+    <div id="validationAlertContainer"></div>
+
+    <!-- Preview Container (Hidden initially) -->
+    <div id="previewCard" class="card" style="display: none; padding: 1.75rem; margin-top: 1.5rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+        <div>
+          <h3 style="font-size: 1.1rem; font-weight: 700; margin: 0;">Ringkasan Data Siap Simpan</h3>
+          <span id="previewStats" style="font-size: 0.8rem; color: var(--text-muted);"></span>
+        </div>
+        <button id="btnSimpan" class="btn btn-primary" onclick="commitCapaianToDatabase()" style="background: #16a34a; border-color: #16a34a; font-weight: 600; padding: 0.5rem 1.25rem;">
+          ✓ Simpan Capaian ke Database
+        </button>
+      </div>
+
+      <!-- Preview Table Sample -->
+      <div style="overflow-x: auto; max-height: 400px; border: 1px solid var(--border); border-radius: var(--radius-md);">
+        <table class="diff-table">
+          <thead>
+            <tr>
+              <th style="width: 40px; text-align: center;">No</th>
+              <th>Kode Sub-SLS (16-Digit)</th>
+              <th style="text-align: right;">Prelist</th>
+              <th style="text-align: right;">Usaha Baru</th>
+              <th style="text-align: right;">Hasil Verifikasi</th>
+              <th style="text-align: right;">Target SLS</th>
+              <th style="text-align: right;">% SLS Selesai</th>
+            </tr>
+          </thead>
+          <tbody id="previewTableBody">
+            <!-- Populated via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/utils.js"></script>
+  <script src="js/auth.js"></script>
+  <script>
+    let sessionUser = null;
+    let file1Data = null; // Map<kode16, { prelist, baru, hasilverif }>
+    let file2Data = null; // Map<kode16, { targetsls, sls_selesai }>
+    let mergedRows = [];
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      sessionUser = await requireAuth(['superadmin']);
+      if (!sessionUser) return;
+      document.getElementById('userGreeting').textContent = `Login sebagai: ${sessionUser.profile.nama || sessionUser.profile.email_ref}`;
+
+      document.getElementById('selectGelombang').addEventListener('change', (e) => {
+        const g = e.target.value;
+        document.getElementById('lblKolomTarget').textContent = `prelist${g}, baru${g}, hasilverif${g}, sls_selesai${g}`;
+      });
+    });
+
+    function handleFile1Select(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      document.getElementById('statusFile1').innerHTML = `⏳ Membaca: <strong>${file.name}</strong>...`;
+      parseFile1(file);
+    }
+
+    function handleFile2Select(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      document.getElementById('statusFile2').innerHTML = `⏳ Membaca: <strong>${file.name}</strong>...`;
+      parseFile2(file);
+    }
+
+    // Helper: Cari header index & bersihkan baris (Length === 16 digit Sub-SLS)
+    function parseExcelRows(sheet) {
+      return XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    }
+
+    function cleanKode(val) {
+      if (val === null || val === undefined) return '';
+      return String(val).replace(/\D/g, '').trim();
+    }
+
+    async function parseFile1(file) {
+      try {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const raw = parseExcelRows(sheet);
+
+        // Cari index header
+        let headerRowIdx = -1;
+        let colKode = -1, colPrelist = -1, colBaru = -1, colHasilVerif = -1;
+
+        for (let r = 0; r < Math.min(10, raw.length); r++) {
+          const row = raw[r].map(c => String(c || '').toLowerCase().trim());
+          const kIdx = row.findIndex(c => c === 'kode' || c.includes('kode'));
+          if (kIdx !== -1) {
+            headerRowIdx = r;
+            break;
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          throw new Error('Header kolom "Kode" tidak ditemukan pada File 1.');
+        }
+
+        const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
+        colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
+        colPrelist = headers.findIndex(c => c.includes('prelist'));
+        colBaru = headers.findIndex(c => c.includes('baru'));
+        colHasilVerif = headers.findIndex(c => c.includes('hasil verifikasi') || c.includes('hasilverif') || c.includes('verifikasi'));
+
+        // Fallback jika baris header terbagi dua baris
+        if (colPrelist === -1 || colHasilVerif === -1) {
+          const headersNext = (raw[headerRowIdx + 1] || []).map(c => String(c || '').toLowerCase().trim());
+          if (colPrelist === -1) colPrelist = headersNext.findIndex(c => c.includes('prelist'));
+          if (colBaru === -1) colBaru = headersNext.findIndex(c => c.includes('baru'));
+          if (colHasilVerif === -1) colHasilVerif = headersNext.findIndex(c => c.includes('hasil verifikasi') || c.includes('verifikasi'));
+        }
+
+        file1Data = new Map();
+        for (let r = headerRowIdx + 1; r < raw.length; r++) {
+          const row = raw[r];
+          const rawKode = cleanKode(row[colKode]);
+          // HANYA ambil yang 16 digit Sub-SLS dan Lebak (3602)
+          if (rawKode.length === 16 && rawKode.startsWith('3602')) {
+            file1Data.set(rawKode, {
+              prelist: parseInt(row[colPrelist]) || 0,
+              baru: parseInt(row[colBaru]) || 0,
+              hasilverif: parseInt(row[colHasilVerif]) || 0
+            });
+          }
+        }
+
+        document.getElementById('statusFile1').innerHTML = `✅ Terbaca: <strong>${file1Data.size} Sub-SLS 16-Digit</strong> (${file.name})`;
+        document.getElementById('statusFile1').style.color = '#16a34a';
+        checkReadyValidate();
+      } catch (err) {
+        file1Data = null;
+        document.getElementById('statusFile1').innerHTML = `❌ Error: ${err.message}`;
+        document.getElementById('statusFile1').style.color = '#ef4444';
+      }
+    }
+
+    async function parseFile2(file) {
+      try {
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type: 'array' });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const raw = parseExcelRows(sheet);
+
+        let headerRowIdx = -1;
+        for (let r = 0; r < Math.min(10, raw.length); r++) {
+          const row = raw[r].map(c => String(c || '').toLowerCase().trim());
+          const kIdx = row.findIndex(c => c === 'kode' || c.includes('kode'));
+          if (kIdx !== -1) {
+            headerRowIdx = r;
+            break;
+          }
+        }
+
+        if (headerRowIdx === -1) {
+          throw new Error('Header kolom "Kode" tidak ditemukan pada File 2.');
+        }
+
+        const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
+        const colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
+        const colTarget = headers.findIndex(c => c.includes('target'));
+        const colPct = headers.findIndex(c => c.includes('persentase') || c.includes('%') || c.includes('selesai'));
+
+        file2Data = new Map();
+        for (let r = headerRowIdx + 1; r < raw.length; r++) {
+          const row = raw[r];
+          const rawKode = cleanKode(row[colKode]);
+          if (rawKode.length === 16 && rawKode.startsWith('3602')) {
+            let pctVal = parseFloat(String(row[colPct]).replace('%', '').replace(',', '.').trim()) || 0;
+            file2Data.set(rawKode, {
+              targetsls: parseInt(row[colTarget]) || 0,
+              sls_selesai: pctVal
+            });
+          }
+        }
+
+        document.getElementById('statusFile2').innerHTML = `✅ Terbaca: <strong>${file2Data.size} Sub-SLS 16-Digit</strong> (${file.name})`;
+        document.getElementById('statusFile2').style.color = '#16a34a';
+        checkReadyValidate();
+      } catch (err) {
+        file2Data = null;
+        document.getElementById('statusFile2').innerHTML = `❌ Error: ${err.message}`;
+        document.getElementById('statusFile2').style.color = '#ef4444';
+      }
+    }
+
+    function checkReadyValidate() {
+      const btn = document.getElementById('btnValidasi');
+      const btnReset = document.getElementById('btnReset');
+      if (file1Data && file2Data && file1Data.size > 0 && file2Data.size > 0) {
+        btn.disabled = false;
+        btnReset.style.display = 'inline-block';
+      } else {
+        btn.disabled = true;
+      }
+    }
+
+    function resetUpload() {
+      file1Data = null;
+      file2Data = null;
+      mergedRows = [];
+      document.getElementById('inputProgFile').value = '';
+      document.getElementById('inputStatusFile').value = '';
+      document.getElementById('statusFile1').innerHTML = 'Belum ada file dipilih';
+      document.getElementById('statusFile1').style.color = 'var(--text-muted)';
+      document.getElementById('statusFile2').innerHTML = 'Belum ada file dipilih';
+      document.getElementById('statusFile2').style.color = 'var(--text-muted)';
+      document.getElementById('validationAlertContainer').innerHTML = '';
+      document.getElementById('previewCard').style.display = 'none';
+      checkReadyValidate();
+    }
+
+    async function validasiDanPreview() {
+      const alertContainer = document.getElementById('validationAlertContainer');
+      alertContainer.innerHTML = '<div class="alert alert-info" style="margin-top:1rem">⏳ Menjalankan validasi pencocokan kode dan non-regresi...</div>';
+
+      // 1. Validasi Match Kode File 1 vs File 2
+      const keys1 = Array.from(file1Data.keys());
+      const keys2 = Array.from(file2Data.keys());
+
+      const onlyInFile1 = keys1.filter(k => !file2Data.has(k));
+      const onlyInFile2 = keys2.filter(k => !file1Data.has(k));
+
+      if (onlyInFile1.length > 0 || onlyInFile2.length > 0) {
+        alertContainer.innerHTML = `
+          <div class="alert alert-danger" style="margin-top:1rem; line-height:1.5;">
+            <strong>❌ Validasi Gagal: Kode Sub-SLS File 1 dan File 2 Tidak Cocok!</strong><br>
+            • ${onlyInFile1.length} kode hanya ada di File 1.<br>
+            • ${onlyInFile2.length} kode hanya ada di File 2.<br>
+            <em>Kedua file harus memiliki kumpulan kode Sub-SLS 16-digit yang identik persis.</em>
+          </div>
+        `;
+        document.getElementById('previewCard').style.display = 'none';
+        return;
+      }
+
+      const gel = document.getElementById('selectGelombang').value;
+
+      // 2. Fetch existing data for non-regression check
+      alertContainer.innerHTML = '<div class="alert alert-info" style="margin-top:1rem">⏳ Memeriksa riwayat data capaian existing di database...</div>';
+      
+      const { data: existingRows, error } = await db
+        .from('capaian_termin2')
+        .select(`kode_subsls, targetsls, hasilverif${gel}, sls_selesai${gel}`);
+
+      if (error) {
+        console.warn('Gagal membaca capaian_termin2 existing:', error);
+      }
+
+      const existMap = new Map();
+      if (existingRows) {
+        existingRows.forEach(r => existMap.set(r.kode_subsls, r));
+      }
+
+      // Merge data & Non-regression checks
+      mergedRows = [];
+      const warnings = [];
+
+      keys1.forEach(kode => {
+        const d1 = file1Data.get(kode);
+        const d2 = file2Data.get(kode);
+        const ex = existMap.get(kode);
+
+        if (ex) {
+          const prevHasil = ex[`hasilverif${gel}`] || 0;
+          const prevSls = ex[`sls_selesai${gel}`] || 0;
+
+          if (d1.hasilverif < prevHasil) {
+            warnings.push(`Kode ${kode}: Hasil verifikasi turun dari ${prevHasil} menjadi ${d1.hasilverif}`);
+          }
+          if (prevSls === 100 && d2.sls_selesai < 100) {
+            warnings.push(`Kode ${kode}: Status SLS selesai turun dari 100% menjadi ${d2.sls_selesai}%`);
+          }
+        }
+
+        mergedRows.push({
+          kode_subsls: kode,
+          targetsls: d2.targetsls,
+          prelist: d1.prelist,
+          baru: d1.baru,
+          hasilverif: d1.hasilverif,
+          sls_selesai: d2.sls_selesai
+        });
+      });
+
+      // Render Validation Result
+      let warnHtml = '';
+      if (warnings.length > 0) {
+        warnHtml = `
+          <div class="alert alert-warning" style="margin-top:1rem; max-height:120px; overflow-y:auto; font-size:0.8rem;">
+            <strong>⚠️ Peringatan Nilai Regresi (${warnings.length} catatan):</strong><br>
+            ${warnings.slice(0, 10).map(w => `• ${w}`).join('<br>')}
+            ${warnings.length > 10 ? `<br><em>...dan ${warnings.length - 10} peringatan lainnya</em>` : ''}
+          </div>
+        `;
+      }
+
+      alertContainer.innerHTML = `
+        <div class="alert alert-success" style="margin-top:1rem;">
+          <strong>✅ Validasi Berhasil!</strong> ${mergedRows.length} baris Sub-SLS 16-digit siap diperbarui untuk <strong>Gelombang ${gel}</strong>.
+        </div>
+        ${warnHtml}
+      `;
+
+      // Render Preview Card
+      document.getElementById('previewStats').textContent = `Total: ${mergedRows.length} Sub-SLS | Gelombang: ${gel}`;
+      const tbody = document.getElementById('previewTableBody');
+      tbody.innerHTML = mergedRows.slice(0, 100).map((row, idx) => `
+        <tr>
+          <td style="text-align: center;">${idx + 1}</td>
+          <td><code>${row.kode_subsls}</code></td>
+          <td style="text-align: right;">${row.prelist.toLocaleString()}</td>
+          <td style="text-align: right;">${row.baru.toLocaleString()}</td>
+          <td style="text-align: right; font-weight:600; color:#0284c7">${row.hasilverif.toLocaleString()}</td>
+          <td style="text-align: right;">${row.targetsls}</td>
+          <td style="text-align: right; font-weight:600; color:${row.sls_selesai === 100 ? '#16a34a' : 'inherit'}">${row.sls_selesai}%</td>
+        </tr>
+      `).join('');
+
+      document.getElementById('previewCard').style.display = 'block';
+      document.getElementById('previewCard').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    async function commitCapaianToDatabase() {
+      if (!mergedRows || mergedRows.length === 0) return;
+      const gel = document.getElementById('selectGelombang').value;
+      const btn = document.getElementById('btnSimpan');
+      btn.disabled = true;
+      btn.innerHTML = '⏳ Menyimpan ke Database...';
+
+      try {
+        const payload = mergedRows.map(r => {
+          const item = {
+            kode_subsls: r.kode_subsls,
+            updated_at: new Date().toISOString()
+          };
+          // Isi targetsls jika upload pertama / pastikan terisi
+          item['targetsls'] = r.targetsls;
+          item[`prelist${gel}`] = r.prelist;
+          item[`baru${gel}`] = r.baru;
+          item[`hasilverif${gel}`] = r.hasilverif;
+          item[`sls_selesai${gel}`] = r.sls_selesai;
+          return item;
+        });
+
+        // Upsert in batches of 500
+        const chunkSize = 500;
+        for (let i = 0; i < payload.length; i += chunkSize) {
+          const chunk = payload.slice(i, i + chunkSize);
+          const { error } = await db.from('capaian_termin2').upsert(chunk, { onConflict: 'kode_subsls' });
+          if (error) throw error;
+        }
+
+        alert(`✅ Sukses! ${payload.length} data capaian Sub-SLS untuk Gelombang ${gel} berhasil disimpan.`);
+        window.location.href = 'admin.html#berkas-lainnya';
+      } catch (err) {
+        console.error('Error committing capaian:', err);
+        alert('❌ Gagal menyimpan capaian ke database: ' + err.message);
+        btn.disabled = false;
+        btn.innerHTML = '✓ Simpan Capaian ke Database';
+      }
+    }
+  </script>
 </body>
 </html>

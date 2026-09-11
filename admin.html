@@ -655,7 +655,8 @@
       <!-- ============ UPLOAD DATA ============ -->
       <div class="section-panel active" id="panel-upload">
         <div class="section-title">Upload Data Anomali</div>
-        <div class="section-sub">Upload file Excel anomali gabungan (keluarga & usaha) untuk diproses dan di-merge ke database.
+        <div class="section-sub">Upload file Excel anomali gabungan (keluarga & usaha) untuk diproses dan di-merge ke
+          database.
         </div>
 
         <!-- Steps indicator -->
@@ -692,7 +693,8 @@
           <!-- Single combined file input -->
           <div class="upload-card" style="max-width:520px">
             <div class="upload-card-title">File Anomali Gabungan (Keluarga & Usaha)</div>
-            <div class="upload-card-sub">File Excel format baru: 1 baris per assignment, kolom "Daftar Anomali" berisi anomali keluarga dan/atau usaha.</div>
+            <div class="upload-card-sub">File Excel format baru: 1 baris per assignment, kolom "Daftar Anomali" berisi
+              anomali keluarga dan/atau usaha.</div>
             <div class="upload-zone" id="zoneAnomali" onclick="document.getElementById('fileAnomali').click()"
               ondragover="handleDragOver(event,'zoneAnomali')" ondragleave="handleDragLeave('zoneAnomali')"
               ondrop="handleDrop(event)">
@@ -1101,14 +1103,33 @@
         <div class="section-sub">Pemetaan petugas PPL & PML per wilayah Sub-SLS (8 format kolom standar) untuk
           mengidentifikasi penugasan wilayah.</div>
 
+        <!-- Termin Selector Toolbar -->
+        <div
+          style="display:flex; gap:0.5rem; align-items:center; margin-bottom:1.25rem; background:var(--bg-card); padding:0.6rem 0.85rem; border-radius:var(--radius-md); border:1px solid var(--border); flex-wrap:wrap">
+          <span style="font-size:0.85rem; font-weight:600; color:var(--text-main); margin-right:0.25rem">Pilih Termin
+            Penugasan:</span>
+          <button class="btn btn-sm btn-secondary" id="btnKelolaTermin1" onclick="switchKelolaTermin(1)"
+            style="font-size:0.8rem; padding:0.35rem 0.75rem; border-radius:var(--radius-md)">
+            🔒 Termin 1 (Terkunci)
+          </button>
+          <button class="btn btn-sm btn-primary" id="btnKelolaTermin2" onclick="switchKelolaTermin(2)"
+            style="font-size:0.8rem; padding:0.35rem 0.75rem; border-radius:var(--radius-md); background:#7c3aed; border-color:#7c3aed">
+            ⚡ Termin 2 (Aktif & Bisa Diganti)
+          </button>
+          <span id="kelolaTerminBadgeNotice" class="badge"
+            style="margin-left:auto; font-size:0.75rem; padding:0.35rem 0.75rem; background:rgba(124, 58, 237, 0.1); color:#7c3aed; border:1px solid rgba(124, 58, 237, 0.25)">
+            ✏️ Mode Aktif: Mengelola Penugasan Termin 2 (PML tidak berganti, hanya PPL yang dapat diganti)
+          </span>
+        </div>
+
         <!-- Action Toolbar & Filters (Matching panel-users & panel-wilayah style) -->
         <div style="display:flex; gap:0.75rem; margin-bottom:1.25rem; flex-wrap:wrap; align-items:center;">
-          <button class="btn btn-primary btn-sm" onclick="openImportModal()">
+          <button class="btn btn-primary btn-sm" id="btnKelolaImport" onclick="openImportModal()">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
               <polyline points="17 8 12 3 7 8" />
-              <line x1="12" x2="12" y1="3" y2="15" />
+              <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             Impor Excel Penugasan
           </button>
@@ -1875,17 +1896,473 @@
 
         <!-- Tab 2: Termin II -->
         <div class="berkas-tab-content" id="berkas-tab-termin2">
-          <div
-            style="text-align:center; padding:3.5rem 1.5rem; background:var(--bg-card); border:1px dashed var(--border); border-radius:var(--radius-lg); max-width:600px; margin:0 auto">
-            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none"
-              stroke="var(--text-muted)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"
-              style="margin-bottom:1rem; opacity:0.6">
-              <circle cx="12" cy="12" r="10" />
-              <polyline points="12 6 12 12 16 14" />
-            </svg>
-            <h4 style="margin:0 0 0.5rem 0; font-size:1.1rem; color:var(--text-main)">Termin II Belum Dimulai</h4>
-            <p style="margin:0; font-size:0.85rem; color:var(--text-muted)">Seluruh berkas pelaporan, BAPP, dan surat
-              pernyataan untuk Termin II akan ditampilkan di halaman ini sesuai jadwal pelaksanaan.</p>
+          <!-- Superadmin Action Banner for Termin 2 -->
+          <div class="card mb-4 btn-superadmin-only"
+            style="background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(14, 165, 233, 0.08)); border: 1px solid rgba(124, 58, 237, 0.2); padding: 1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+              <div>
+                <h4
+                  style="margin:0 0 0.25rem 0; font-size:1rem; color:var(--text-main); display:flex; align-items:center; gap:0.5rem">
+                  <span>⚡</span> Manajemen Data Termin II
+                </h4>
+                <p style="margin:0; font-size:0.8rem; color:var(--text-muted)">
+                  Inisialisasi snapshot relasi petugas Termin 2 atau upload capaian progres FASIH per gelombang.
+                </p>
+              </div>
+              <div style="display:flex; gap:0.5rem; flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" id="btnInisiasiT2" onclick="inisialisasiTermin2()"
+                  style="font-size:0.8rem; padding:0.4rem 0.75rem;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                    <path d="M3 3v5h5" />
+                  </svg>
+                  Inisialisasi Snapshot Termin 2
+                </button>
+                <button class="btn btn-primary btn-sm" onclick="openUploadCapaianT2Modal()"
+                  style="font-size:0.8rem; padding:0.4rem 0.75rem; background:#0ea5e9; border-color:#0ea5e9; display:inline-flex; align-items:center; gap:0.35rem">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Upload Capaian FASIH
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="berkas-card-grid">
+
+            <!-- 1. BAPP Pencairan T2 Card -->
+            <div class="berkas-card" style="border-top: 3px solid #0ea5e9;">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  BAPP Pencairan Termin II
+                </div>
+                <div class="berkas-card-sub">Berita Acara Pembayaran Petugas Door-to-Door Termin II. Filter, cari, dan
+                  cetak PDF.</div>
+              </div>
+              <div class="berkas-card-body" style="margin-top:auto">
+                <button class="btn btn-primary btn-sm" onclick="openBappModalT2()"
+                  style="width:100%; justify-content:center; gap:0.4rem; padding:0.5rem; background:#0ea5e9; border-color:#0ea5e9">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  Lihat BAPP T2 & Cetak PDF
+                </button>
+              </div>
+            </div>
+
+            <!-- 2. LK Beban Kerja T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                    <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+                  </svg>
+                  LK Beban Kerja T2
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaianT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianT2ToExcel(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaianT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianT2ToExcel(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaianT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianT2ToExcel(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewCapaianT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportCapaianT2ToExcel(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3. Super Kepala T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                  Super Kepala T2
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT2(false, 1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT2(true, 1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT2(false, 2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT2(true, 2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT2(false, 3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT2(true, 3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="printSuperEvaluasiT2(false, 4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="printSuperEvaluasiT2(true, 4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 4. Lampiran Super Kepala T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                    <polyline points="14 2 14 8 20 8" />
+                    <line x1="16" y1="13" x2="8" y2="13" />
+                    <line x1="16" y1="17" x2="8" y2="17" />
+                  </svg>
+                  Lampiran Super Kepala T2
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiranT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranT2ToExcel(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiranT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranT2ToExcel(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiranT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranT2ToExcel(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperKepalaLampiranT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="exportSuperKepalaLampiranT2ToExcel(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Excel</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 5. Super PML T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="8.5" cy="7" r="4" />
+                      <polyline points="17 11 19 13 23 9" />
+                    </svg>
+                    Super PML T2
+                  </div>
+                  <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPmlNoSuratModalT2(1)"
+                    style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" stroke-width="2">
+                      <path d="M12 20h9" />
+                      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                    </svg> Nomor Surat
+                  </button>
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPMLT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPMLT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPMLT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPMLT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPMLT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPMLT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPMLT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPMLT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 6. Super PPL T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                      <circle cx="9" cy="7" r="4" />
+                      <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    Super PPL T2
+                  </div>
+                  <div style="display:flex; gap:0.3rem; flex-wrap:wrap">
+                    <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openPplNoSuratModalT2(1)"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg> Nomor Surat
+                    </button>
+                    <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openCustomSuperPPLModalT2()"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem; background: linear-gradient(135deg, #7c3aed, #a855f7); border-color: #7c3aed">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 1 0 10 10" />
+                        <path d="M12 8v4l2 2" />
+                        <path d="M17 2l5 5-5 5" />
+                        <path d="M22 7H12" />
+                      </svg> Custom
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPLT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPLT2(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPLT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPLT2(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPLT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPLT2(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewSuperPPLT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadSuperPPLT2(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 7. Hold Honorarium T2 Card -->
+            <div class="berkas-card">
+              <div class="berkas-card-header">
+                <div class="berkas-card-title">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                    stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Hold Honorarium T2
+                </div>
+                <div class="berkas-card-sub">Daftar petugas yang ditahan pencairannya pada gelombang Termin II.</div>
+              </div>
+              <div class="berkas-card-body" style="margin-top:auto">
+                <button class="btn btn-danger btn-sm btn-superadmin-only" onclick="openHoldModal()"
+                  style="width:100%; justify-content:center; gap:0.4rem; padding:0.5rem">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Kelola Hold Honorarium
+                </button>
+              </div>
+            </div>
+
+            <!-- 8. BAST Card (BARU DI TERMIN 2, DILENGKAPI CUSTOM BAST) -->
+            <div class="berkas-card" style="border-top: 3px solid #10b981;">
+              <div class="berkas-card-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start">
+                  <div class="berkas-card-title">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                      stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                      <polyline points="14 2 14 8 20 8" />
+                      <polyline points="9 15 11 17 15 13" />
+                    </svg>
+                    BAST (PPL & PML)
+                  </div>
+                  <div style="display:flex; gap:0.3rem; flex-wrap:wrap">
+                    <button class="btn btn-secondary btn-sm btn-superadmin-only" onclick="openBastNoSuratModal(1)"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                      </svg> Nomor Surat
+                    </button>
+                    <!-- Tombol Custom BAST di dalam dokumen BAST (seperti Custom Super di Super PPL) -->
+                    <button class="btn btn-primary btn-sm btn-superadmin-only" onclick="openCustomBastModal()"
+                      style="font-size:0.7rem; padding:0.2rem 0.45rem; background: linear-gradient(135deg, #10b981, #059669); border-color: #059669">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2">
+                        <path d="M12 2a10 10 0 1 0 10 10" />
+                        <path d="M12 8v4l2 2" />
+                        <path d="M17 2l5 5-5 5" />
+                        <path d="M22 7H12" />
+                      </svg> Custom
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div class="berkas-card-body">
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--text-muted)">G1</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewBAST(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadBAST(1)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:var(--primary)">G2</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewBAST(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:var(--primary)">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadBAST(2)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#eab308">G3</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewBAST(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#ca8a04; border-color:#ca8a04">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadBAST(3)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+                <div class="gelombang-row">
+                  <span class="gelombang-badge" style="color:#dc2626">G4</span>
+                  <div class="gelombang-actions">
+                    <button class="btn btn-primary btn-sm" onclick="previewBAST(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem; background:#b91c1c; border-color:#b91c1c">Preview</button>
+                    <button class="btn btn-secondary btn-sm" onclick="downloadBAST(4)"
+                      style="padding:0.2rem 0.45rem; font-size:0.72rem">Unduh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
 
@@ -2351,6 +2828,7 @@
                 <option value="1">Gelombang 1</option>
                 <option value="2">Gelombang 2</option>
                 <option value="3">Gelombang 3</option>
+                <option value="4">Gelombang 4</option>
               </select>
             </div>
           </div>
@@ -2978,21 +3456,26 @@
         </div>
       </div>
       <div class="bottom-sheet-body">
-        <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.25rem;padding:0.75rem;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.15);border-radius:var(--radius-md)">
-          Pilih PPL dari daftar, isi capaian dan tanggal surat secara manual, lalu generate PDF Surat Pernyataan Penyelesaian Petugas Lapangan.
+        <div
+          style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.25rem;padding:0.75rem;background:rgba(124,58,237,0.06);border:1px solid rgba(124,58,237,0.15);border-radius:var(--radius-md)">
+          Pilih PPL dari daftar, isi capaian dan tanggal surat secara manual, lalu generate PDF Surat Pernyataan
+          Penyelesaian Petugas Lapangan.
         </div>
 
         <!-- Dropdown PPL -->
         <div class="form-group" style="margin-bottom:1rem">
           <label class="form-label" style="font-weight:600">Nama PPL</label>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Pilih PPL dari daftar — data diri (NIK, Sobat ID, No. SPK, No. SP) akan otomatis terisi.</div>
-          <select id="customPPLSelect" class="form-select" onchange="onCustomPPLSelectChange()" style="font-size:0.875rem">
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Pilih PPL dari daftar — data diri
+            (NIK, Sobat ID, No. SPK, No. SP) akan otomatis terisi.</div>
+          <select id="customPPLSelect" class="form-select" onchange="onCustomPPLSelectChange()"
+            style="font-size:0.875rem">
             <option value="">-- Pilih PPL --</option>
           </select>
         </div>
 
         <!-- Info Data Diri PPL (readonly) -->
-        <div id="customPPLInfoBox" style="display:none; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem; margin-bottom:1rem; font-size:0.82rem">
+        <div id="customPPLInfoBox"
+          style="display:none; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem; margin-bottom:1rem; font-size:0.82rem">
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem">
             <div><span style="color:var(--text-muted)">NIK:</span> <strong id="customPPLNIK">—</strong></div>
             <div><span style="color:var(--text-muted)">Sobat ID:</span> <strong id="customPPLSobatID">—</strong></div>
@@ -3005,25 +3488,31 @@
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem">
           <div class="form-group" style="margin:0">
             <label class="form-label" style="font-weight:600">Target Prelist</label>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah target (usaha + keluarga)</div>
-            <input type="number" id="customPPLTarget" class="form-input" min="0" placeholder="Contoh: 250" oninput="updateCustomPPLPct()">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah target (usaha + keluarga)
+            </div>
+            <input type="number" id="customPPLTarget" class="form-input" min="0" placeholder="Contoh: 250"
+              oninput="updateCustomPPLPct()">
           </div>
           <div class="form-group" style="margin:0">
             <label class="form-label" style="font-weight:600">Realisasi</label>
-            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah yang telah diselesaikan</div>
-            <input type="number" id="customPPLRealisasi" class="form-input" min="0" placeholder="Contoh: 200" oninput="updateCustomPPLPct()">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Jumlah yang telah diselesaikan
+            </div>
+            <input type="number" id="customPPLRealisasi" class="form-input" min="0" placeholder="Contoh: 200"
+              oninput="updateCustomPPLPct()">
           </div>
         </div>
 
         <!-- Preview Persentase -->
-        <div id="customPPLPctPreview" style="display:none; margin-bottom:1rem; padding:0.5rem 0.75rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:var(--radius-md); font-size:0.84rem; color:#065f46">
+        <div id="customPPLPctPreview"
+          style="display:none; margin-bottom:1rem; padding:0.5rem 0.75rem; background:rgba(16,185,129,0.07); border:1px solid rgba(16,185,129,0.2); border-radius:var(--radius-md); font-size:0.84rem; color:#065f46">
           Persentase capaian: <strong id="customPPLPctValue">0.00%</strong>
         </div>
 
         <!-- Tanggal Surat -->
         <div class="form-group" style="margin-bottom:0.5rem">
           <label class="form-label" style="font-weight:600">Tanggal Surat</label>
-          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Format bebas, contoh: "16 Juli 2026" atau "Lebak, 16 Juli 2026"</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.4rem">Format bebas, contoh: "16 Juli
+            2026" atau "Lebak, 16 Juli 2026"</div>
           <input type="text" id="customPPLTanggal" class="form-input" placeholder="Contoh: 16 Juli 2026">
         </div>
       </div>
@@ -3048,6 +3537,311 @@
           </svg>
           Unduh PDF
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Generate Custom BAST (Petugas Mundur / Penyesuaian) -->
+  <div class="modal-overlay" id="customBastModal" onclick="if(event.target===this)closeCustomBastModal()">
+    <div class="bottom-sheet" style="max-width:560px; border-radius:var(--radius-xl)">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="border-bottom:2px solid rgba(16,185,129,0.2)">
+        <div class="bottom-sheet-title" style="display:flex;align-items:center;gap:0.5rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+            stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <polyline points="9 15 11 17 15 13" />
+          </svg>
+          Generate Custom BAST (Berita Acara Serah Terima)
+        </div>
+      </div>
+      <div class="bottom-sheet-body">
+        <div
+          style="font-size:0.8rem;color:var(--text-muted);margin-bottom:1.25rem;padding:0.75rem;background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.15);border-radius:var(--radius-md)">
+          Digunakan untuk membuat BAST khusus (misal: petugas mundur atau penyesuaian khusus). Pilih petugas (PPL /
+          PML), isi rincian dokumen dan tanggal surat secara mandiri.
+        </div>
+
+        <!-- Role Petugas -->
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label" style="font-weight:600">Peran Petugas</label>
+          <select id="customBastRole" class="form-select" onchange="onCustomBastRoleChange()"
+            style="font-size:0.875rem">
+            <option value="ppl">PPL (Petugas Pendataan Lapangan)</option>
+            <option value="pml">PML (Petugas Pemeriksa Lapangan)</option>
+          </select>
+        </div>
+
+        <!-- Dropdown Petugas -->
+        <div class="form-group" style="margin-bottom:1rem">
+          <label class="form-label" style="font-weight:600">Nama Petugas</label>
+          <select id="customBastUserSelect" class="form-select" onchange="onCustomBastUserChange()"
+            style="font-size:0.875rem">
+            <option value="">-- Pilih Petugas --</option>
+          </select>
+        </div>
+
+        <!-- Info Data Diri Petugas (readonly) -->
+        <div id="customBastInfoBox"
+          style="display:none; background:var(--bg-card-2); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.75rem; margin-bottom:1rem; font-size:0.82rem">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem 1rem">
+            <div><span style="color:var(--text-muted)">NIK:</span> <strong id="customBastNIK">—</strong></div>
+            <div><span style="color:var(--text-muted)">Sobat ID:</span> <strong id="customBastSobatID">—</strong></div>
+            <div><span style="color:var(--text-muted)">Kecamatan:</span> <strong id="customBastKecamatan">—</strong>
+            </div>
+            <div><span style="color:var(--text-muted)">No. SPK:</span> <strong id="customBastNoSPK">—</strong></div>
+          </div>
+        </div>
+
+        <!-- Nomor Surat BAST & Tanggal Surat -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Nomor Surat BAST</label>
+            <input type="text" id="customBastNoSurat" class="form-input" placeholder="Contoh: B-001/3602/BAST/2026">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Tanggal BAST</label>
+            <input type="text" id="customBastTanggal" class="form-input" placeholder="Contoh: 31 Juli 2026">
+          </div>
+        </div>
+
+        <!-- Capaian & Deskripsi BAST -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; margin-bottom:1rem">
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Target Usaha/Keluarga</label>
+            <input type="number" id="customBastTarget" class="form-input" min="0" placeholder="Contoh: 250">
+          </div>
+          <div class="form-group" style="margin:0">
+            <label class="form-label" style="font-weight:600">Realisasi Selesai</label>
+            <input type="number" id="customBastRealisasi" class="form-input" min="0" placeholder="Contoh: 250">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0.5rem">
+          <label class="form-label" style="font-weight:600">Catatan Khusus Serah Terima (Opsional)</label>
+          <input type="text" id="customBastCatatan" class="form-input"
+            placeholder="Contoh: Diserahterimakan sehubungan pengalihan tugas...">
+        </div>
+      </div>
+      <div class="bottom-sheet-footer" style="gap:0.75rem">
+        <button class="btn btn-secondary" onclick="closeCustomBastModal()">Batal</button>
+        <button class="btn btn-primary" id="customBastPreviewBtn" onclick="generateCustomBastPDF(false)"
+          style="background:linear-gradient(135deg,#10b981,#059669);border-color:#059669;display:flex;align-items:center;gap:0.35rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          Preview PDF
+        </button>
+        <button class="btn btn-secondary" onclick="generateCustomBastPDF(true)"
+          style="display:flex;align-items:center;gap:0.35rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Unduh PDF
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Input Nomor Surat BAST -->
+  <div class="modal-overlay" id="bastNoSuratModal" onclick="if(event.target===this)closeBastNoSuratModal()">
+    <div class="bottom-sheet"
+      style="max-width:90%;width:950px;max-height:85vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div class="bottom-sheet-title" id="bastNoSuratTitle">Input Nomor Surat BAST (PPL & PML)</div>
+        <div style="display:flex;gap:0.5rem;align-items:center">
+          <button class="btn btn-secondary btn-sm" onclick="closeBastNoSuratModal()">Tutup</button>
+        </div>
+      </div>
+      <div class="bottom-sheet-body" style="overflow-y:auto;flex:1;padding:1rem;display:flex;flex-direction:column">
+        <div
+          style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:0.75rem;margin-bottom:1rem;background:var(--bg-card);padding:0.75rem;border-radius:var(--radius-md);border:1px solid var(--border)">
+          <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+            <div style="font-size:0.82rem;font-weight:600">Filter:</div>
+            <select id="bastNoSuratGelombangFilter" class="form-select"
+              style="font-size:0.8rem;padding:0.25rem 0.5rem;width:150px" onchange="filterBastNoSuratTable()">
+              <option value="1">Gelombang 1</option>
+              <option value="2">Gelombang 2</option>
+              <option value="3">Gelombang 3</option>
+              <option value="4">Gelombang 4</option>
+            </select>
+            <select id="bastNoSuratRoleFilter" class="form-select"
+              style="font-size:0.8rem;padding:0.25rem 0.5rem;width:130px" onchange="filterBastNoSuratTable()">
+              <option value="">Semua Peran</option>
+              <option value="ppl">PPL</option>
+              <option value="pml">PML</option>
+            </select>
+            <select id="bastNoSuratKecamatanFilter" class="form-select"
+              style="font-size:0.8rem;padding:0.25rem 0.5rem;width:180px" onchange="filterBastNoSuratTable()">
+              <option value="">Semua Kecamatan</option>
+            </select>
+          </div>
+          <div>
+            <button class="btn btn-primary btn-sm" onclick="saveBastNoSuratAll()"
+              style="background:#16a34a;border-color:#16a34a;padding:0.35rem 0.8rem">
+              Simpan Semua Perubahan
+            </button>
+          </div>
+        </div>
+        <div class="table-wrapper" style="flex:1;overflow-y:auto">
+          <table class="admin-table" style="font-size:0.82rem">
+            <thead>
+              <tr>
+                <th style="width:250px">Nama Petugas</th>
+                <th style="width:70px;text-align:center">Peran</th>
+                <th style="width:130px;text-align:center">Kecamatan</th>
+                <th>No. SPK</th>
+                <th>No. Surat BAST</th>
+              </tr>
+            </thead>
+            <tbody id="bastNoSuratTableBody">
+              <!-- Populated via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Upload Capaian FASIH (Termin II) -->
+  <div class="modal-overlay" id="uploadCapaianT2Modal" onclick="if(event.target===this)closeUploadCapaianT2Modal()">
+    <div class="bottom-sheet"
+      style="max-width:90%;width:980px;max-height:88vh;border-radius:var(--radius-xl);display:flex;flex-direction:column">
+      <div class="bottom-sheet-handle"></div>
+      <div class="bottom-sheet-header" style="display:flex;justify-content:space-between;align-items:center">
+        <div>
+          <div class="bottom-sheet-title" style="display:flex;align-items:center;gap:0.5rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+              stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+            Upload Capaian FASIH (Termin II)
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted)">Import progres harian FASIH per gelombang dengan
+            validasi Sub-SLS 16-digit & non-regresi.</div>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="closeUploadCapaianT2Modal()">Tutup</button>
+      </div>
+
+      <div class="bottom-sheet-body"
+        style="overflow-y:auto;flex:1;padding:1.25rem;display:flex;flex-direction:column;gap:1rem">
+        <!-- Pilihan Gelombang -->
+        <div
+          style="display:flex;gap:1rem;align-items:center;background:var(--bg-card);padding:0.85rem 1rem;border-radius:var(--radius-md);border:1px solid var(--border);flex-wrap:wrap">
+          <div style="font-weight:600;font-size:0.85rem">Pilih Gelombang Termin II:</div>
+          <select id="modalT2SelectGelombang" class="form-select" style="width:200px;font-weight:600"
+            onchange="onModalT2GelombangChange()">
+            <option value="1">Gelombang 1</option>
+            <option value="2">Gelombang 2</option>
+            <option value="3">Gelombang 3</option>
+            <option value="4">Gelombang 4</option>
+          </select>
+          <span class="badge"
+            style="background:rgba(14,165,233,0.1);color:#0284c7;border:1px solid rgba(14,165,233,0.2);padding:0.35rem 0.75rem;font-size:0.75rem">
+            ℹ️ Kolom yang diupdate: <strong id="modalT2LblKolom">prelist1, baru1, hasilverif1, sls_selesai1</strong>
+          </span>
+        </div>
+
+        <!-- Dropzones File 1 & 2 -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem">
+          <!-- File 1: Progres Pendataan -->
+          <div class="upload-zone" id="modalT2BoxFile1" onclick="document.getElementById('modalT2InputFile1').click()"
+            style="padding:1.25rem;cursor:pointer">
+            <input type="file" id="modalT2InputFile1" accept=".xlsx,.xls" style="display:none"
+              onchange="handleModalT2File1Select(event)">
+            <div class="upload-zone-icon" style="margin-bottom:0.4rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
+                stroke="#0ea5e9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="12" y1="18" x2="12" y2="12" />
+                <line x1="9" y1="15" x2="15" y2="15" />
+              </svg>
+            </div>
+            <div style="font-weight:600;font-size:0.9rem">1. File Progres Pendataan</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem">Kolom Prelist, Usaha Baru, Hasil
+              Verifikasi</div>
+            <div id="modalT2StatusFile1" style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">Belum ada
+              file dipilih</div>
+          </div>
+
+          <!-- File 2: Status SLS -->
+          <div class="upload-zone" id="modalT2BoxFile2" onclick="document.getElementById('modalT2InputFile2').click()"
+            style="padding:1.25rem;cursor:pointer">
+            <input type="file" id="modalT2InputFile2" accept=".xlsx,.xls" style="display:none"
+              onchange="handleModalT2File2Select(event)">
+            <div class="upload-zone-icon" style="margin-bottom:0.4rem">
+              <svg xmlns="http://www.w3.org/2000/svg" width="30" height="30" viewBox="0 0 24 24" fill="none"
+                stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <polyline points="9 15 11 17 15 13" />
+              </svg>
+            </div>
+            <div style="font-weight:600;font-size:0.9rem">2. File Status SLS Selesai</div>
+            <div style="font-size:0.75rem;color:var(--text-muted);margin-top:0.2rem">Kolom Target SLS, Selesai, % SLS
+              Selesai</div>
+            <div id="modalT2StatusFile2" style="font-size:0.8rem;color:var(--text-muted);margin-top:0.5rem">Belum ada
+              file dipilih</div>
+          </div>
+        </div>
+
+        <!-- Action Validasi & Log -->
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:0.75rem;flex-wrap:wrap">
+          <button id="modalT2BtnReset" class="btn btn-secondary btn-sm" onclick="resetModalT2Upload()"
+            style="display:none">Reset File</button>
+          <button id="modalT2BtnValidasi" class="btn btn-primary btn-sm" onclick="validasiDanPreviewModalT2()" disabled
+            style="margin-left:auto;display:flex;align-items:center;gap:0.35rem">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="8" x2="12" y2="12" />
+              <line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            Validasi & Preview
+          </button>
+        </div>
+
+        <div id="modalT2AlertContainer"></div>
+
+        <!-- Preview Table Sample -->
+        <div id="modalT2PreviewSection" style="display:none;margin-top:0.5rem">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem">
+            <span id="modalT2PreviewStats" style="font-size:0.85rem;font-weight:600"></span>
+            <button id="modalT2BtnSimpan" class="btn btn-primary btn-sm" onclick="commitModalT2Capaian()"
+              style="background:#16a34a;border-color:#16a34a;font-weight:600">
+              ✓ Simpan Capaian ke Database
+            </button>
+          </div>
+          <div class="table-wrapper"
+            style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md)">
+            <table class="admin-table" style="font-size:0.8rem">
+              <thead>
+                <tr>
+                  <th style="width:40px;text-align:center">No</th>
+                  <th>Kode Sub-SLS (16-Digit)</th>
+                  <th style="text-align:right">Prelist</th>
+                  <th style="text-align:right">Usaha Baru</th>
+                  <th style="text-align:right">Hasil Verifikasi</th>
+                  <th style="text-align:right">Target SLS</th>
+                  <th style="text-align:right">% SLS Selesai</th>
+                </tr>
+              </thead>
+              <tbody id="modalT2PreviewTableBody">
+                <!-- Populated via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
   </div>

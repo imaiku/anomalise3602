@@ -1,0 +1,2863 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Berkas Pencairan Termin II — Anomali SE2026</title>
+  <meta name="description"
+    content="Halaman upload bukti penyelesaian tugas Termin 2 Petugas SE2026 dan Penilaian Kinerja Manekin">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="css/main.css">
+  <style>
+    body {
+      background: linear-gradient(135deg, #FFF3EB 0%, #FFFFFF 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1.25rem 1rem;
+      font-family: 'Inter', sans-serif;
+    }
+
+    .upload-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 520px;
+      padding: 1.75rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-container::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 5px;
+      background: linear-gradient(to right, #0284c7, var(--primary));
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      padding: 0.25rem 0.65rem;
+      background: rgba(249, 115, 22, 0.1);
+      color: var(--primary);
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+
+    .header h1 {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 0.25rem;
+    }
+
+    .header p {
+      font-size: 0.825rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    .form-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 0.825rem;
+      margin-bottom: 0.4rem;
+      color: var(--text);
+    }
+
+    .form-select,
+    .form-input {
+      width: 100%;
+      padding: 0.65rem 0.875rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-md);
+      background-color: var(--bg);
+      color: var(--text);
+      font-size: 0.85rem;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .form-select:focus,
+    .form-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.15);
+    }
+
+    .petugas-info-card {
+      background: var(--bg-card-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 0.85rem;
+      margin-top: 0.75rem;
+      display: none;
+    }
+
+    .petugas-info-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.35rem;
+    }
+
+    .petugas-name {
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+    }
+
+    .badge-role {
+      display: inline-block;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .badge-role.ppl {
+      background: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-role.pml {
+      background: #fef3c7;
+      color: #b45309;
+    }
+
+    .petugas-sub {
+      font-size: 0.75rem;
+      color: var(--text-subtle);
+    }
+
+    /* 2 Slot Upload Cards */
+    .slots-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1rem;
+      margin-top: 1.25rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .upload-slot-card {
+      border: 1px solid var(--border);
+      background: var(--bg);
+      border-radius: var(--radius-md);
+      padding: 1rem;
+      position: relative;
+    }
+
+    .slot-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 0.65rem;
+    }
+
+    .slot-title {
+      font-size: 0.825rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .slot-status-badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+
+    .slot-status-badge.saved {
+      background: #dcfce7;
+      color: #15803d;
+    }
+
+    .slot-status-badge.empty {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+
+    .slot-status-badge.selected {
+      background: #ffedd5;
+      color: #c2410c;
+    }
+
+    .file-dropzone {
+      border: 2px dashed var(--border-strong);
+      border-radius: var(--radius-md);
+      padding: 1rem 0.75rem;
+      text-align: center;
+      cursor: pointer;
+      background: var(--bg-card);
+      transition: all 0.2s;
+    }
+
+    .file-dropzone:hover,
+    .file-dropzone.dragover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.04);
+    }
+
+    .file-dropzone-icon {
+      color: var(--text-subtle);
+      margin-bottom: 0.35rem;
+    }
+
+    .file-dropzone-icon svg {
+      width: 24px;
+      height: 24px;
+    }
+
+    .file-dropzone-title {
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+
+    .file-dropzone-sub {
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+    }
+
+    .preview-container {
+      margin-top: 0.5rem;
+      position: relative;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      display: none;
+    }
+
+    .preview-image {
+      width: 100%;
+      max-height: 180px;
+      object-fit: contain;
+      background: #0f172a;
+      display: block;
+    }
+
+    .remove-btn {
+      position: absolute;
+      top: 0.4rem;
+      right: 0.4rem;
+      background: rgba(15, 23, 42, 0.8);
+      border: none;
+      color: #fff;
+      border-radius: 50%;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 0.75rem;
+      transition: background 0.15s;
+    }
+
+    .remove-btn:hover {
+      background: rgba(239, 68, 68, 0.95);
+    }
+
+    .submit-btn {
+      width: 100%;
+      padding: 0.8rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+
+    .submit-btn:hover:not(:disabled) {
+      opacity: 0.92;
+    }
+
+    .submit-btn:disabled {
+      background: #94a3b8;
+      cursor: not-allowed;
+    }
+
+    .toast {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      left: 1rem;
+      max-width: 440px;
+      margin: 0 auto;
+      z-index: 1000;
+      background: #fff;
+      border-radius: var(--radius-md);
+      padding: 0.85rem 1.15rem;
+      box-shadow: var(--shadow-xl, 0 20px 25px -5px rgba(0, 0, 0, 0.2));
+      border-left: 5px solid var(--primary);
+      transform: translateY(-20px);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      pointer-events: none;
+      font-size: 0.825rem;
+      font-weight: 600;
+      color: #0f172a;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .toast.success {
+      border-left-color: var(--success, #10b981);
+    }
+
+    .toast.error {
+      border-left-color: var(--error, #ef4444);
+    }
+
+    .toast.warning {
+      border-left-color: #f59e0b;
+    }
+
+    .success-state {
+      text-align: center;
+      display: none;
+      padding: 1rem 0;
+    }
+
+    .success-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #dcfce7;
+      color: #15803d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 1.25rem auto;
+    }
+
+    .success-state h2 {
+      font-size: 1.25rem;
+      font-weight: 800;
+      margin-bottom: 0.5rem;
+      color: var(--text);
+    }
+
+    .success-state p {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .autocomplete-suggestions {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      max-height: 220px;
+      overflow-y: auto;
+      z-index: 100;
+      display: none;
+    }
+
+    .autocomplete-suggestions div {
+      padding: 0.65rem 0.875rem;
+      cursor: pointer;
+      font-size: 0.825rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .autocomplete-suggestions div:hover {
+      background-color: var(--bg-card-2);
+      color: var(--primary);
+    }
+
+    .autocomplete-suggestions .suggestion-item-kec {
+      font-size: 0.72rem;
+      color: var(--text-subtle);
+      margin-top: 0.15rem;
+    }
+
+    /* Modal Styles */
+    .modal-overlay {
+      pointer-events: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5rem;
+      opacity: 0;
+      visibility: hidden;
+      transition: all 0.2s ease-in-out;
+    }
+
+    .modal-overlay.active {
+      pointer-events: auto;
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .modal-card {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xl);
+      width: 100%;
+      max-width: 580px;
+      max-height: 92vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transform: scale(0.96);
+      transition: transform 0.2s ease-in-out;
+    }
+
+    .modal-overlay.active .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-header {
+      padding: 0.85rem 1.15rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      font-size: 1.25rem;
+      cursor: pointer;
+      color: var(--text-subtle);
+      line-height: 1;
+      padding: 0.2rem;
+    }
+
+    .modal-body {
+      padding: 1rem 1.15rem;
+      overflow-y: auto;
+      flex: 1;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    .modal-footer {
+      padding: 0.75rem 1.15rem;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.5rem;
+      flex-shrink: 0;
+    }
+
+    /* Evaluasi Sections & Compact Grid */
+    .eval-section-title {
+      font-size: 0.775rem;
+      font-weight: 800;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin: 0.85rem 0 0.5rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+
+    .eval-section-title:first-child {
+      margin-top: 0;
+    }
+
+    .rating-group {
+      margin-bottom: 0.65rem;
+      padding: 0.55rem 0.7rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      transition: border-color 0.15s;
+    }
+
+    .rating-group:focus-within, .rating-group:hover {
+      border-color: rgba(249, 115, 22, 0.4);
+    }
+
+    .rating-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.35rem;
+    }
+
+    .rating-label-title {
+      font-weight: 700;
+      font-size: 0.785rem;
+      color: var(--text);
+    }
+
+    .rating-score-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .rating-score-badge.selected {
+      background: #ffedd5;
+      color: #ea580c;
+    }
+
+    .rating-score-badge.empty {
+      background: var(--bg-card-2);
+      color: var(--text-subtle);
+    }
+
+    .rating-desc {
+      font-size: 0.7rem;
+      color: var(--text-subtle);
+      margin-bottom: 0.4rem;
+      line-height: 1.35;
+    }
+
+    .pill-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 0.35rem;
+    }
+
+    .pill-grid.scale-6 {
+      grid-template-columns: repeat(6, 1fr);
+    }
+
+    .pill-btn {
+      padding: 0.35rem 0.2rem;
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-sm);
+      background: var(--bg-card);
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text);
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.12s ease;
+      touch-action: manipulation;
+    }
+
+    .pill-btn:hover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.08);
+    }
+
+    /* Warna gradien pill berdasarkan nilai: merah (1) → kuning (2-3) → hijau (4-6) */
+    .pill-btn.active { color: #fff; }
+    .pill-btn.active.val-1 { background:#dc2626; border-color:#dc2626; box-shadow:0 2px 6px rgba(220,38,38,.35); }
+    .pill-btn.active.val-2 { background:#ea580c; border-color:#ea580c; box-shadow:0 2px 6px rgba(234,88,12,.35); }
+    .pill-btn.active.val-3 { background:#ca8a04; border-color:#ca8a04; box-shadow:0 2px 6px rgba(202,138,4,.35); }
+    .pill-btn.active.val-4 { background:#16a34a; border-color:#16a34a; box-shadow:0 2px 6px rgba(22,163,74,.35); }
+    .pill-btn.active.val-5 { background:#059669; border-color:#059669; box-shadow:0 2px 6px rgba(5,150,105,.35); }
+    .pill-btn.active.val-6 { background:#0284c7; border-color:#0284c7; box-shadow:0 2px 6px rgba(2,132,199,.35); }
+    /* Hover hint warna */
+    .pill-btn[data-val="1"]:not(.active):hover { border-color:#dc2626; background:rgba(220,38,38,.07); color:#dc2626; }
+    .pill-btn[data-val="2"]:not(.active):hover { border-color:#ea580c; background:rgba(234,88,12,.07); color:#ea580c; }
+    .pill-btn[data-val="3"]:not(.active):hover { border-color:#ca8a04; background:rgba(202,138,4,.07); color:#ca8a04; }
+    .pill-btn[data-val="4"]:not(.active):hover { border-color:#16a34a; background:rgba(22,163,74,.07); color:#16a34a; }
+    .pill-btn[data-val="5"]:not(.active):hover { border-color:#059669; background:rgba(5,150,105,.07); color:#059669; }
+    .pill-btn[data-val="6"]:not(.active):hover { border-color:#0284c7; background:rgba(2,132,199,.07); color:#0284c7; }
+
+    /* Target Selection Item */
+    .target-select-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.65rem;
+      padding: 0.55rem 0.75rem;
+      background: var(--bg-card);
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+
+    .target-select-item:hover {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.03);
+    }
+
+    .target-select-item.selected {
+      border-color: var(--primary);
+      background: rgba(249, 115, 22, 0.08);
+    }
+
+    .target-select-checkbox {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--primary);
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    @media (max-width: 480px) {
+      .modal-card {
+        max-height: 96vh;
+        border-radius: var(--radius-md);
+      }
+      .modal-body {
+        padding: 0.75rem 0.85rem;
+      }
+      .modal-header, .modal-footer {
+        padding: 0.65rem 0.85rem;
+      }
+      .pill-btn {
+        padding: 0.3rem 0.15rem;
+        font-size: 0.72rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="upload-container">
+    <div class="header">
+      <span class="header-badge">Sensus Ekonomi 2026</span>
+      <h1>Berkas Pencairan Termin II</h1>
+      <p>Unggah Bukti Capaian FASIH & Bukti Uninstall FASIH sebelum proses BAPP Termin II.</p>
+    </div>
+
+    <!-- State 1: Form Upload -->
+    <div id="formState">
+      <form id="bappForm" onsubmit="handleInitialSubmit(event)">
+        <!-- Kecamatan -->
+        <div class="form-group">
+          <label class="form-label" for="kecamatan">Kecamatan Penugasan</label>
+          <select id="kecamatan" class="form-select" required onchange="handleKecamatanChange()">
+            <option value="" disabled selected>Pilih Kecamatan...</option>
+          </select>
+        </div>
+
+        <!-- Autocomplete Nama Petugas -->
+        <div class="form-group" style="position: relative;">
+          <label class="form-label" for="petugasInput">Nama Petugas</label>
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="text" id="petugasInput" class="form-input" style="padding-right: 2.25rem;"
+              placeholder="Ketik nama atau Sobat ID..." autocomplete="off" oninput="handlePetugasSearch(this.value)"
+              onfocus="handlePetugasFocus()" required>
+            <button type="button" id="btnClearPetugas" onclick="cancelPetugasSelection()" title="Batal / Ganti Petugas"
+              style="position: absolute; right: 0.65rem; background: none; border: none; font-size: 1.35rem; color: var(--text-subtle); cursor: pointer; display: none; line-height: 1; padding: 0.2rem;">
+              &times;
+            </button>
+          </div>
+          <input type="hidden" id="petugas" name="petugas" required>
+          <div id="autocompleteSuggestions" class="autocomplete-suggestions"></div>
+        </div>
+
+        <!-- Detail Petugas Terpilih -->
+        <div id="petugasInfoCard" class="petugas-info-card">
+          <div class="petugas-info-header">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+              <span id="cardPetugasName" class="petugas-name">—</span>
+              <span id="cardPetugasRole" class="badge-role ppl">PPL</span>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm"
+              style="padding: 0.2rem 0.55rem; font-size: 0.725rem; font-weight: 600;"
+              onclick="cancelPetugasSelection()">
+              Batal / Ganti
+            </button>
+          </div>
+          <div id="cardPetugasSub" class="petugas-sub">Sobat ID: — | NIK: Terdaftar</div>
+        </div>
+
+        <!-- 2 Slot Upload Grid -->
+        <div class="slots-grid">
+          <!-- Slot 1: Bukti Capaian FASIH -->
+          <div class="upload-slot-card">
+            <div class="slot-card-header">
+              <span class="slot-title">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                1. Bukti Capaian FASIH
+              </span>
+              <span id="slotStatus1" class="slot-status-badge empty">Belum Diunggah</span>
+            </div>
+
+            <div id="dropzone1" class="file-dropzone" onclick="document.getElementById('fileInput1').click()">
+              <div class="file-dropzone-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div class="file-dropzone-title">Pilih Screenshot Capaian</div>
+              <div class="file-dropzone-sub">Maksimal 500KB (JPG/PNG)</div>
+            </div>
+            <input type="file" id="fileInput1" accept="image/*" style="display: none;"
+              onchange="handleFileSelected(event, 1)">
+
+            <div id="previewContainer1" class="preview-container">
+              <img id="previewImg1" class="preview-image" alt="Preview Capaian">
+              <button type="button" class="remove-btn" onclick="removeSlotFile(1)" title="Hapus berkas">&times;</button>
+            </div>
+          </div>
+
+          <!-- Slot 2: Bukti Uninstall FASIH -->
+          <div class="upload-slot-card">
+            <div class="slot-card-header">
+              <span class="slot-title">
+                <svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                2. Bukti Uninstall FASIH
+              </span>
+              <span id="slotStatus2" class="slot-status-badge empty">Belum Diunggah</span>
+            </div>
+
+            <div id="dropzone2" class="file-dropzone" onclick="document.getElementById('fileInput2').click()">
+              <div class="file-dropzone-icon">
+                <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div class="file-dropzone-title">Pilih Screenshot Uninstall</div>
+              <div class="file-dropzone-sub">Maksimal 500KB (JPG/PNG)</div>
+            </div>
+            <input type="file" id="fileInput2" accept="image/*" style="display: none;"
+              onchange="handleFileSelected(event, 2)">
+
+            <div id="previewContainer2" class="preview-container">
+              <img id="previewImg2" class="preview-image" alt="Preview Uninstall">
+              <button type="button" class="remove-btn" onclick="removeSlotFile(2)" title="Hapus berkas">&times;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tombol Lihat Berkas Tersimpan (Terlindungi NIK) -->
+        <div id="btnSecurePreviewContainer" style="display: none; margin-bottom: 1rem;">
+          <button type="button" class="btn btn-secondary btn-sm"
+            style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 0.5rem;"
+            onclick="promptSecurePreview()">
+            <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            Lihat Bukti yang Tersimpan (Perlu Verifikasi NIK)
+          </button>
+        </div>
+
+        <button type="submit" id="submitBtn" class="submit-btn">Kirim Berkas</button>
+      </form>
+    </div>
+
+    <!-- State 2: Success State -->
+    <div id="successState" class="success-state">
+      <div class="success-icon">
+        <svg width="28" height="28" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+        </svg>
+      </div>
+      <h2>Berkas Berhasil Terkirim!</h2>
+      <p>Bukti penyelesaian Termin II dan evaluasi kinerja telah berhasil disimpan ke sistem.</p>
+      <button class="btn btn-secondary btn-sm" style="margin-top: 1.25rem;" onclick="resetForm()">Unggah Petugas
+        Lain</button>
+    </div>
+  </div>
+
+  <!-- Modal Secure NIK: Verifikasi NIK untuk Melihat Berkas Tersimpan -->
+  <div id="secureNikModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3>Verifikasi NIK Petugas</h3>
+        <button class="modal-close-btn" onclick="closeModal('secureNikModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Untuk menjaga privasi berkas, masukkan 16 digit NIK petugas yang bersangkutan untuk melihat screenshot yang
+          tersimpan.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="inputSecureNik">Nomor Induk Kependudukan (NIK)</label>
+          <input type="password" id="inputSecureNik" class="form-input" maxlength="16" placeholder="16 digit NIK..."
+            required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('secureNikModal')">Batal</button>
+        <button type="button" id="btnVerifySecureNik" class="btn btn-primary btn-sm"
+          onclick="handleVerifySecureNik()">Verifikasi NIK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Secure Preview: Menampilkan Bukti Tersimpan -->
+  <div id="securePreviewModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 600px;">
+      <div class="modal-header">
+        <div>
+          <h3>Bukti Tersimpan di Sistem</h3>
+          <div id="secureViewPetugasName" style="font-size: 0.75rem; color: var(--text-subtle);">Petugas</div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('securePreviewModal')">&times;</button>
+      </div>
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 1.25rem;">
+        <div>
+          <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text);">1. Bukti Capaian
+            FASIH:</div>
+          <div id="secureImg1Status" style="font-size: 0.8rem; color: var(--text-subtle); display: none;">Belum ada
+            berkas tersimpan</div>
+          <img id="secureImg1"
+            style="width: 100%; max-height: 260px; object-fit: contain; background: #0f172a; border-radius: 6px; border: 1px solid var(--border);"
+            alt="Bukti Capaian">
+        </div>
+        <div>
+          <div style="font-weight: 700; font-size: 0.85rem; margin-bottom: 0.4rem; color: var(--text);">2. Bukti
+            Uninstall FASIH:</div>
+          <div id="secureImg2Status" style="font-size: 0.8rem; color: var(--text-subtle); display: none;">Belum ada
+            berkas tersimpan</div>
+          <img id="secureImg2"
+            style="width: 100%; max-height: 260px; object-fit: contain; background: #0f172a; border-radius: 6px; border: 1px solid var(--border);"
+            alt="Bukti Uninstall">
+        </div>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end;">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('securePreviewModal')">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 0: Gatekeeper PML (PPL Belum Lengkap Upload) -->
+  <div id="gatekeeperModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header"
+        style="background: rgba(239, 68, 68, 0.05); border-bottom: 1px solid rgba(239, 68, 68, 0.15);">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div
+            style="width: 36px; height: 36px; border-radius: 50%; background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 style="color: #b91c1c; font-size: 0.95rem; margin: 0; font-weight: 800;">Pengunggahan Belum Diizinkan
+            </h3>
+            <div style="font-size: 0.75rem; color: #991b1b; margin-top: 0.1rem;">Gatekeeper Pengawasan PML Termin II
+            </div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('gatekeeperModal')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.825rem; color: var(--text); line-height: 1.5; margin-bottom: 0.85rem;">
+          Sebagai PML, Anda <strong>wajib menunggu seluruh PPL binaan aktif</strong> menyelesaikan unggah bukti Termin
+          II sebelum Anda dapat melakukan penilaian kinerja dan pengiriman berkas.
+        </p>
+
+        <div
+          style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem;">
+          <div
+            style="font-size: 0.75rem; font-weight: 700; color: var(--text-subtle); text-transform: uppercase; margin-bottom: 0.5rem;"
+            id="gatekeeperCountText">
+            Daftar PPL yang Belum Upload:
+          </div>
+          <div id="gatekeeperListContainer"
+            style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 220px; overflow-y: auto;">
+            <!-- List of missing PPLs -->
+          </div>
+        </div>
+
+        <p style="font-size: 0.775rem; color: var(--text-subtle); margin-top: 0.85rem; margin-bottom: 0;">
+          💡 <em>Silakan koordinasikan dengan petugas terkait untuk segera mengunggah bukti Capaian & Uninstall
+            FASIH.</em>
+        </p>
+      </div>
+      <div class="modal-footer" style="justify-content: flex-end; background: var(--bg);">
+        <button type="button" class="btn btn-primary btn-sm" onclick="closeModal('gatekeeperModal')">Saya
+          Mengerti</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Pilihan Evaluasi untuk PPL (Opsional Memilih Siapa yang Ingin Dinilai) -->
+  <div id="pplTargetSelectionModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 500px;">
+      <div class="modal-header"
+        style="background: rgba(249, 115, 22, 0.05); border-bottom: 1px solid rgba(249, 115, 22, 0.15);">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div
+            style="width: 36px; height: 36px; border-radius: 50%; background: #ffedd5; color: #ea580c; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+          </div>
+          <div>
+            <h3 style="color: var(--text); font-size: 0.95rem; margin: 0; font-weight: 800;">Penilaian Kinerja
+              (Opsional)</h3>
+            <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.1rem;">Pilih Petugas yang Ingin
+              Anda Nilai</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('pplTargetSelectionModal')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.825rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 0.85rem;">
+          Penilaian kinerja ini <strong>bersifat opsional</strong>. Silakan centang petugas (PML pengawas atau rekan PPL
+          satu tim) yang ingin Anda beri penilaian:
+        </p>
+
+        <div
+          style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; padding: 0 0.2rem;">
+          <span
+            style="font-size: 0.75rem; font-weight: 700; color: var(--text-subtle); text-transform: uppercase;">Daftar
+            Petugas Tim Lapangan</span>
+          <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;"
+              onclick="selectAllPplTargets(true)">Pilih Semua</button>
+            <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.45rem; font-size: 0.7rem;"
+              onclick="selectAllPplTargets(false)">Batal Semua</button>
+          </div>
+        </div>
+
+        <div id="pplTargetSelectListContainer"
+          style="display: flex; flex-direction: column; gap: 0.5rem; max-height: 250px; overflow-y: auto;">
+          <!-- Generated via JS -->
+        </div>
+
+        <p style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.85rem; margin-bottom: 0;">
+          💡 <em>Jika Anda tidak ingin memberikan penilaian kepada siapa pun, Anda dapat langsung memilih <strong>Lewati
+              & Langsung Kirim</strong>.</em>
+        </p>
+      </div>
+      <div class="modal-footer" style="background: var(--bg);">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="handlePplDeclineEval()">Lewati & Langsung
+          Kirim</button>
+        <button type="button" id="btnProceedSelectedEval" class="btn btn-primary btn-sm"
+          onclick="handlePplProceedWithSelectedTargets()">Lanjutkan Penilaian</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Target Evaluasi untuk PML (Binaan Wajib, PPL Luar Binaan / Cross-Review, & Rekan PML) -->
+  <div id="pmlTargetSelectionModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 540px;">
+      <div class="modal-header"
+        style="background: rgba(16, 185, 129, 0.06); border-bottom: 1px solid rgba(16, 185, 129, 0.15);">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div
+            style="width: 36px; height: 36px; border-radius: 50%; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 style="color: var(--text); font-size: 0.95rem; margin: 0; font-weight: 800;">Daftar Petugas untuk Dinilai</h3>
+            <div style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.1rem;">PPL Binaan & Penilaian Silang (Cross-Review)</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('pmlTargetSelectionModal')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <!-- Section 1: PPL Binaan Wajib -->
+        <div style="margin-bottom: 1.1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase;">
+              1. PPL Binaan Langsung <span style="color:#059669; font-weight:800;">(Wajib)</span>
+            </span>
+            <span id="pmlWajibCountBadge" style="font-size: 0.7rem; font-weight: 700; color: var(--text-subtle);">0 Petugas</span>
+          </div>
+          <div id="pmlWajibListContainer" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 170px; overflow-y: auto;">
+            <!-- Generated via JS -->
+          </div>
+        </div>
+
+        <!-- Section 2: Tambah PPL Lain di Luar Binaan (Penilaian Silang / Cross-Review) -->
+        <div style="margin-bottom: 1.1rem;">
+          <div style="margin-bottom: 0.45rem;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase;">
+              2. Tambah PPL Lain di Luar Binaan <span style="font-weight:400; color:var(--text-subtle); text-transform:none;">(Opsional / Cross-Review)</span>
+            </span>
+          </div>
+          <div style="position: relative;">
+            <input type="text" id="pmlSearchPplInput" class="form-input" placeholder="🔍 Cari nama PPL lain atau wilayah tugas..." oninput="handlePmlLiveSearch(this.value)" autocomplete="off">
+            <div id="pmlSearchResultsDropdown" class="autocomplete-suggestions" style="max-height: 180px; display: none;"></div>
+          </div>
+          <div id="pmlExtraListContainer" style="display: flex; flex-direction: column; gap: 0.4rem; margin-top: 0.5rem;">
+            <!-- Extra added PPLs -->
+          </div>
+        </div>
+
+        <!-- Section 3: Rekan PML (Opsional jika ada) -->
+        <div id="pmlPeerSection" style="display: none; margin-bottom: 0.5rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.45rem;">
+            <span style="font-size: 0.75rem; font-weight: 700; color: var(--text); text-transform: uppercase;">
+              3. Rekan Sesama PML <span style="font-weight:400; color:var(--text-subtle); text-transform:none;">(Opsional / Peer Review)</span>
+            </span>
+          </div>
+          <div id="pmlPeerListContainer" style="display: flex; flex-direction: column; gap: 0.4rem; max-height: 140px; overflow-y: auto;">
+            <!-- Peer PMLs -->
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" style="background: var(--bg); justify-content: space-between;">
+        <div style="font-size: 0.775rem; font-weight: 700; color: var(--text-muted);" id="pmlTotalTargetsCountText">Total: 0 Petugas untuk Dinilai</div>
+        <button type="button" id="btnProceedPmlEval" class="btn btn-primary btn-sm" onclick="handlePmlProceedWithTargets()">Lanjutkan Penilaian</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Informasi Penilaian Wajib untuk PML -->
+  <div id="pmlEvalInfoModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 450px;">
+      <div class="modal-header"
+        style="background: rgba(16, 185, 129, 0.06); border-bottom: 1px solid rgba(16, 185, 129, 0.15);">
+        <div style="display: flex; align-items: center; gap: 0.6rem;">
+          <div
+            style="width: 36px; height: 36px; border-radius: 50%; background: #d1fae5; color: #059669; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h3 style="color: var(--text); font-size: 0.95rem; margin: 0; font-weight: 800;">Verifikasi Pengawasan
+              Selesai</h3>
+            <div style="font-size: 0.75rem; color: #059669; margin-top: 0.1rem; font-weight: 700;">Seluruh PPL Binaan
+              Telah Upload</div>
+          </div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('pmlEvalInfoModal')">&times;</button>
+      </div>
+      <div class="modal-body" style="padding: 1.25rem;">
+        <p style="font-size: 0.825rem; color: var(--text); line-height: 1.5; margin-bottom: 0.85rem;">
+          Seluruh PPL binaan aktif di bawah pengawasan Anda telah menyelesaikan unggah berkas Termin II.
+        </p>
+        <div
+          style="background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 0.85rem;">
+          <div style="font-weight: 700; font-size: 0.825rem; color: var(--text); margin-bottom: 0.25rem;">Tahap
+            Selanjutnya: Penilaian Kinerja PPL</div>
+          <div style="font-size: 0.75rem; color: var(--text-subtle); line-height: 1.4;">
+            Sebagai PML, Anda <strong>wajib mengisi evaluasi kinerja</strong> untuk seluruh PPL binaan aktif sebelum
+            berkas pencairan Anda dapat diproses.
+          </div>
+        </div>
+        <p style="font-size: 0.775rem; color: var(--text-subtle); margin-top: 0.85rem; margin-bottom: 0;">
+          Sebagai langkah awal untuk memverifikasi bahwa Anda adalah PML yang bersangkutan, silakan masukkan NIK Anda.
+        </p>
+      </div>
+      <div class="modal-footer" style="background: var(--bg); justify-content: flex-end;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="handleProceedPmlNik()">Lanjutkan ke Verifikasi
+          NIK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 1: Verifikasi NIK -->
+  <div id="nikModal" class="modal-overlay">
+    <div class="modal-card" style="max-width: 420px;">
+      <div class="modal-header">
+        <h3 id="nikModalTitle">Verifikasi NIK Petugas</h3>
+        <button class="modal-close-btn" onclick="closeModal('nikModal')">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p id="nikModalDesc" style="font-size: 0.825rem; color: var(--text-muted); margin-bottom: 1rem;">
+          Masukkan NIK 16 digit yang terdaftar untuk memverifikasi identitas Anda sebelum melakukan penilaian kinerja.
+        </p>
+        <div class="form-group">
+          <label class="form-label" for="inputNik">Nomor Induk Kependudukan (NIK)</label>
+          <input type="password" id="inputNik" class="form-input" maxlength="16" placeholder="16 digit NIK..." required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeModal('nikModal')">Batal</button>
+        <button type="button" id="btnVerifyNik" class="btn btn-primary btn-sm" onclick="handleVerifyNik()">Verifikasi &
+          Lanjutkan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal 2: Evaluasi Kinerja (Manekin) -->
+  <div id="evalModal" class="modal-overlay">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="evalModalTitle">Evaluasi Kinerja Petugas</h3>
+          <div id="evalTargetMeta" style="font-size: 0.75rem; color: var(--text-subtle); margin-top: 0.15rem;">Petugas 1
+            dari 4</div>
+        </div>
+        <button class="modal-close-btn" onclick="closeModal('evalModal')">&times;</button>
+      </div>
+      <div class="modal-body" id="evalModalBody">
+        <!-- Dynamic Questions Generated via JS -->
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="evalPrevBtn" class="btn btn-secondary btn-sm"
+          onclick="navigateEval(-1)">Sebelumnya</button>
+        <div style="font-size: 0.75rem; font-weight: 600; color: var(--text-muted);" id="evalProgressText">1 / 1</div>
+        <button type="button" id="evalNextBtn" class="btn btn-primary btn-sm"
+          onclick="navigateEval(1)">Selanjutnya</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span id="toastMsg">Notifikasi</span>
+  </div>
+
+  <!-- Supabase CDN and Config -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/config.js"></script>
+  <script>
+    const MANEKIN_API_BASE = 'https://3602lebak-alpha.vercel.app';
+    const MANEKIN_API_KEY = '3602_manekin_sec_9e7f84b12c8a41508db8c0b59b12e3a79d0124f5a31b7904e2';
+
+
+    let kecMap = {};
+    let allProfiles = [];
+    let userSlsT2Data = [];
+    let pmlPplRelData = [];
+    let selectedPetugasData = null;
+    let existingUploadData = null;
+
+    let slot1Base64 = null;
+    let slot2Base64 = null;
+
+    // Evaluasi State
+    let evalTargets = [];
+    let currentEvalIndex = 0;
+    let evalAnswers = {};
+    let verifiedNik = '';
+
+    let searchTimeout = null;
+    const userSlsT2KecMap = {};
+
+    window.addEventListener('DOMContentLoaded', async () => {
+      showToast('Memuat data penugasan...', 'info');
+      try {
+        await Promise.all([
+          loadKecamatan(),
+          loadAllProfiles(),
+          loadTermin2Assignments()
+        ]);
+        // Preload relasi tim di background agar cepat saat klik Kirim Berkas
+        preloadPmlPplTeamRelations().catch(e => console.warn('Preload relations warn:', e));
+        showToast('Data siap digunakan', 'success');
+      } catch (err) {
+        console.error('Init error:', err);
+        showToast('Gagal memuat data awal: ' + err.message, 'error');
+      }
+
+      document.addEventListener('click', (e) => {
+        const input = document.getElementById('petugasInput');
+        const suggestions = document.getElementById('autocompleteSuggestions');
+        if (input && suggestions && !input.contains(e.target) && !suggestions.contains(e.target)) {
+          suggestions.style.display = 'none';
+        }
+      });
+    });
+
+    async function loadKecamatan() {
+      const { data, error } = await db.from('wilayah_kec').select('kode_kec, nmkec').order('nmkec');
+      if (error) throw error;
+      const select = document.getElementById('kecamatan');
+      select.innerHTML = '<option value="">Semua Kecamatan (Otomatis)</option>';
+      (data || []).forEach(k => {
+        kecMap[k.kode_kec] = k.nmkec;
+        select.innerHTML += `<option value="${k.kode_kec}">${k.kode_kec} - ${k.nmkec}</option>`;
+      });
+    }
+
+    async function loadAllProfiles() {
+      let profiles = [];
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await db
+          .from('profiles')
+          .select('id, nama, email_ref, sobatid, role, is_active')
+          .eq('is_active', true)
+          .range(from, from + 999);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          profiles = profiles.concat(data);
+          if (data.length < 1000) hasMore = false;
+          else from += 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+      allProfiles = profiles;
+    }
+
+    async function loadTermin2Assignments() {
+      let slsList = [];
+      let from = 0;
+      let hasMore = true;
+      while (hasMore) {
+        const { data, error } = await db
+          .from('user_sls_termin2')
+          .select('user_id, kode_sls, user_id_asal')
+          .eq('status', 'aktif')
+          .range(from, from + 999);
+        if (error) throw error;
+        if (data && data.length > 0) {
+          slsList = slsList.concat(data);
+          if (data.length < 1000) hasMore = false;
+          else from += 1000;
+        } else {
+          hasMore = false;
+        }
+      }
+      userSlsT2Data = slsList;
+
+      (userSlsT2Data || []).forEach(s => {
+        if (s.kode_sls && s.kode_sls.length >= 7) {
+          userSlsT2KecMap[s.user_id] = s.kode_sls.substring(0, 7);
+        }
+      });
+
+      const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+      pmlPplRelData = rels || [];
+    }
+
+    function handleKecamatanChange() {
+      const q = document.getElementById('petugasInput').value;
+      if (q.trim()) {
+        handlePetugasSearch(q);
+      }
+    }
+
+    function handlePetugasFocus() {
+      const q = document.getElementById('petugasInput').value;
+      handlePetugasSearch(q);
+    }
+
+    function handlePetugasSearch(val) {
+      const suggestions = document.getElementById('autocompleteSuggestions');
+      const selectedKec = document.getElementById('kecamatan').value;
+      const btnClear = document.getElementById('btnClearPetugas');
+
+      if (!val || !val.trim()) {
+        suggestions.innerHTML = '';
+        suggestions.style.display = 'none';
+        if (btnClear) btnClear.style.display = 'none';
+        return;
+      }
+
+      if (btnClear) btnClear.style.display = 'block';
+
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(async () => {
+        try {
+          // Panggil RPC search_petugas_by_kec database (sama seperti halaman pencarian utama)
+          const { data, error } = await db.rpc('search_petugas_by_kec', {
+            p_query: val.trim(),
+            p_kode_kec: selectedKec || ''
+          });
+
+          if (error) throw error;
+
+          let filtered = data || [];
+
+          // Jika tidak ada hasil dari RPC atau untuk petugas pengganti T2 yang baru, cari di profiles lokal
+          if (filtered.length === 0) {
+            const q = val.toLowerCase().trim();
+            filtered = allProfiles.filter(p => {
+              const matchText = (p.nama || '').toLowerCase().includes(q) || (p.sobatid || '').toLowerCase().includes(q) || (p.email_ref || '').toLowerCase().includes(q);
+              const userKec = userSlsT2KecMap[p.id] || '';
+              const matchKec = !selectedKec || userKec === selectedKec;
+              return matchText && matchKec;
+            }).map(p => ({
+              id: p.id,
+              nama: p.nama,
+              role: p.role,
+              kode_kec: userSlsT2KecMap[p.id] || null,
+              email_ref: p.email_ref || ''
+            }));
+          }
+
+          if (filtered.length === 0) {
+            suggestions.innerHTML = '<div style="padding:0.75rem 1rem;color:var(--text-subtle);font-size:0.825rem;cursor:default;">Tidak ada hasil cocok</div>';
+            suggestions.style.display = 'block';
+            return;
+          }
+
+          // Deduplikasi hasil pencarian berdasarkan ID petugas (prioritaskan record yang memiliki kode_kec)
+          const uniqueMap = new Map();
+          filtered.forEach(p => {
+            const existing = uniqueMap.get(p.id);
+            if (!existing) {
+              uniqueMap.set(p.id, p);
+            } else if (!existing.kode_kec && p.kode_kec) {
+              uniqueMap.set(p.id, p);
+            }
+          });
+          const deduplicated = Array.from(uniqueMap.values());
+
+          suggestions.innerHTML = deduplicated.slice(0, 10).map(p => {
+            const resolvedKec = p.kode_kec || userSlsT2KecMap[p.id] || '';
+            const kecName = resolvedKec ? (kecMap[resolvedKec] || `Kec. ${resolvedKec}`) : 'Kecamatan Belum Ditentukan';
+            const labelKec = resolvedKec ? `${resolvedKec} - ${kecName}` : (p.email_ref || 'Petugas SE2026');
+            const safeNama = (p.nama || '').replace(/'/g, "\\'");
+            return `
+              <div onclick="selectPetugas('${p.id}', '${safeNama}', '${p.role}', '${resolvedKec}')">
+                <div style="font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+                  <span>${p.nama}</span>
+                  <span class="badge-role ${(p.role || 'ppl').toLowerCase()}">${(p.role || 'PPL').toUpperCase()}</span>
+                </div>
+                <div class="suggestion-item-kec">${labelKec}</div>
+              </div>
+            `;
+          }).join('');
+          suggestions.style.display = 'block';
+        } catch (err) {
+          console.error('Error searching petugas:', err);
+          suggestions.innerHTML = `<div style="padding:0.75rem 1rem;color:var(--error);font-size:0.825rem;">Gagal memuat: ${err.message}</div>`;
+          suggestions.style.display = 'block';
+        }
+      }, 200);
+    }
+
+    async function selectPetugas(id, nama, role, kodeKec) {
+      const p = allProfiles.find(x => x.id === id) || { id, nama, role, is_active: true };
+
+      selectedPetugasData = {
+        id: p.id,
+        nama: nama || p.nama,
+        role: role || p.role || 'ppl',
+        sobatid: p.sobatid || '',
+        email_ref: p.email_ref || ''
+      };
+
+      document.getElementById('petugasInput').value = `${nama || p.nama} (${(role || p.role || 'ppl').toUpperCase()})`;
+      document.getElementById('petugas').value = p.id;
+      document.getElementById('autocompleteSuggestions').style.display = 'none';
+      const btnClear = document.getElementById('btnClearPetugas');
+      if (btnClear) btnClear.style.display = 'block';
+
+      // Otomatis pilih kecamatan jika ada
+      const resolvedKec = kodeKec || userSlsT2KecMap[p.id] || '';
+      if (resolvedKec) {
+        document.getElementById('kecamatan').value = resolvedKec;
+      }
+
+      // Tampilkan card info
+      document.getElementById('cardPetugasName').textContent = nama || p.nama;
+      const roleBadge = document.getElementById('cardPetugasRole');
+      roleBadge.textContent = (role || p.role || 'ppl').toUpperCase();
+      roleBadge.className = `badge-role ${(role || p.role || 'ppl').toLowerCase()}`;
+      const kecLabel = resolvedKec ? (kecMap[resolvedKec] || resolvedKec) : '—';
+      document.getElementById('cardPetugasSub').textContent = `Kecamatan: ${kecLabel} | Sobat ID: ${p.sobatid || '—'}`;
+      document.getElementById('petugasInfoCard').style.display = 'block';
+
+      // Cek status upload yang sudah ada di database
+      await checkExistingUpload(p.id);
+    }
+
+    function cancelPetugasSelection() {
+      selectedPetugasData = null;
+      // Reset state evaluasi agar NIK & data lama tidak bocor ke sesi petugas berikutnya
+      verifiedNik = '';
+      evalAnswers = {};
+      evalTargets = [];
+      currentEvalIndex = 0;
+      pplAvailableTargets = [];
+      selectedPplTargetIds = new Set();
+      manekinPenilaiPenugasanId = null;
+      document.getElementById('petugasInput').value = '';
+      document.getElementById('petugas').value = '';
+      document.getElementById('kecamatan').value = '';
+      const btnClear = document.getElementById('btnClearPetugas');
+      if (btnClear) btnClear.style.display = 'none';
+      document.getElementById('petugasInfoCard').style.display = 'none';
+      document.getElementById('autocompleteSuggestions').style.display = 'none';
+      resetSlotBadges();
+      document.getElementById('petugasInput').focus();
+    }
+
+
+    async function checkExistingUpload(profileId) {
+      resetSlotBadges();
+      try {
+        const { data, error } = await db.from('bapp_uploads_t2').select('id, profile_id, screenshot, screenshot_uninstall, created_at').eq('profile_id', profileId).maybeSingle();
+        if (error && error.code !== 'PGRST116') throw error;
+
+        existingUploadData = data;
+        if (data) {
+          let hasAnySaved = false;
+          if (data.screenshot) {
+            hasAnySaved = true;
+            document.getElementById('slotStatus1').textContent = 'Tersimpan di Database';
+            document.getElementById('slotStatus1').className = 'slot-status-badge saved';
+          }
+          if (data.screenshot_uninstall) {
+            hasAnySaved = true;
+            document.getElementById('slotStatus2').textContent = 'Tersimpan di Database';
+            document.getElementById('slotStatus2').className = 'slot-status-badge saved';
+          }
+
+          const secureBtn = document.getElementById('btnSecurePreviewContainer');
+          if (secureBtn) {
+            secureBtn.style.display = hasAnySaved ? 'block' : 'none';
+          }
+        }
+      } catch (err) {
+        console.warn('Check existing upload warning:', err);
+      }
+    }
+
+    function resetSlotBadges() {
+      existingUploadData = null;
+      slot1Base64 = null;
+      slot2Base64 = null;
+      for (let i = 1; i <= 2; i++) {
+        document.getElementById(`slotStatus${i}`).textContent = 'Belum Diunggah';
+        document.getElementById(`slotStatus${i}`).className = 'slot-status-badge empty';
+        document.getElementById(`previewContainer${i}`).style.display = 'none';
+        document.getElementById(`dropzone${i}`).style.display = 'block';
+        document.getElementById(`fileInput${i}`).value = '';
+      }
+      const secureBtn = document.getElementById('btnSecurePreviewContainer');
+      if (secureBtn) secureBtn.style.display = 'none';
+    }
+
+    // Handle File Selection with Canvas Compress
+    function handleFileSelected(event, slotNum) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('image/')) {
+        showToast('Hanya file gambar (JPG/PNG) yang diperbolehkan!', 'error');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const maxDimension = 650;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.5);
+
+          if (slotNum === 1) {
+            slot1Base64 = compressedBase64;
+            document.getElementById('slotStatus1').textContent = 'File Baru Dipilih';
+            document.getElementById('slotStatus1').className = 'slot-status-badge selected';
+            document.getElementById('previewImg1').src = compressedBase64;
+            document.getElementById('previewContainer1').style.display = 'block';
+            document.getElementById('dropzone1').style.display = 'none';
+          } else {
+            slot2Base64 = compressedBase64;
+            document.getElementById('slotStatus2').textContent = 'File Baru Dipilih';
+            document.getElementById('slotStatus2').className = 'slot-status-badge selected';
+            document.getElementById('previewImg2').src = compressedBase64;
+            document.getElementById('previewContainer2').style.display = 'block';
+            document.getElementById('dropzone2').style.display = 'none';
+          }
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeSlotFile(slotNum) {
+      if (slotNum === 1) {
+        slot1Base64 = null;
+        document.getElementById('fileInput1').value = '';
+        document.getElementById('previewContainer1').style.display = 'none';
+        document.getElementById('dropzone1').style.display = 'block';
+        if (existingUploadData && existingUploadData.screenshot) {
+          document.getElementById('slotStatus1').textContent = 'Tersimpan di Database';
+          document.getElementById('slotStatus1').className = 'slot-status-badge saved';
+        } else {
+          document.getElementById('slotStatus1').textContent = 'Belum Diunggah';
+          document.getElementById('slotStatus1').className = 'slot-status-badge empty';
+        }
+      } else {
+        slot2Base64 = null;
+        document.getElementById('fileInput2').value = '';
+        document.getElementById('previewContainer2').style.display = 'none';
+        document.getElementById('dropzone2').style.display = 'block';
+        if (existingUploadData && existingUploadData.screenshot_uninstall) {
+          document.getElementById('slotStatus2').textContent = 'Tersimpan di Database';
+          document.getElementById('slotStatus2').className = 'slot-status-badge saved';
+        } else {
+          document.getElementById('slotStatus2').textContent = 'Belum Diunggah';
+          document.getElementById('slotStatus2').className = 'slot-status-badge empty';
+        }
+      }
+    }
+
+    // ==========================================
+    // SECURE PREVIEW WITH NIK VERIFICATION
+    // ==========================================
+    function promptSecurePreview() {
+      if (!selectedPetugasData) return;
+      document.getElementById('inputSecureNik').value = '';
+      openModal('secureNikModal');
+    }
+
+    async function handleVerifySecureNik() {
+      const inputNik = document.getElementById('inputSecureNik').value.trim();
+      if (!inputNik || inputNik.length < 16) {
+        showToast('Masukkan 16 digit NIK yang valid!', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnVerifySecureNik');
+      btn.disabled = true;
+      btn.textContent = 'Memverifikasi...';
+
+      try {
+        const { data: isValid, error: vError } = await db.rpc('verify_petugas_nik', {
+          p_profile_id: selectedPetugasData.id,
+          p_input_nik: inputNik
+        });
+
+        if (vError) throw vError;
+
+        if (!isValid) {
+          showToast('NIK tidak sesuai dengan data profil!', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Verifikasi NIK';
+          return;
+        }
+
+        closeModal('secureNikModal');
+
+        // Tampilkan Modal Gambar
+        if (existingUploadData) {
+          document.getElementById('secureViewPetugasName').textContent = selectedPetugasData.nama;
+
+          const img1 = document.getElementById('secureImg1');
+          const status1 = document.getElementById('secureImg1Status');
+          if (existingUploadData.screenshot) {
+            img1.src = existingUploadData.screenshot;
+            img1.style.display = 'block';
+            status1.style.display = 'none';
+          } else {
+            img1.style.display = 'none';
+            status1.style.display = 'block';
+          }
+
+          const img2 = document.getElementById('secureImg2');
+          const status2 = document.getElementById('secureImg2Status');
+          if (existingUploadData.screenshot_uninstall) {
+            img2.src = existingUploadData.screenshot_uninstall;
+            img2.style.display = 'block';
+            status2.style.display = 'none';
+          } else {
+            img2.style.display = 'none';
+            status2.style.display = 'block';
+          }
+
+          openModal('securePreviewModal');
+        }
+      } catch (err) {
+        console.error('Secure verify error:', err);
+        showToast('Gagal memverifikasi NIK: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verifikasi NIK';
+      }
+    }
+
+    // ==========================================
+    // GATEKEEPER & SUBMIT WORKFLOW
+    // ==========================================
+    async function handleInitialSubmit(e) {
+      e.preventDefault();
+      if (!selectedPetugasData) {
+        showToast('Silakan pilih petugas terlebih dahulu!', 'error');
+        return;
+      }
+
+      const hasSlot1 = slot1Base64 || (existingUploadData && existingUploadData.screenshot);
+      const hasSlot2 = slot2Base64 || (existingUploadData && existingUploadData.screenshot_uninstall);
+
+      if (!hasSlot1 || !hasSlot2) {
+        showToast('Wajib mengunggah kedua bukti (Capaian & Uninstall)!', 'error');
+        return;
+      }
+
+      const isPml = selectedPetugasData.role.toLowerCase() === 'pml';
+
+      // GATEKEEPER & EVALUATION WORKFLOW FOR PML
+      if (isPml) {
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Memeriksa status PPL binaan...';
+
+        try {
+          const missingPpls = await checkPmlSupervisedPplsUpload(selectedPetugasData.id);
+          if (missingPpls.length > 0) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Kirim Berkas';
+            showGatekeeperModal(missingPpls);
+            return;
+          }
+        } catch (err) {
+          console.error('Gatekeeper check error:', err);
+          showToast('Gagal memeriksa status PPL: ' + err.message, 'error');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Kirim Berkas';
+          return;
+        }
+
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Kirim Berkas';
+
+        // PML lolos gatekeeper -> Buka modal informasi bahwa PML wajib menilai PPL
+        openModal('pmlEvalInfoModal');
+        return;
+      }
+
+      // Untuk PPL: Evaluasi bersifat opsional. Buka modal pilihan target langsung tanpa meminta NIK di awal
+      await openPplTargetSelectionModal();
+    }
+
+    let pmlTeamMap = {}; // pmlId -> [ppl_id, ...]
+    let pplSupervisorMap = {}; // pplId / sobatid -> pmlProfile
+
+    async function preloadPmlPplTeamRelations() {
+      const pmlProfiles = allProfiles.filter(p => (p.role || '').toLowerCase() === 'pml');
+      if (pmlProfiles.length === 0) return;
+
+      const chunkSize = 30;
+      for (let i = 0; i < pmlProfiles.length; i += chunkSize) {
+        const chunk = pmlProfiles.slice(i, i + chunkSize);
+        const results = await Promise.all(chunk.map(p =>
+          db.rpc('get_rekapitulasi_pml', { p_pml_id: p.id })
+            .then(res => ({ pml: p, ppls: res.data || [] }))
+            .catch(() => null)
+        ));
+
+        results.forEach(r => {
+          if (r && Array.isArray(r.ppls)) {
+            pmlTeamMap[r.pml.id] = r.ppls;
+            r.ppls.forEach(ppl => {
+              if (ppl.sobatid_ppl) pplSupervisorMap[String(ppl.sobatid_ppl).trim()] = r.pml;
+              if (ppl.nama_ppl) pplSupervisorMap[ppl.nama_ppl.toLowerCase().trim()] = r.pml;
+            });
+          }
+        });
+      }
+    }
+
+    // Modal Pilihan Evaluasi untuk PPL
+    let pplAvailableTargets = [];
+    let selectedPplTargetIds = new Set();
+    let manekinPenilaiPenugasanId = null;
+
+    async function openPplTargetSelectionModal() {
+      showToast('Memuat daftar tim lapangan dari Manekin...', 'info');
+
+      try {
+        // 1. Panggil API Manekin /form dengan NIK (jika ada) atau penugasan_id (sobatid)
+        let manekinFormData = null;
+        try {
+          const fRes = await fetch(`${MANEKIN_API_BASE}/api/v1/penilaian/sensus/form`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${MANEKIN_API_KEY}`
+            },
+            body: JSON.stringify({
+              nik: verifiedNik || undefined,
+              penugasan_id: selectedPetugasData.sobatid || selectedPetugasData.id
+            })
+          });
+          if (fRes.ok) {
+            const json = await fRes.json();
+            if (json && json.success && json.data) {
+              manekinFormData = json.data;
+              if (manekinFormData.penilai && manekinFormData.penilai.penugasan_id) {
+                manekinPenilaiPenugasanId = manekinFormData.penilai.penugasan_id;
+              }
+            }
+          }
+        } catch (fErr) {
+          console.warn('Manekin /form load warning:', fErr);
+        }
+
+        if (!evalAnswers) evalAnswers = {};
+        let targets = [];
+
+        if (manekinFormData && Array.isArray(manekinFormData.daftar_opsional_nilai) && manekinFormData.daftar_opsional_nilai.length > 0) {
+          targets = manekinFormData.daftar_opsional_nilai.map(m => {
+            const mNama = (m.nama || '').trim().toLowerCase();
+            const prof = allProfiles.find(p => (p.nama || '').trim().toLowerCase() === mNama);
+            const targetId = m.penugasan_id;
+
+            // Pre-load nilai sebelumnya jika ada
+            if (m.nilai_sebelumnya) {
+              const prev = m.nilai_sebelumnya;
+              evalAnswers[targetId] = {
+                t1_komunikasi: prev.komunikasi1 ?? prev.komunikasi ?? null,
+                t1_kondef: prev.kondef1 ?? prev.kondef ?? null,
+                t1_probing: prev.probing1 ?? prev.probing ?? null,
+                t1_kualitas: prev.kualitas1 ?? prev.kualitas ?? null,
+                t2_komunikasi: prev.komunikasi2 ?? null,
+                t2_kondef: prev.kondef2 ?? null,
+                t2_probing: prev.probing2 ?? null,
+                t2_kualitas: prev.kualitas2 ?? null,
+                overall_kesediaan: prev.overall ?? prev.overall_kesediaan ?? null,
+                catatan: prev.catatan || ''
+              };
+            }
+
+            return {
+              id: targetId,
+              nama: m.nama,
+              sobatid: prof ? prof.sobatid : (m.penugasan_id || ''),
+              penugasan_id: m.penugasan_id,
+              role: m.role || 'PPL',
+              tipe: m.tipe,
+              sudah_dinilai: m.sudah_dinilai === true
+            };
+          });
+        } else {
+          // Fallback lokal jika Manekin API belum mendaftarkan relasi PPL ini
+          let supervisorPml = null;
+          let supervisedPplsRpc = [];
+          const pplSobatId = String(selectedPetugasData.sobatid || '').trim();
+          const pplNama = (selectedPetugasData.nama || '').toLowerCase().trim();
+
+          if (pplSobatId && pplSupervisorMap[pplSobatId]) {
+            supervisorPml = pplSupervisorMap[pplSobatId];
+          } else if (pplNama && pplSupervisorMap[pplNama]) {
+            supervisorPml = pplSupervisorMap[pplNama];
+          }
+
+          if (!supervisorPml) {
+            const pmlProfiles = allProfiles.filter(p => (p.role || '').toLowerCase() === 'pml');
+            for (const p of pmlProfiles) {
+              let list = pmlTeamMap[p.id];
+              if (!list) {
+                const { data } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: p.id });
+                list = data || [];
+                pmlTeamMap[p.id] = list;
+              }
+              const found = list.find(d => String(d.sobatid_ppl).trim() === pplSobatId || (d.nama_ppl && d.nama_ppl.toLowerCase().trim() === pplNama));
+              if (found) {
+                supervisorPml = p;
+                supervisedPplsRpc = list;
+                break;
+              }
+            }
+          } else {
+            supervisedPplsRpc = pmlTeamMap[supervisorPml.id] || [];
+          }
+
+          if (supervisorPml) {
+            targets.push({
+              id: supervisorPml.id,
+              nama: supervisorPml.nama,
+              sobatid: supervisorPml.sobatid || '',
+              role: 'PML',
+              penugasan_id: supervisorPml.sobatid || supervisorPml.id,
+              sudah_dinilai: false
+            });
+          }
+
+          if (supervisedPplsRpc && supervisedPplsRpc.length > 0) {
+            const siblingSobatIds = supervisedPplsRpc
+              .map(d => String(d.sobatid_ppl).trim())
+              .filter(sid => sid && sid !== pplSobatId);
+
+            const siblingProfiles = allProfiles.filter(p => siblingSobatIds.includes(String(p.sobatid).trim()));
+            const siblingIds = siblingProfiles.map(p => p.id);
+
+            const activeSiblingIds = new Set();
+            userSlsT2Data.forEach(us => {
+              if (siblingIds.includes(us.user_id) && us.user_id !== selectedPetugasData.id) {
+                activeSiblingIds.add(us.user_id);
+              } else if (us.user_id_asal && siblingIds.includes(us.user_id_asal) && us.user_id !== selectedPetugasData.id) {
+                activeSiblingIds.add(us.user_id);
+              }
+            });
+
+            if (activeSiblingIds.size === 0) {
+              siblingIds.forEach(id => {
+                if (id !== selectedPetugasData.id) activeSiblingIds.add(id);
+              });
+            }
+
+            activeSiblingIds.forEach(pid => {
+              const prof = allProfiles.find(x => x.id === pid);
+              if (prof) {
+                targets.push({
+                  id: prof.id,
+                  nama: prof.nama,
+                  sobatid: prof.sobatid || '',
+                  role: 'PPL',
+                  penugasan_id: prof.sobatid || prof.id,
+                  sudah_dinilai: false
+                });
+              }
+            });
+          }
+        }
+
+        if (targets.length === 0) {
+          // Jika PML atau rekan tidak terdaftar, langsung simpan upload
+          await executeUpload();
+          return;
+        }
+
+        pplAvailableTargets = targets;
+        // Default: tidak ada yang dicentang — penilaian bersifat opsional
+        selectedPplTargetIds = new Set();
+        renderPplTargetSelectionList();
+        openModal('pplTargetSelectionModal');
+      } catch (err) {
+        console.error('Fetch PPL targets error:', err);
+        showToast('Gagal memuat tim: ' + err.message, 'error');
+      }
+    }
+
+    function renderPplTargetSelectionList() {
+      const container = document.getElementById('pplTargetSelectListContainer');
+      if (!container) return;
+
+      container.innerHTML = pplAvailableTargets.map(target => {
+        const isChecked = selectedPplTargetIds.has(target.id);
+        const roleBadgeClass = target.role === 'PML' ? 'pml' : 'ppl';
+        const roleLabel = target.role === 'PML' ? 'Pengawas Lapangan (PML)' : 'Rekan PPL Satu Tim';
+        const statusBadge = target.sudah_dinilai
+          ? '<span style="font-size: 0.65rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 0.15rem 0.45rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem;"><svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>Sudah Dinilai</span>'
+          : '<span style="font-size: 0.65rem; font-weight: 600; color: var(--text-subtle); background: var(--bg); padding: 0.15rem 0.45rem; border-radius: 4px;">Belum Dinilai</span>';
+
+        return `
+          <div class="target-select-item ${isChecked ? 'selected' : ''}" onclick="togglePplTargetSelect('${target.id}')">
+            <input type="checkbox" class="target-select-checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); togglePplTargetSelect('${target.id}')">
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.15rem;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${target.nama}
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;">
+                  ${statusBadge}
+                  <span class="badge-role ${roleBadgeClass}" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">${target.role}</span>
+                </div>
+              </div>
+              <div style="font-size: 0.725rem; color: var(--text-subtle);">
+                ${roleLabel} &bull; Sobat ID: ${target.sobatid || '—'}
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      const btn = document.getElementById('btnProceedSelectedEval');
+      if (btn) {
+        btn.textContent = `Lanjutkan Penilaian (${selectedPplTargetIds.size})`;
+      }
+    }
+
+    function togglePplTargetSelect(targetId) {
+      if (selectedPplTargetIds.has(targetId)) {
+        selectedPplTargetIds.delete(targetId);
+      } else {
+        selectedPplTargetIds.add(targetId);
+      }
+      renderPplTargetSelectionList();
+    }
+
+    function selectAllPplTargets(select) {
+      if (select) {
+        selectedPplTargetIds = new Set(pplAvailableTargets.map(t => t.id));
+      } else {
+        selectedPplTargetIds.clear();
+      }
+      renderPplTargetSelectionList();
+    }
+
+    // Handler ketika PPL menolak / melewati penilaian -> langsung upload berkas
+    async function handlePplDeclineEval() {
+      closeModal('pplTargetSelectionModal');
+      await executeUpload();
+    }
+
+    // Handler ketika PPL melanjutkan penilaian untuk target yang dipilih
+    function handlePplProceedWithSelectedTargets() {
+      if (selectedPplTargetIds.size === 0) {
+        showToast('Silakan pilih minimal 1 petugas untuk dinilai, atau klik "Lewati & Langsung Kirim"!', 'info');
+        return;
+      }
+
+      // Jika NIK belum diverifikasi, minta verifikasi NIK terlebih dahulu
+      if (!verifiedNik) {
+        closeModal('pplTargetSelectionModal');
+        document.getElementById('inputNik').value = '';
+        document.getElementById('nikModalTitle').textContent = 'Verifikasi NIK Petugas (PPL)';
+        document.getElementById('nikModalDesc').textContent = 'Untuk memastikan keaslian penilaian kinerja yang Anda berikan, silakan masukkan 16 digit NIK Anda yang terdaftar.';
+        openModal('nikModal');
+        return;
+      }
+
+      proceedToPplEvalModal();
+    }
+
+    function proceedToPplEvalModal() {
+      const targets = pplAvailableTargets.filter(t => selectedPplTargetIds.has(t.id));
+      evalTargets = targets;
+      currentEvalIndex = 0;
+      renderCurrentEvalTarget();
+      openModal('evalModal');
+    }
+
+    // Handler ketika PML melanjutkan ke verifikasi NIK setelah lolos gatekeeper
+    function handleProceedPmlNik() {
+      closeModal('pmlEvalInfoModal');
+      document.getElementById('inputNik').value = '';
+      document.getElementById('nikModalTitle').textContent = 'Verifikasi NIK Pengawas (PML)';
+      document.getElementById('nikModalDesc').textContent = 'Sebagai langkah awal untuk memverifikasi identitas PML sebelum melakukan penilaian kinerja PPL, silakan masukkan 16 digit NIK Anda.';
+      openModal('nikModal');
+    }
+
+    function showGatekeeperModal(missingPpls) {
+      document.getElementById('gatekeeperCountText').textContent = `Daftar PPL yang Belum Upload (${missingPpls.length} Petugas):`;
+      const container = document.getElementById('gatekeeperListContainer');
+      container.innerHTML = missingPpls.map((name, i) => `
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; font-size: 0.825rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; color: var(--text);">
+            <span style="width: 22px; height: 22px; border-radius: 50%; background: #fee2e2; color: #dc2626; font-size: 0.725rem; display: flex; align-items: center; justify-content: center; font-weight: 800; flex-shrink: 0;">${i + 1}</span>
+            ${name}
+          </div>
+          <span style="font-size: 0.7rem; font-weight: 700; color: #dc2626; background: #fee2e2; padding: 0.2rem 0.5rem; border-radius: 4px; flex-shrink: 0;">Belum Upload</span>
+        </div>
+      `).join('');
+      openModal('gatekeeperModal');
+    }
+
+    // Gatekeeper function: Check supervised PPLs under this PML in Termin 2
+    async function checkPmlSupervisedPplsUpload(pmlId) {
+      let rpcPpls = [];
+      try {
+        const { data, error } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: pmlId });
+        if (!error && data) rpcPpls = data;
+      } catch (e) {
+        console.warn('RPC get_rekapitulasi_pml warning:', e);
+      }
+
+      const sobatIds = rpcPpls.map(r => String(r.sobatid_ppl).trim());
+      const basePplProfiles = allProfiles.filter(p => sobatIds.includes(String(p.sobatid).trim()));
+      const basePplIds = basePplProfiles.map(p => p.id);
+
+      const activeT2PplIds = new Set();
+      userSlsT2Data.forEach(us => {
+        if (basePplIds.includes(us.user_id)) {
+          activeT2PplIds.add(us.user_id);
+        } else if (us.user_id_asal && basePplIds.includes(us.user_id_asal)) {
+          activeT2PplIds.add(us.user_id);
+        }
+      });
+
+      if (activeT2PplIds.size === 0) {
+        basePplIds.forEach(id => activeT2PplIds.add(id));
+      }
+
+      const pplIdArray = Array.from(activeT2PplIds);
+      if (pplIdArray.length === 0) return [];
+
+      const { data: uploads, error } = await db.from('bapp_uploads_t2').select('profile_id, screenshot, screenshot_uninstall').in('profile_id', pplIdArray);
+      if (error) throw error;
+
+      const uploadMap = {};
+      (uploads || []).forEach(u => uploadMap[u.profile_id] = u);
+
+      const missingNames = [];
+      pplIdArray.forEach(pid => {
+        const u = uploadMap[pid];
+        if (!u || !u.screenshot || !u.screenshot_uninstall) {
+          const prof = allProfiles.find(x => x.id === pid);
+          missingNames.push(prof ? prof.nama : `Petugas (${pid})`);
+        }
+      });
+
+      return missingNames;
+    }
+
+    // ==========================================
+    // NIK VERIFICATION & EVALUATION WORKFLOW
+    // ==========================================
+    async function handleVerifyNik() {
+      const inputNik = document.getElementById('inputNik').value.trim();
+      if (!inputNik || inputNik.length < 16) {
+        showToast('Masukkan 16 digit NIK yang valid!', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btnVerifyNik');
+      btn.disabled = true;
+      btn.textContent = 'Memverifikasi...';
+
+      try {
+        const { data: isValid, error: vError } = await db.rpc('verify_petugas_nik', {
+          p_profile_id: selectedPetugasData.id,
+          p_input_nik: inputNik
+        });
+
+        if (vError) throw vError;
+
+        if (!isValid) {
+          showToast('NIK tidak sesuai dengan data profil Anda di sistem!', 'error');
+          btn.disabled = false;
+          btn.textContent = 'Verifikasi & Lanjutkan';
+          return;
+        }
+
+        verifiedNik = inputNik;
+        closeModal('nikModal');
+
+        const isPml = (selectedPetugasData.role || '').toLowerCase() === 'pml';
+        if (isPml) {
+          // PML: Langsung siapkan target PPL wajib & buka modal penilaian
+          await preparePmlEvaluationTargets();
+        } else {
+          // PPL: Sinkronisasi nilai sebelumnya dengan NIK yang baru diverifikasi, lalu buka modal evaluasi
+          try {
+            const fRes = await fetch(`${MANEKIN_API_BASE}/api/v1/penilaian/sensus/form`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${MANEKIN_API_KEY}`
+              },
+              body: JSON.stringify({ nik: verifiedNik })
+            });
+            if (fRes.ok) {
+              const json = await fRes.json();
+              if (json && json.success && json.data) {
+                const manekinFormData = json.data;
+                if (manekinFormData.penilai && manekinFormData.penilai.penugasan_id) {
+                  manekinPenilaiPenugasanId = manekinFormData.penilai.penugasan_id;
+                }
+                if (Array.isArray(manekinFormData.daftar_opsional_nilai)) {
+                  manekinFormData.daftar_opsional_nilai.forEach(m => {
+                    if (m.nilai_sebelumnya) {
+                      const prev = m.nilai_sebelumnya;
+                      if (!evalAnswers) evalAnswers = {};
+                      evalAnswers[m.penugasan_id] = {
+                        t1_komunikasi: prev.komunikasi1 ?? prev.komunikasi ?? null,
+                        t1_kondef: prev.kondef1 ?? prev.kondef ?? null,
+                        t1_probing: prev.probing1 ?? prev.probing ?? null,
+                        t1_kualitas: prev.kualitas1 ?? prev.kualitas ?? null,
+                        t2_komunikasi: prev.komunikasi2 ?? null,
+                        t2_kondef: prev.kondef2 ?? null,
+                        t2_probing: prev.probing2 ?? null,
+                        t2_kualitas: prev.kualitas2 ?? null,
+                        overall_kesediaan: prev.overall ?? prev.overall_kesediaan ?? null,
+                        catatan: prev.catatan || ''
+                      };
+                    }
+                  });
+                }
+              }
+            }
+          } catch (syncErr) {
+            console.warn('Sync previous eval warning:', syncErr);
+          }
+
+          proceedToPplEvalModal();
+        }
+      } catch (err) {
+        console.error('NIK verify error:', err);
+        showToast('Gagal verifikasi NIK: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Verifikasi & Lanjutkan';
+      }
+    }
+
+    // State Target Evaluasi PML
+    let pmlWajibTargets = [];
+    let pmlExtraTargets = [];
+    let pmlPeerTargets = [];
+    let selectedPmlPeerIds = new Set();
+    let pmlSearchTimeout = null;
+
+    async function preparePmlEvaluationTargets() {
+      showToast('Memuat daftar PPL dari Manekin...', 'info');
+
+      // 1. Panggil API Manekin /form dengan NIK pengawas untuk memuat daftar wajib nilai & nilai sebelumnya
+      let manekinFormData = null;
+      try {
+        const fRes = await fetch(`${MANEKIN_API_BASE}/api/v1/penilaian/sensus/form`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${MANEKIN_API_KEY}`
+          },
+          body: JSON.stringify({ nik: verifiedNik })
+        });
+        if (fRes.ok) {
+          const json = await fRes.json();
+          if (json && json.success && json.data) {
+            manekinFormData = json.data;
+            if (manekinFormData.penilai && manekinFormData.penilai.penugasan_id) {
+              manekinPenilaiPenugasanId = manekinFormData.penilai.penugasan_id;
+            }
+          }
+        }
+      } catch (fErr) {
+        console.warn('Manekin /form load warning:', fErr);
+      }
+
+      if (!evalAnswers) evalAnswers = {};
+      pmlWajibTargets = [];
+      pmlPeerTargets = [];
+      selectedPmlPeerIds.clear();
+
+      if (manekinFormData && Array.isArray(manekinFormData.daftar_wajib_nilai) && manekinFormData.daftar_wajib_nilai.length > 0) {
+        pmlWajibTargets = manekinFormData.daftar_wajib_nilai.map(m => {
+          const mNama = (m.nama || '').trim().toLowerCase();
+          const prof = allProfiles.find(p => (p.nama || '').trim().toLowerCase() === mNama);
+          const targetId = m.penugasan_id;
+
+          if (m.nilai_sebelumnya) {
+            const prev = m.nilai_sebelumnya;
+            evalAnswers[targetId] = {
+              t1_komunikasi: prev.komunikasi1 ?? prev.komunikasi ?? null,
+              t1_kondef: prev.kondef1 ?? prev.kondef ?? null,
+              t1_probing: prev.probing1 ?? prev.probing ?? null,
+              t1_kualitas: prev.kualitas1 ?? prev.kualitas ?? null,
+              t2_komunikasi: prev.komunikasi2 ?? null,
+              t2_kondef: prev.kondef2 ?? null,
+              t2_probing: prev.probing2 ?? null,
+              t2_kualitas: prev.kualitas2 ?? null,
+              overall_kesediaan: prev.overall ?? prev.overall_kesediaan ?? null,
+              catatan: prev.catatan || ''
+            };
+          }
+
+          return {
+            id: targetId,
+            nama: m.nama,
+            sobatid: prof ? prof.sobatid : (m.penugasan_id || ''),
+            penugasan_id: m.penugasan_id,
+            role: m.role || 'PPL',
+            tipe: 'binaan',
+            is_wajib: true,
+            sudah_dinilai: m.sudah_dinilai === true
+          };
+        });
+
+        // 2. Rekan Sesama PML (Peer Review) jika ada di daftar opsional
+        if (Array.isArray(manekinFormData.daftar_opsional_nilai)) {
+          pmlPeerTargets = manekinFormData.daftar_opsional_nilai
+            .filter(m => m.role === 'PML')
+            .map(m => {
+              const mNama = (m.nama || '').trim().toLowerCase();
+              const prof = allProfiles.find(p => (p.nama || '').trim().toLowerCase() === mNama);
+              const targetId = m.penugasan_id;
+
+              if (m.nilai_sebelumnya) {
+                const prev = m.nilai_sebelumnya;
+                evalAnswers[targetId] = {
+                  t1_komunikasi: prev.komunikasi1 ?? prev.komunikasi ?? null,
+                  t1_kondef: prev.kondef1 ?? prev.kondef ?? null,
+                  t1_probing: prev.probing1 ?? prev.probing ?? null,
+                  t1_kualitas: prev.kualitas1 ?? prev.kualitas ?? null,
+                  t2_komunikasi: prev.komunikasi2 ?? null,
+                  t2_kondef: prev.kondef2 ?? null,
+                  t2_probing: prev.probing2 ?? null,
+                  t2_kualitas: prev.kualitas2 ?? null,
+                  overall_kesediaan: prev.overall ?? prev.overall_kesediaan ?? null,
+                  catatan: prev.catatan || ''
+                };
+                selectedPmlPeerIds.add(targetId);
+              }
+
+              return {
+                id: targetId,
+                nama: m.nama,
+                sobatid: prof ? prof.sobatid : (m.penugasan_id || ''),
+                penugasan_id: m.penugasan_id,
+                role: 'PML',
+                tipe: 'rekan_pml',
+                sudah_dinilai: m.sudah_dinilai === true
+              };
+            });
+        }
+      } else {
+        // Fallback jika API Manekin belum mendaftarkan PML ini
+        let rpcPpls = [];
+        try {
+          const { data, error } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: selectedPetugasData.id });
+          if (!error && data) rpcPpls = data;
+        } catch (e) {
+          console.warn('RPC get_rekapitulasi_pml warning:', e);
+        }
+
+        const sobatIds = rpcPpls.map(r => String(r.sobatid_ppl).trim());
+        const basePplProfiles = allProfiles.filter(p => sobatIds.includes(String(p.sobatid).trim()));
+        const basePplIds = basePplProfiles.map(p => p.id);
+
+        const activeT2PplIds = new Set();
+        userSlsT2Data.forEach(us => {
+          if (basePplIds.includes(us.user_id)) {
+            activeT2PplIds.add(us.user_id);
+          } else if (us.user_id_asal && basePplIds.includes(us.user_id_asal)) {
+            activeT2PplIds.add(us.user_id);
+          }
+        });
+
+        if (activeT2PplIds.size === 0) {
+          basePplIds.forEach(id => activeT2PplIds.add(id));
+        }
+
+        pmlWajibTargets = Array.from(activeT2PplIds).map(pid => {
+          const prof = allProfiles.find(x => x.id === pid);
+          return {
+            id: pid,
+            nama: prof ? prof.nama : 'PPL',
+            sobatid: prof ? prof.sobatid : '',
+            penugasan_id: prof ? (prof.sobatid || prof.id) : pid,
+            role: 'PPL',
+            tipe: 'binaan',
+            is_wajib: true,
+            sudah_dinilai: false
+          };
+        });
+      }
+
+      renderPmlTargetSelection();
+      openModal('pmlTargetSelectionModal');
+    }
+
+    function renderPmlTargetSelection() {
+      // 1. Render PPL Binaan Wajib
+      const wajibContainer = document.getElementById('pmlWajibListContainer');
+      const wajibCountBadge = document.getElementById('pmlWajibCountBadge');
+      if (wajibCountBadge) wajibCountBadge.textContent = `${pmlWajibTargets.length} Petugas`;
+
+      if (wajibContainer) {
+        wajibContainer.innerHTML = pmlWajibTargets.map(target => {
+          const statusBadge = target.sudah_dinilai
+            ? '<span style="font-size: 0.65rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 0.15rem 0.45rem; border-radius: 4px; display: inline-flex; align-items: center; gap: 0.2rem;"><svg width="10" height="10" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" /></svg>Sudah Dinilai</span>'
+            : '<span style="font-size: 0.65rem; font-weight: 600; color: var(--text-subtle); background: var(--bg); padding: 0.15rem 0.45rem; border-radius: 4px;">Belum Dinilai</span>';
+
+          return `
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.75rem; background: var(--bg-card); border: 1px solid var(--border); border-radius: 6px; font-size: 0.825rem;">
+              <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 700; font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                  ${target.nama}
+                </div>
+                <div style="font-size: 0.725rem; color: var(--text-subtle);">
+                  PPL Binaan &bull; Sobat ID: ${target.sobatid || '—'}
+                </div>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;">
+                ${statusBadge}
+                <span class="badge-role ppl" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">Wajib</span>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // 2. Render Extra Added PPLs (Cross-Review)
+      const extraContainer = document.getElementById('pmlExtraListContainer');
+      if (extraContainer) {
+        if (pmlExtraTargets.length === 0) {
+          extraContainer.innerHTML = '<div style="font-size: 0.75rem; color: var(--text-subtle); font-style: italic; padding: 0.3rem 0;">Belum ada PPL luar binaan yang ditambahkan. Gunakan kolom pencarian di atas jika ingin menilai PPL lain.</div>';
+        } else {
+          extraContainer.innerHTML = pmlExtraTargets.map((target, idx) => {
+            const statusBadge = target.sudah_dinilai
+              ? '<span style="font-size: 0.65rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 0.15rem 0.45rem; border-radius: 4px;">Sudah Dinilai</span>'
+              : '<span style="font-size: 0.65rem; font-weight: 600; color: var(--text-subtle); background: var(--bg); padding: 0.15rem 0.45rem; border-radius: 4px;">Belum Dinilai</span>';
+
+            return `
+              <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.55rem 0.75rem; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; font-size: 0.825rem;">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="font-weight: 700; font-size: 0.85rem; color: #6b21a8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                    ${target.nama}
+                  </div>
+                  <div style="font-size: 0.725rem; color: #7e22ce;">
+                    Cross-Review &bull; Wilayah: ${target.wilayah_tugas || '—'}
+                  </div>
+                </div>
+                <div style="display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0;">
+                  ${statusBadge}
+                  <button type="button" class="btn btn-secondary btn-sm" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; color: #dc2626; border-color: #fca5a5;" onclick="removePmlExtraTarget('${target.id}')" title="Hapus dari penilaian">&times;</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+
+      // 3. Render Peer PMLs jika ada
+      const peerSection = document.getElementById('pmlPeerSection');
+      const peerContainer = document.getElementById('pmlPeerListContainer');
+      if (peerSection && peerContainer) {
+        if (pmlPeerTargets.length > 0) {
+          peerSection.style.display = 'block';
+          peerContainer.innerHTML = pmlPeerTargets.map(target => {
+            const isChecked = selectedPmlPeerIds.has(target.id);
+            const statusBadge = target.sudah_dinilai
+              ? '<span style="font-size: 0.65rem; font-weight: 700; color: #15803d; background: #dcfce7; padding: 0.15rem 0.45rem; border-radius: 4px;">Sudah Dinilai</span>'
+              : '<span style="font-size: 0.65rem; font-weight: 600; color: var(--text-subtle); background: var(--bg); padding: 0.15rem 0.45rem; border-radius: 4px;">Belum Dinilai</span>';
+
+            return `
+              <div class="target-select-item ${isChecked ? 'selected' : ''}" onclick="togglePmlPeerSelect('${target.id}')">
+                <input type="checkbox" class="target-select-checkbox" ${isChecked ? 'checked' : ''} onclick="event.stopPropagation(); togglePmlPeerSelect('${target.id}')">
+                <div style="flex: 1; min-width: 0;">
+                  <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; margin-bottom: 0.15rem;">
+                    <div style="font-weight: 700; font-size: 0.85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+                      ${target.nama}
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.35rem; flex-shrink: 0;">
+                      ${statusBadge}
+                      <span class="badge-role pml" style="font-size: 0.65rem; padding: 0.15rem 0.4rem;">PML</span>
+                    </div>
+                  </div>
+                  <div style="font-size: 0.725rem; color: var(--text-subtle);">
+                    Rekan Sesama PML &bull; Sobat ID: ${target.sobatid || '—'}
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          peerSection.style.display = 'none';
+        }
+      }
+
+      // Update total count
+      const totalCount = pmlWajibTargets.length + pmlExtraTargets.length + selectedPmlPeerIds.size;
+      const totalText = document.getElementById('pmlTotalTargetsCountText');
+      if (totalText) totalText.textContent = `Total: ${totalCount} Petugas untuk Dinilai`;
+
+      const proceedBtn = document.getElementById('btnProceedPmlEval');
+      if (proceedBtn) proceedBtn.textContent = `Lanjutkan Penilaian (${totalCount})`;
+    }
+
+    function togglePmlPeerSelect(targetId) {
+      if (selectedPmlPeerIds.has(targetId)) {
+        selectedPmlPeerIds.delete(targetId);
+      } else {
+        selectedPmlPeerIds.add(targetId);
+      }
+      renderPmlTargetSelection();
+    }
+
+    function handlePmlLiveSearch(query) {
+      const q = (query || '').trim().toLowerCase();
+      const dropdown = document.getElementById('pmlSearchResultsDropdown');
+      if (!dropdown) return;
+
+      if (!q || q.length < 2) {
+        dropdown.innerHTML = '';
+        dropdown.style.display = 'none';
+        return;
+      }
+
+      clearTimeout(pmlSearchTimeout);
+      pmlSearchTimeout = setTimeout(async () => {
+        try {
+          const penilaiId = manekinPenilaiPenugasanId || (selectedPetugasData ? selectedPetugasData.sobatid : '');
+          const sRes = await fetch(`${MANEKIN_API_BASE}/api/v1/penilaian/sensus/search-ppl?kegiatan_id=9101&penilai_id=${penilaiId}&q=${encodeURIComponent(q)}&limit=10`, {
+            headers: { 'Authorization': `Bearer ${MANEKIN_API_KEY}` }
+          });
+
+          let items = [];
+          if (sRes.ok) {
+            const sData = await sRes.json();
+            items = (sData && sData.data && Array.isArray(sData.data.items)) ? sData.data.items : [];
+          }
+
+          // Filter agar tidak ada PPL binaan wajib atau yang sudah ditambahkan
+          const wajibIds = new Set(pmlWajibTargets.map(t => String(t.penugasan_id || t.id).trim().toLowerCase()));
+          const wajibNames = new Set(pmlWajibTargets.map(t => (t.nama || '').trim().toLowerCase()));
+          const extraIds = new Set(pmlExtraTargets.map(t => String(t.penugasan_id || t.id).trim().toLowerCase()));
+
+          const filteredItems = items.filter(it => {
+            const itId = String(it.penugasan_id || '').trim().toLowerCase();
+            const itName = (it.nama || '').trim().toLowerCase();
+            return !wajibIds.has(itId) && !wajibNames.has(itName) && !extraIds.has(itId);
+          });
+
+          if (filteredItems.length === 0) {
+            dropdown.innerHTML = '<div style="padding:0.75rem 1rem; color:var(--text-subtle); font-size:0.825rem;">Tidak ada PPL luar binaan yang cocok</div>';
+            dropdown.style.display = 'block';
+            return;
+          }
+
+          dropdown.innerHTML = filteredItems.map(it => {
+            const safeNama = (it.nama || '').replace(/'/g, "\\'");
+            const safeWil = (it.wilayah_tugas || 'Lebak').replace(/'/g, "\\'");
+            const safeItemJson = encodeURIComponent(JSON.stringify(it));
+            return `
+              <div onclick="addPmlExtraTarget('${safeItemJson}')">
+                <div style="font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+                  <span>${it.nama}</span>
+                  <span class="badge-role ppl" style="font-size:0.65rem;">PPL</span>
+                </div>
+                <div class="suggestion-item-kec">Wilayah: ${it.wilayah_tugas || 'Lebak'} ${it.sudah_dinilai ? '&bull; <span style="color:#15803d; font-weight:700;">Sudah Dinilai</span>' : ''}</div>
+              </div>
+            `;
+          }).join('');
+          dropdown.style.display = 'block';
+        } catch (err) {
+          console.error('Search PPL error:', err);
+          dropdown.innerHTML = `<div style="padding:0.75rem 1rem; color:var(--error); font-size:0.825rem;">Gagal mencari: ${err.message}</div>`;
+          dropdown.style.display = 'block';
+        }
+      }, 200);
+    }
+
+    function addPmlExtraTarget(encodedItem) {
+      try {
+        const item = JSON.parse(decodeURIComponent(encodedItem));
+        const targetId = item.penugasan_id || item.id;
+
+        // Cek duplikasi dengan target wajib dan ekstra
+        const targetName = (item.nama || '').trim().toLowerCase();
+        const isAlreadyWajib = pmlWajibTargets.some(t => 
+          t.id === targetId || 
+          t.penugasan_id === targetId || 
+          (t.nama || '').trim().toLowerCase() === targetName
+        );
+        const isAlreadyExtra = pmlExtraTargets.some(t => 
+          t.id === targetId || 
+          t.penugasan_id === targetId || 
+          (t.nama || '').trim().toLowerCase() === targetName
+        );
+
+        if (isAlreadyWajib) {
+          showToast(`${item.nama} adalah PPL binaan wajib Anda (sudah ada di daftar wajib)!`, 'info');
+          return;
+        }
+        if (isAlreadyExtra) {
+          showToast(`${item.nama} sudah ada di daftar penilaian silang!`, 'info');
+          return;
+        }
+
+        // Preload nilai sebelumnya jika ada
+        if (item.nilai_sebelumnya) {
+          const prev = item.nilai_sebelumnya;
+          evalAnswers[targetId] = {
+            t1_komunikasi: prev.komunikasi1 ?? prev.komunikasi ?? null,
+            t1_kondef: prev.kondef1 ?? prev.kondef ?? null,
+            t1_probing: prev.probing1 ?? prev.probing ?? null,
+            t1_kualitas: prev.kualitas1 ?? prev.kualitas ?? null,
+            t2_komunikasi: prev.komunikasi2 ?? null,
+            t2_kondef: prev.kondef2 ?? null,
+            t2_probing: prev.probing2 ?? null,
+            t2_kualitas: prev.kualitas2 ?? null,
+            overall_kesediaan: prev.overall ?? prev.overall_kesediaan ?? null,
+            catatan: prev.catatan || ''
+          };
+        }
+
+        const prof = allProfiles.find(p => (p.nama || '').trim().toLowerCase() === (item.nama || '').trim().toLowerCase());
+        pmlExtraTargets.push({
+          id: targetId,
+          nama: item.nama,
+          sobatid: prof ? prof.sobatid : (item.petugas_id || item.penugasan_id || ''),
+          penugasan_id: item.penugasan_id,
+          role: 'PPL',
+          wilayah_tugas: item.wilayah_tugas || 'Lebak',
+          tipe: 'cross_review',
+          is_cross_review: true,
+          sudah_dinilai: item.sudah_dinilai === true
+        });
+
+        // Clear input & dropdown
+        const input = document.getElementById('pmlSearchPplInput');
+        if (input) input.value = '';
+        const dropdown = document.getElementById('pmlSearchResultsDropdown');
+        if (dropdown) dropdown.style.display = 'none';
+
+        showToast(`${item.nama} ditambahkan ke daftar penilaian silang!`, 'success');
+        renderPmlTargetSelection();
+      } catch (e) {
+        console.error('Error adding extra PPL:', e);
+      }
+    }
+
+    function removePmlExtraTarget(targetId) {
+      pmlExtraTargets = pmlExtraTargets.filter(t => t.id !== targetId);
+      renderPmlTargetSelection();
+    }
+
+    function handlePmlProceedWithTargets() {
+      const selectedPeers = pmlPeerTargets.filter(p => selectedPmlPeerIds.has(p.id));
+      const allTargets = [...pmlWajibTargets, ...pmlExtraTargets, ...selectedPeers];
+
+      if (allTargets.length === 0) {
+        showToast('Daftar target penilaian tidak boleh kosong!', 'error');
+        return;
+      }
+
+      closeModal('pmlTargetSelectionModal');
+      evalTargets = allTargets;
+      currentEvalIndex = 0;
+      renderCurrentEvalTarget();
+      openModal('evalModal');
+    }
+
+    function renderCurrentEvalTarget() {
+      const target = evalTargets[currentEvalIndex];
+      if (!target) return;
+
+      const isEvaluatorPpl = (selectedPetugasData.role || '').toLowerCase() === 'ppl';
+      let targetRoleLabel = '';
+      if (target.is_cross_review || target.tipe === 'cross_review') {
+        targetRoleLabel = `PPL Luar Binaan / Cross-Review (${currentEvalIndex + 1} dari ${evalTargets.length})`;
+      } else if (target.role === 'PML') {
+        targetRoleLabel = isEvaluatorPpl ? 'Pengawas Lapangan (PML)' : `Rekan PML / Peer Review (${currentEvalIndex + 1} dari ${evalTargets.length})`;
+      } else if (isEvaluatorPpl) {
+        targetRoleLabel = `Rekan PPL (${currentEvalIndex + 1} dari ${evalTargets.length})`;
+      } else {
+        targetRoleLabel = `PPL Binaan (${currentEvalIndex + 1} dari ${evalTargets.length})`;
+      }
+
+      document.getElementById('evalModalTitle').textContent = `Evaluasi: ${target.nama}`;
+      document.getElementById('evalTargetMeta').textContent = targetRoleLabel;
+      document.getElementById('evalProgressText').textContent = `${currentEvalIndex + 1} / ${evalTargets.length}`;
+
+      document.getElementById('evalPrevBtn').style.display = currentEvalIndex > 0 ? 'inline-block' : 'none';
+      document.getElementById('evalNextBtn').textContent = currentEvalIndex === evalTargets.length - 1 ? 'Selesai & Kirim Berkas' : 'Selanjutnya';
+
+      const targetAns = evalAnswers[target.id] || {};
+
+      const body = document.getElementById('evalModalBody');
+      body.innerHTML = `
+        <div style="background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.65rem 0.85rem; margin-bottom:0.85rem; display:flex; justify-content:space-between; align-items:center;">
+          <div style="min-width:0;">
+            <div style="font-weight:700; font-size:0.85rem; color:var(--text); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${target.nama}</div>
+            <div style="font-size:0.725rem; color:var(--text-subtle);">Sobat ID: ${target.sobatid || '—'}</div>
+          </div>
+          <span class="badge-role ${target.role.toLowerCase()}" style="flex-shrink:0;">${target.role}</span>
+        </div>
+
+        <div class="eval-section-title">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+          A. Kinerja Termin 1 (Skala 1–4)
+        </div>
+        ${renderRatingItem(target.id, 't1_komunikasi', '1. Komunikasi & Koordinasi', 'Kemampuan komunikasi dan koordinasi dalam struktur organisasi lapangan (antara PPL, PML, dan PIC).', 4, targetAns.t1_komunikasi)}
+        ${renderRatingItem(target.id, 't1_kondef', '2. Penguasaan Konsep & Definisi', 'Tingkat pemahaman terhadap konsep, definisi operasional, klasifikasi, dan instrumen kuesioner.', 4, targetAns.t1_kondef)}
+        ${renderRatingItem(target.id, 't1_probing', '3. Kemampuan Probing & Wawancara', 'Keahlian menggali informasi mendalam, verifikasi silang data responden, dan ketelitian.', 4, targetAns.t1_probing)}
+        ${renderRatingItem(target.id, 't1_kualitas', '4. Kualitas & Kerapian Isian', 'Kualitas, kelengkapan, dan kebenaran isian data yang dikumpulkan di lapangan.', 4, targetAns.t1_kualitas)}
+
+        <div class="eval-section-title">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+          B. Kinerja Termin 2 (Skala 1–4)
+        </div>
+        ${renderRatingItem(target.id, 't2_komunikasi', '1. Komunikasi & Koordinasi', 'Kemampuan komunikasi dan koordinasi dalam struktur organisasi lapangan (antara PPL, PML, dan PIC).', 4, targetAns.t2_komunikasi)}
+        ${renderRatingItem(target.id, 't2_kondef', '2. Penguasaan Konsep & Definisi', 'Tingkat pemahaman terhadap konsep, definisi operasional, klasifikasi, dan instrumen kuesioner.', 4, targetAns.t2_kondef)}
+        ${renderRatingItem(target.id, 't2_probing', '3. Kemampuan Probing & Wawancara', 'Keahlian menggali informasi mendalam, verifikasi silang data responden, dan ketelitian.', 4, targetAns.t2_probing)}
+        ${renderRatingItem(target.id, 't2_kualitas', '4. Kualitas & Kerapian Isian', 'Kualitas, kelengkapan, dan kebenaran isian data yang dikumpulkan di lapangan.', 4, targetAns.t2_kualitas)}
+
+        <div class="eval-section-title">
+          <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+          C. Evaluasi Keseluruhan (Overall)
+        </div>
+        ${renderRatingItem(target.id, 'overall_kesediaan', `Kesediaan Bekerja Sama dengan ${target.nama}`, `Jika Anda diberi kesempatan di kegiatan berikutnya, seberapa bersedia Anda bekerja sama kembali dengan ${target.nama}?`, 6, targetAns.overall_kesediaan)}
+
+        <div class="form-group" style="margin-top:0.65rem; margin-bottom: 0.25rem;">
+          <label class="form-label" for="evalCatatan" style="font-size:0.775rem;">Catatan / Masukan Tambahan <span style="font-weight:400; color:var(--text-subtle);">(Opsional)</span></label>
+          <textarea id="evalCatatan" class="form-input" rows="2" style="font-size:0.8rem; padding:0.5rem;" placeholder="Catatan evaluasi kinerja petugas..." oninput="updateEvalCatatan('${target.id}', this.value)">${targetAns.catatan || ''}</textarea>
+        </div>
+      `;
+    }
+
+    function renderRatingItem(targetId, key, title, desc, scale, currentVal) {
+      // Label & warna per nilai
+      const scaleLabels = scale === 6
+        ? ['Sangat Tidak Bersedia', 'Tidak Bersedia', 'Kurang Bersedia', 'Cukup Bersedia', 'Bersedia', 'Sangat Bersedia']
+        : ['Buruk', 'Cukup', 'Baik', 'Sangat Baik'];
+      // Warna badge sesuai nilai (merah→hijau→biru untuk skala 6)
+      const badgeColors = scale === 6
+        ? ['#dc2626','#ea580c','#ca8a04','#16a34a','#059669','#0284c7']
+        : ['#dc2626','#ea580c','#ca8a04','#16a34a'];
+
+      let pills = '';
+      for (let i = 1; i <= scale; i++) {
+        const isActive = currentVal === i;
+        pills += `
+          <button type="button" class="pill-btn ${isActive ? `active val-${i}` : ''}" data-val="${i}" onclick="setRating('${targetId}', '${key}', ${i})" title="${i} – ${scaleLabels[i-1]}">
+            ${i}
+          </button>
+        `;
+      }
+
+      const activeLabel = currentVal ? `${currentVal} – ${scaleLabels[currentVal - 1] || currentVal}` : 'Belum Dipilih';
+      const activeBadgeStyle = currentVal
+        ? `background:${badgeColors[currentVal-1]}; color:#fff; border-color:${badgeColors[currentVal-1]};`
+        : '';
+      const badgeClass = currentVal ? 'selected' : 'empty';
+
+      return `
+        <div class="rating-group">
+          <div class="rating-header">
+            <div class="rating-label-title">${title}</div>
+            <span class="rating-score-badge ${badgeClass}" style="${activeBadgeStyle}">${activeLabel}</span>
+          </div>
+          <div class="rating-desc">${desc}</div>
+          <div class="pill-grid ${scale === 6 ? 'scale-6' : ''}">
+            ${pills}
+          </div>
+        </div>
+      `;
+    }
+
+    function setRating(targetId, key, val) {
+      if (!evalAnswers[targetId]) evalAnswers[targetId] = {};
+      evalAnswers[targetId][key] = val;
+      renderCurrentEvalTarget();
+    }
+
+    function updateEvalCatatan(targetId, text) {
+      if (!evalAnswers[targetId]) evalAnswers[targetId] = {};
+      evalAnswers[targetId].catatan = text;
+    }
+
+    async function navigateEval(step) {
+      if (step > 0) {
+        // Validasi kelengkapan isian untuk target saat ini
+        const target = evalTargets[currentEvalIndex];
+        const ans = evalAnswers[target.id] || {};
+        const requiredKeys = [
+          't1_komunikasi', 't1_kondef', 't1_probing', 't1_kualitas',
+          't2_komunikasi', 't2_kondef', 't2_probing', 't2_kualitas',
+          'overall_kesediaan'
+        ];
+        const missing = requiredKeys.filter(k => !ans[k]);
+        if (missing.length > 0) {
+          showToast(`Mohon lengkapi seluruh penilaian untuk ${target.nama}!`, 'error');
+          return;
+        }
+      }
+
+      currentEvalIndex += step;
+      if (currentEvalIndex >= evalTargets.length) {
+        // Selesai seluruh penilaian -> kirim ke API Manekin dan simpan upload
+        closeModal('evalModal');
+        await submitManekinAndUpload();
+      } else {
+        renderCurrentEvalTarget();
+      }
+    }
+
+    async function submitManekinAndUpload() {
+      showToast('Menyimpan penilaian kinerja ke Manekin...', 'info');
+
+      try {
+        const penilaiId = manekinPenilaiPenugasanId || (selectedPetugasData ? selectedPetugasData.sobatid : '');
+
+        // Format items sesuai standar API Batch Submit Manekin
+        const items = evalTargets.map(target => {
+          const ans = evalAnswers[target.id] || {};
+          return {
+            dinilaiPenugasanId: target.penugasan_id || target.id,
+            komunikasi1: Number(ans.t1_komunikasi),
+            kondef1: Number(ans.t1_kondef),
+            probing1: Number(ans.t1_probing),
+            kualitas1: Number(ans.t1_kualitas),
+            komunikasi2: Number(ans.t2_komunikasi),
+            kondef2: Number(ans.t2_kondef),
+            probing2: Number(ans.t2_probing),
+            kualitas2: Number(ans.t2_kualitas),
+            overall: Number(ans.overall_kesediaan),
+            catatan: ans.catatan || ''
+          };
+        });
+
+        // 1. Batch Submit ke Backend Manekin dengan Validasi Ketat
+        if (items.length > 0) {
+          const submitRes = await fetch(`${MANEKIN_API_BASE}/api/v1/penilaian/sensus/batch-submit`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${MANEKIN_API_KEY}`
+            },
+            body: JSON.stringify({
+              penilaiPenugasanId: penilaiId,
+              nik_penilai: verifiedNik,
+              items: items
+            })
+          });
+
+          const resData = await submitRes.json().catch(() => null);
+
+          if (!submitRes.ok || (resData && resData.success === false)) {
+            const errMsg = (resData && (resData.message || resData.error)) || `HTTP ${submitRes.status}: Gagal menyimpan penilaian`;
+            throw new Error(errMsg);
+          }
+        }
+
+        // 2. Simpan upload berkas Termin 2 ke Supabase (hanya jika Manekin API sukses)
+        await executeUpload();
+      } catch (err) {
+        console.error('Submit evaluation error:', err);
+        showToast('Gagal mengirim penilaian: ' + err.message, 'error');
+        // Buka kembali modal evaluasi agar petugas dapat memeriksa isian dan mencoba submit kembali
+        openModal('evalModal');
+      }
+    }
+
+    // ==========================================
+    // EXECUTE UPLOAD TO SUPABASE
+    // ==========================================
+    async function executeUpload() {
+      const submitBtn = document.getElementById('submitBtn');
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Menyimpan berkas Termin II...';
+
+      const profileId = selectedPetugasData.id;
+      const kodeKec = document.getElementById('kecamatan').value;
+
+      try {
+        const updatePayload = {
+          profile_id: profileId,
+          kode_kec: kodeKec,
+          crop_top: 0,
+          crop_bottom: 0,
+          crop_top_uninstall: 0,
+          crop_bottom_uninstall: 0,
+          created_at: new Date().toISOString()
+        };
+
+        if (slot1Base64) updatePayload.screenshot = slot1Base64;
+        else if (existingUploadData && existingUploadData.screenshot) updatePayload.screenshot = existingUploadData.screenshot;
+
+        if (slot2Base64) updatePayload.screenshot_uninstall = slot2Base64;
+        else if (existingUploadData && existingUploadData.screenshot_uninstall) updatePayload.screenshot_uninstall = existingUploadData.screenshot_uninstall;
+
+        const { error } = await db.from('bapp_uploads_t2').upsert(updatePayload, { onConflict: 'profile_id' });
+        if (error) throw error;
+
+        showToast('Berkas Termin II berhasil dikirim!', 'success');
+        document.getElementById('formState').style.display = 'none';
+        document.getElementById('successState').style.display = 'block';
+      } catch (err) {
+        console.error('Upload error:', err);
+        showToast('Gagal menyimpan berkas: ' + err.message, 'error');
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Kirim Berkas';
+      }
+    }
+
+    function resetForm() {
+      selectedPetugasData = null;
+      existingUploadData = null;
+      slot1Base64 = null;
+      slot2Base64 = null;
+      evalAnswers = {};
+      currentEvalIndex = 0;
+      document.getElementById('petugasInput').value = '';
+      document.getElementById('petugas').value = '';
+      document.getElementById('kecamatan').value = '';
+      const btnClear = document.getElementById('btnClearPetugas');
+      if (btnClear) btnClear.style.display = 'none';
+      document.getElementById('petugasInfoCard').style.display = 'none';
+      resetSlotBadges();
+      document.getElementById('successState').style.display = 'none';
+      document.getElementById('formState').style.display = 'block';
+    }
+
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.add('active');
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.remove('active');
+    }
+
+    function showToast(msg, type = 'info') {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toastMsg');
+      toastMsg.textContent = msg;
+      toast.className = `toast show ${type}`;
+      setTimeout(() => {
+        toast.className = 'toast';
+      }, 4000);
+    }
+  </script>
+</body>
+
+</html>

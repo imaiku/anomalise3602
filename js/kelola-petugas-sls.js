@@ -16,6 +16,8 @@ let kelolaPageSize = 25;
 let activeEditKodeSubSls = null;
 let parsedImportRows = [];
 
+let activeKelolaTermin = 2; // Default to Termin 2 since Termin 1 is locked
+
 document.addEventListener('DOMContentLoaded', async () => {
   try {
     await initKelolaPetugasPage();
@@ -23,6 +25,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.error('Error initializing Kelola Petugas page:', err);
   }
 });
+
+function switchKelolaTermin(termin) {
+  activeKelolaTermin = termin;
+  const btn1 = document.getElementById('btnKelolaTermin1');
+  const btn2 = document.getElementById('btnKelolaTermin2');
+  const notice = document.getElementById('kelolaTerminBadgeNotice');
+  const btnImport = document.getElementById('btnKelolaImport');
+
+  if (termin === 1) {
+    if (btn1) { btn1.className = 'btn btn-sm btn-primary'; btn1.style.background = '#0284c7'; btn1.style.borderColor = '#0284c7'; }
+    if (btn2) { btn2.className = 'btn btn-sm btn-secondary'; btn2.style.background = ''; btn2.style.borderColor = ''; }
+    if (notice) {
+      notice.style.background = 'rgba(2, 132, 199, 0.1)';
+      notice.style.color = '#0284c7';
+      notice.style.borderColor = 'rgba(2, 132, 199, 0.25)';
+      notice.innerHTML = '🔒 Mode Lihat: Penugasan Termin 1 bersifat HISTORIS & TERKUNCI (Tidak dapat diubah).';
+    }
+    if (btnImport) btnImport.style.display = 'none';
+  } else {
+    if (btn1) { btn1.className = 'btn btn-sm btn-secondary'; btn1.style.background = ''; btn1.style.borderColor = ''; }
+    if (btn2) { btn2.className = 'btn btn-sm btn-primary'; btn2.style.background = '#7c3aed'; btn2.style.borderColor = '#7c3aed'; }
+    if (notice) {
+      notice.style.background = 'rgba(124, 58, 237, 0.1)';
+      notice.style.color = '#7c3aed';
+      notice.style.borderColor = 'rgba(124, 58, 237, 0.25)';
+      notice.innerHTML = '✏️ Mode Aktif: Mengelola Penugasan Termin 2 (PML tetap, hanya PPL yang dapat diganti).';
+    }
+    if (btnImport) btnImport.style.display = 'inline-flex';
+  }
+
+  loadKelolaData();
+}
 
 async function initKelolaPetugasPage() {
   // Load Master Kecamatan & Desa
@@ -72,111 +106,154 @@ async function loadKelolaData() {
   try {
     allKelolaRows = [];
     const BATCH_SIZE = 1000;
-    let offset = 0;
-    let hasMore = true;
+    const targetTable = activeKelolaTermin === 2 ? 'user_sls_termin2' : 'user_sls';
 
-    // 1. Chunked fetch via RPC get_all_subsls_petugas_list (2500 rows per batch)
-    while (hasMore) {
-      const { data: chunk, error: rpcErr } = await db
-        .rpc('get_all_subsls_petugas_list')
-        .range(offset, offset + BATCH_SIZE - 1);
+    // 1. Ambil master wilayah
+    let masterOffset = 0;
+    let hasMoreMaster = true;
+    let rawMasterData = [];
 
-      if (rpcErr) {
-        console.warn('RPC Range error, falling back to manual fetch:', rpcErr);
-        break;
-      }
+    while (hasMoreMaster) {
+      const { data: mChunk } = await db
+        .from('master_wilayah')
+        .select('*')
+        .range(masterOffset, masterOffset + BATCH_SIZE - 1);
 
-      if (chunk && chunk.length > 0) {
-        allKelolaRows = allKelolaRows.concat(chunk);
-        if (chunk.length < BATCH_SIZE) {
-          hasMore = false;
-        } else {
-          offset += BATCH_SIZE;
-        }
+      if (mChunk && mChunk.length > 0) {
+        rawMasterData = rawMasterData.concat(mChunk);
+        if (mChunk.length < BATCH_SIZE) hasMoreMaster = false;
+        else masterOffset += BATCH_SIZE;
       } else {
-        hasMore = false;
+        hasMoreMaster = false;
       }
     }
 
-    // Fallback if RPC failed or returned 0 rows
-    if (allKelolaRows.length === 0) {
-      let masterOffset = 0;
-      let hasMoreMaster = true;
-      let rawMasterData = [];
+    if (rawMasterData.length > 0) {
+      allKelolaRows = rawMasterData.map(m => {
+        const full = m.kode_sls_gabungan || '';
+        return {
+          kode_sls_gabungan: full,
+          kdprov: full.substring(0, 2) || '36',
+          kdkab: full.substring(2, 4) || '02',
+          kdkec: full.substring(4, 7) || (m.kdkec || ''),
+          kddesa: full.substring(7, 10) || (m.kddesa || ''),
+          kdsls: full.substring(10, 14) || (m.kdsls || ''),
+          kdsubsls: full.substring(14, 16) || (m.kdsubsls || '00'),
+          nmkec: m.nmkec || '',
+          nmdesaAllocation: m.nmdesa || '',
+          nmsls: m.nmsls || '',
+          nmsubsls: m.nmsubsls || '',
+          emailppl: '',
+          namappl: '',
+          emailpml: '',
+          namapml: ''
+        };
+      });
 
-      while (hasMoreMaster) {
-        const { data: mChunk } = await db
-          .from('master_wilayah')
-          .select('*')
-          .range(masterOffset, masterOffset + BATCH_SIZE - 1);
-
-        if (mChunk && mChunk.length > 0) {
-          rawMasterData = rawMasterData.concat(mChunk);
-          if (mChunk.length < BATCH_SIZE) hasMoreMaster = false;
-          else masterOffset += BATCH_SIZE;
+      // 2. Fetch seluruh profiles untuk lookup terpisah (menghindari error relasi PostgREST pada user_sls_termin2)
+      const profileMapById = new Map();
+      let pOffset = 0;
+      let hasMoreP = true;
+      while (hasMoreP) {
+        const { data: pChunk, error: pErr } = await db
+          .from('profiles')
+          .select('id, nama, email_ref, sobatid, role')
+          .range(pOffset, pOffset + BATCH_SIZE - 1);
+        if (pErr) {
+          console.error('Error fetching profiles:', pErr);
+          break;
+        }
+        if (pChunk && pChunk.length > 0) {
+          pChunk.forEach(p => profileMapById.set(p.id, p));
+          if (pChunk.length < BATCH_SIZE) hasMoreP = false;
+          else pOffset += BATCH_SIZE;
         } else {
-          hasMoreMaster = false;
+          hasMoreP = false;
         }
       }
 
-      if (rawMasterData.length > 0) {
-        allKelolaRows = rawMasterData.map(m => {
-          const full = m.kode_sls_gabungan || '';
-          return {
-            kode_sls_gabungan: full,
-            kdprov: full.substring(0, 2) || '36',
-            kdkab: full.substring(2, 4) || '02',
-            kdkec: full.substring(4, 7) || (m.kdkec || ''),
-            kddesa: full.substring(7, 10) || (m.kddesa || ''),
-            kdsls: full.substring(10, 14) || (m.kdsls || ''),
-            kdsubsls: full.substring(14, 16) || (m.kdsubsls || '00'),
-            nmkec: m.nmkec || '',
-            nmdesaAllocation: m.nmdesa || '',
-            nmsls: m.nmsls || '',
-            nmsubsls: m.nmsubsls || '',
-            emailppl: '',
-            namappl: '',
-            emailpml: '',
-            namapml: ''
-          };
-        });
+      // 3. Fetch penugasan aktif dari tabel sesuai termin (user_sls atau user_sls_termin2)
+      let userSlsOffset = 0;
+      let hasMoreUserSls = true;
+      let userSlsData = [];
 
-        // Enrich with PPL & PML if profiles available (2500 chunked)
-        let userSlsOffset = 0;
-        let hasMoreUserSls = true;
-        let userSlsData = [];
+      while (hasMoreUserSls) {
+        const { data: usChunk, error: usErr } = await db
+          .from(targetTable)
+          .select('id, kode_sls, user_id, status, user_id_asal')
+          .eq('status', 'aktif')
+          .range(userSlsOffset, userSlsOffset + BATCH_SIZE - 1);
 
-        while (hasMoreUserSls) {
-          const { data: usChunk } = await db
-            .from('user_sls')
-            .select('kode_sls, user_id, status, profiles(id, nama, email_ref, sobatid, role)')
-            .eq('status', 'aktif')
-            .range(userSlsOffset, userSlsOffset + BATCH_SIZE - 1);
+        if (usErr) {
+          console.error(`Error loading from ${targetTable}:`, usErr);
+          break;
+        }
+        if (usChunk && usChunk.length > 0) {
+          userSlsData = userSlsData.concat(usChunk);
+          if (usChunk.length < BATCH_SIZE) hasMoreUserSls = false;
+          else userSlsOffset += BATCH_SIZE;
+        } else {
+          hasMoreUserSls = false;
+        }
+      }
 
-          if (usChunk && usChunk.length > 0) {
-            userSlsData = userSlsData.concat(usChunk);
-            if (usChunk.length < BATCH_SIZE) hasMoreUserSls = false;
-            else userSlsOffset += BATCH_SIZE;
-          } else {
-            hasMoreUserSls = false;
+      // 4. Fetch relasi pml_ppl untuk menampilkan PML
+      let relOffset = 0;
+      let hasMoreRel = true;
+      let pmlPplData = [];
+      while (hasMoreRel) {
+        const { data: relChunk, error: relErr } = await db
+          .from('pml_ppl')
+          .select('pml_id, ppl_id')
+          .range(relOffset, relOffset + BATCH_SIZE - 1);
+        if (relErr) {
+          console.error('Error fetching pml_ppl:', relErr);
+          break;
+        }
+        if (relChunk && relChunk.length > 0) {
+          pmlPplData = pmlPplData.concat(relChunk);
+          if (relChunk.length < BATCH_SIZE) hasMoreRel = false;
+          else relOffset += BATCH_SIZE;
+        } else {
+          hasMoreRel = false;
+        }
+      }
+
+      const pplToPmlMap = {};
+      pmlPplData.forEach(rel => {
+        if (rel.ppl_id && rel.pml_id) {
+          const pmlProf = profileMapById.get(rel.pml_id);
+          if (pmlProf) {
+            pplToPmlMap[rel.ppl_id] = pmlProf.email_ref || pmlProf.sobatid || pmlProf.nama;
           }
         }
+      });
 
-        if (userSlsData.length > 0) {
-          const pplMap = {};
-          userSlsData.forEach(us => {
-            if (us.profiles && us.profiles.role === 'ppl') {
-              pplMap[us.kode_sls] = us.profiles.email_ref || us.profiles.sobatid || us.profiles.nama;
+      if (userSlsData.length > 0) {
+        const pplMap = {};
+        const pmlMap = {};
+        userSlsData.forEach(us => {
+          const prof = profileMapById.get(us.user_id);
+          if (prof) {
+            const pplIdent = prof.email_ref || prof.sobatid || prof.nama;
+            pplMap[us.kode_sls] = pplIdent;
+            // Inherit PML dari PPL aktif atau fallback ke user_id_asal di SLS tersebut
+            const inheritedPml = pplToPmlMap[us.user_id] || (us.user_id_asal && pplToPmlMap[us.user_id_asal]);
+            if (inheritedPml) {
+              pmlMap[us.kode_sls] = inheritedPml;
             }
-          });
+          }
+        });
 
-          allKelolaRows.forEach(r => {
-            const sls14 = r.kode_sls_gabungan.substring(0, 14);
-            if (pplMap[sls14] || pplMap[r.kode_sls_gabungan]) {
-              r.emailppl = pplMap[sls14] || pplMap[r.kode_sls_gabungan];
-            }
-          });
-        }
+        allKelolaRows.forEach(r => {
+          const sls14 = r.kode_sls_gabungan ? r.kode_sls_gabungan.substring(0, 14) : '';
+          if (pplMap[r.kode_sls_gabungan] || (sls14 && pplMap[sls14])) {
+            r.emailppl = pplMap[r.kode_sls_gabungan] || pplMap[sls14];
+          }
+          if (pmlMap[r.kode_sls_gabungan] || (sls14 && pmlMap[sls14])) {
+            r.emailpml = pmlMap[r.kode_sls_gabungan] || pmlMap[sls14];
+          }
+        });
       }
     }
 
@@ -294,6 +371,10 @@ function renderTable() {
     const pplDisplay = r.emailppl ? `<span>${r.emailppl}</span>` : `<span class="badge-empty">Belum ada PPL</span>`;
     const pmlDisplay = r.emailpml ? `<span>${r.emailpml}</span>` : `<span class="badge-empty">Belum ada PML</span>`;
 
+    const actionBtn = activeKelolaTermin === 1
+      ? `<span class="badge" style="background:rgba(100,116,139,0.1);color:#64748b;font-size:0.75rem;padding:0.25rem 0.5rem">🔒 Terkunci</span>`
+      : `<button class="btn btn-secondary btn-sm" onclick="openEditModal('${r.kode_sls_gabungan}', '${r.emailppl || ''}', '${r.emailpml || ''}')">Ganti PPL</button>`;
+
     return `
       <tr>
         <td class="code-cell">${r.kdprov || '36'}</td>
@@ -305,9 +386,7 @@ function renderTable() {
         <td>${pmlDisplay}</td>
         <td>${pplDisplay}</td>
         <td style="text-align:center">
-          <button class="btn btn-secondary btn-sm" onclick="openEditModal('${r.kode_sls_gabungan}', '${r.emailppl || ''}', '${r.emailpml || ''}')">
-            Ganti
-          </button>
+          ${actionBtn}
         </td>
       </tr>
     `;
@@ -328,42 +407,69 @@ function renderPagination(totalRows) {
   const pSize = parseInt(kelolaPageSize, 10);
   const totalPages = Math.ceil(totalRows / pSize);
 
+  if (totalPages <= 1) {
+    container.innerHTML = '';
+    return;
+  }
+
   let html = '';
 
-  html += `<button class="btn btn-secondary btn-sm" ${kelolaCurrentPage === 1 ? 'disabled' : ''} onclick="goToPage(${kelolaCurrentPage - 1})">‹</button>`;
+  // Prev button
+  html += `<button class="btn btn-sm ${kelolaCurrentPage === 1 ? 'btn-secondary disabled' : 'btn-secondary'}" 
+    onclick="goToPage(${kelolaCurrentPage - 1})" ${kelolaCurrentPage === 1 ? 'disabled' : ''} style="padding:0.25rem 0.5rem">‹</button>`;
 
-  const maxButtons = 5;
-  let startP = Math.max(1, kelolaCurrentPage - 2);
-  let endP = Math.min(totalPages, startP + maxButtons - 1);
-  if (endP - startP + 1 < maxButtons) {
-    startP = Math.max(1, endP - maxButtons + 1);
+  // Page numbers logic
+  let startPage = Math.max(1, kelolaCurrentPage - 2);
+  let endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) {
+    startPage = Math.max(1, endPage - 4);
   }
 
-  for (let i = startP; i <= endP; i++) {
-    html += `<button class="btn btn-sm ${i === kelolaCurrentPage ? 'btn-primary' : 'btn-secondary'}" onclick="goToPage(${i})">${i}</button>`;
+  if (startPage > 1) {
+    html += `<button class="btn btn-sm btn-secondary" onclick="goToPage(1)" style="padding:0.25rem 0.5rem">1</button>`;
+    if (startPage > 2) html += `<span style="padding:0.25rem 0.4rem;color:var(--text-muted)">...</span>`;
   }
 
-  html += `<button class="btn btn-secondary btn-sm" ${kelolaCurrentPage === totalPages ? 'disabled' : ''} onclick="goToPage(${kelolaCurrentPage + 1})">›</button>`;
+  for (let i = startPage; i <= endPage; i++) {
+    const isActive = i === kelolaCurrentPage;
+    html += `<button class="btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}" 
+      onclick="goToPage(${i})" style="padding:0.25rem 0.5rem;${isActive ? 'background:var(--primary);border-color:var(--primary)' : ''}">${i}</button>`;
+  }
+
+  if (endPage < totalPages) {
+    if (endPage < totalPages - 1) html += `<span style="padding:0.25rem 0.4rem;color:var(--text-muted)">...</span>`;
+    html += `<button class="btn btn-sm btn-secondary" onclick="goToPage(${totalPages})" style="padding:0.25rem 0.5rem">${totalPages}</button>`;
+  }
+
+  // Next button
+  html += `<button class="btn btn-sm ${kelolaCurrentPage === totalPages ? 'btn-secondary disabled' : 'btn-secondary'}" 
+    onclick="goToPage(${kelolaCurrentPage + 1})" ${kelolaCurrentPage === totalPages ? 'disabled' : ''} style="padding:0.25rem 0.5rem">›</button>`;
 
   container.innerHTML = html;
 }
 
-function goToPage(p) {
-  kelolaCurrentPage = p;
+function goToPage(page) {
+  const pSize = kelolaPageSize === 'all' ? filteredKelolaRows.length : parseInt(kelolaPageSize, 10);
+  const totalPages = Math.ceil(filteredKelolaRows.length / (pSize || 1));
+  if (page < 1 || page > totalPages) return;
+  kelolaCurrentPage = page;
   renderTable();
 }
 
 function changePageSize() {
   const sel = document.getElementById('pageSizeSelect');
-  kelolaPageSize = sel ? sel.value : '25';
+  if (sel) {
+    kelolaPageSize = sel.value;
+  }
   kelolaCurrentPage = 1;
   renderTable();
 }
 
-/**
- * Modal Edit Petugas Handler
- */
 function openEditModal(kodeSubSls, currentPpl, currentPml) {
+  if (activeKelolaTermin === 1) {
+    alert('Penugasan Termin 1 sudah terkunci dan tidak dapat diubah.');
+    return;
+  }
   activeEditKodeSubSls = kodeSubSls;
   document.getElementById('modalKodeSubSls').textContent = kodeSubSls;
   document.getElementById('modalEmailPpl').value = currentPpl || '';
@@ -381,10 +487,13 @@ function closeEditModal() {
 
 async function savePetugasEdit() {
   if (!activeEditKodeSubSls) return;
+  if (activeKelolaTermin === 1) {
+    alert('Penugasan Termin 1 terkunci.');
+    return;
+  }
 
   const emailPpl = document.getElementById('modalEmailPpl').value.trim();
-  const emailPml = document.getElementById('modalEmailPml').value.trim();
-
+  const emailPml = document.getElementById('modalEmailPml') ? document.getElementById('modalEmailPml').value.trim() : '';
   const btn = document.getElementById('btnSaveEditPetugas');
   if (btn) {
     btn.disabled = true;
@@ -392,19 +501,85 @@ async function savePetugasEdit() {
   }
 
   try {
-    const { error } = await db.rpc('update_subsls_petugas', {
-      p_kode_subsls: activeEditKodeSubSls,
-      p_email_ppl: emailPpl,
-      p_email_pml: emailPml
-    });
+    // Cari user profile PPL baru
+    let newUserId = null;
+    if (emailPpl) {
+      const { data: userProfile, error: uErr } = await db
+        .from('profiles')
+        .select('id, role')
+        .or(`email_ref.eq.${emailPpl},sobatid.eq.${emailPpl}`)
+        .single();
 
-    if (error) throw error;
+      if (uErr || !userProfile) {
+        throw new Error(`Petugas PPL '${emailPpl}' tidak ditemukan dalam master pengguna.`);
+      }
+      newUserId = userProfile.id;
+    }
+
+    // Cari user profile PML jika diisi
+    let pmlUserId = null;
+    if (emailPml) {
+      const { data: pmlProfile } = await db
+        .from('profiles')
+        .select('id, role')
+        .or(`email_ref.eq.${emailPml},sobatid.eq.${emailPml}`)
+        .maybeSingle();
+
+      if (pmlProfile) {
+        pmlUserId = pmlProfile.id;
+      }
+    }
+
+    // Update di tabel user_sls_termin2
+    const sls14 = activeEditKodeSubSls.length >= 14 ? activeEditKodeSubSls.substring(0, 14) : activeEditKodeSubSls;
+    if (newUserId) {
+      const { data: existing } = await db
+        .from('user_sls_termin2')
+        .select('id, user_id_asal')
+        .or(`kode_sls.eq.${activeEditKodeSubSls},kode_sls.eq.${sls14}`)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await db
+          .from('user_sls_termin2')
+          .update({
+            user_id: newUserId,
+            status: 'aktif',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await db
+          .from('user_sls_termin2')
+          .insert({
+            user_id: newUserId,
+            kode_sls: activeEditKodeSubSls,
+            status: 'aktif',
+            user_id_asal: newUserId,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        if (error) throw error;
+      }
+
+      // Simpan relasi PML-PPL ke pml_ppl jika PML terisi
+      if (pmlUserId) {
+        await db.from('pml_ppl').upsert({
+          pml_id: pmlUserId,
+          ppl_id: newUserId
+        }, { onConflict: 'pml_id,ppl_id' });
+      }
+    } else {
+      // Jika dikosongkan
+      await db.from('user_sls_termin2').delete().or(`kode_sls.eq.${activeEditKodeSubSls},kode_sls.eq.${sls14}`);
+    }
 
     // Update local data state
     const targetRow = allKelolaRows.find(r => r.kode_sls_gabungan === activeEditKodeSubSls);
     if (targetRow) {
       targetRow.emailppl = emailPpl;
-      targetRow.emailpml = emailPml;
+      if (emailPml) targetRow.emailpml = emailPml;
     }
 
     calculateSummaryStats();
@@ -412,7 +587,7 @@ async function savePetugasEdit() {
     closeEditModal();
 
     if (typeof showToast !== 'undefined') {
-      showToast(`Petugas untuk ${activeEditKodeSubSls} berhasil di-update.`, 'success');
+      showToast(`Penugasan Termin 2 untuk ${activeEditKodeSubSls} berhasil diperbarui!`, 'success');
     } else {
       alert('Perubahan petugas berhasil disimpan!');
     }
@@ -448,55 +623,92 @@ function exportKelolaExcel() {
     'emailppl': r.emailppl || ''
   }));
 
-  const ws = XLSX.utils.json_to_sheet(exportData);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Kelola Petugas SLS');
+  const ws = XLSX.utils.json_to_sheet(exportData);
+  XLSX.utils.book_append_sheet(wb, ws, `Penugasan_Termin_${activeKelolaTermin}`);
+  XLSX.writeFile(wb, `penugasan_petugas_sls_termin_${activeKelolaTermin}.xlsx`);
+}
 
-  ws['!cols'] = [
-    { wch: 8 },  // kdprov
-    { wch: 8 },  // kdkab
-    { wch: 8 },  // kdkec
-    { wch: 8 },  // kddesa
-    { wch: 10 }, // kdsls
-    { wch: 10 }, // kdsubsls
-    { wch: 30 }, // emailpml
-    { wch: 30 }  // emailppl
+function downloadKelolaTemplate() {
+  if (typeof XLSX === 'undefined') {
+    alert('Library XLSX belum dimuat.');
+    return;
+  }
+
+  const templateRows = [
+    {
+      kdprov: '36',
+      kdkab: '02',
+      kdkec: '010',
+      kddesa: '001',
+      kdsls: '0001',
+      kdsubsls: '00',
+      emailpml: 'mayang.juwita00@gmail.com',
+      emailppl: 'nazwanazarina0608@gmail.com'
+    }
   ];
 
-  XLSX.writeFile(wb, `Kelola_Petugas_SLS_SE2026_${new Date().toISOString().split('T')[0]}.xlsx`);
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(templateRows);
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.writeFile(wb, 'template_penugasan_petugas_sls.xlsx');
 }
 
 function openImportModal() {
+  if (activeKelolaTermin === 1) {
+    alert('Penugasan Termin 1 sudah terkunci.');
+    return;
+  }
   const modal = document.getElementById('importModal');
   if (modal) modal.classList.remove('hidden');
+  resetImportState();
 }
 
 function closeImportModal() {
   const modal = document.getElementById('importModal');
   if (modal) modal.classList.add('hidden');
-  parsedImportRows = [];
+  resetImportState();
 }
 
-function handleImportFileSelect(e) {
-  const files = e.target.files;
+function resetImportState() {
+  parsedImportRows = [];
+  const input = document.getElementById('fileImportKelola');
+  if (input) input.value = '';
+  const label = document.getElementById('importFileLabel');
+  if (label) label.textContent = 'Klik atau seret file Excel di sini';
+  const log = document.getElementById('importResultLog');
+  if (log) {
+    log.classList.add('hidden');
+    log.innerHTML = '';
+  }
+}
+
+function handleImportFileSelect(event) {
+  const files = event.target.files;
   if (!files || files.length === 0) return;
 
   const reader = new FileReader();
-  reader.onload = function (evt) {
+  reader.onload = function (e) {
     try {
-      const data = new Uint8Array(evt.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const jsonRows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+      const sheetName = wb.SheetNames[0];
+      const sheet = wb.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet, { defval: '' });
+
+      if (json.length === 0) {
+        alert('File Excel kosong!');
+        return;
+      }
 
       parsedImportRows = [];
-      let invalidDetails = [];
+      const invalidDetails = [];
 
-      jsonRows.forEach((row, idx) => {
-        const rowNum = idx + 2; // Excel header is row 1
+      json.forEach((row, idx) => {
+        const rowNum = idx + 2;
         const keys = Object.keys(row);
-        let kdprov = '', kdkab = '', kdkec = '', kddesa = '', kdsls = '', kdsubsls = '';
-        let fullKodeDirect = '';
+
+        let kdprov = '', kdkab = '', kdkec = '', kddesa = '', kdsls = '', kdsubsls = '', fullKodeDirect = '';
         let emailpml = '', emailppl = '';
 
         keys.forEach(k => {
@@ -512,7 +724,6 @@ function handleImportFileSelect(e) {
           else if (nk.includes('emailppl') || nk === 'ppl') emailppl = String(row[k]).trim();
         });
 
-        // Construct 16-digit kode_sub_sls
         let fullKode = fullKodeDirect;
         if (!fullKode && (kdprov || kdkec || kdsls)) {
           const prov = (kdprov || '36').padStart(2, '0');
@@ -524,26 +735,9 @@ function handleImportFileSelect(e) {
           fullKode = `${prov}${kab}${kec}${desa}${sls}${sub}`;
         }
 
-        // 1. Validasi Kode Sub-SLS
-        if (!fullKode) {
-          invalidDetails.push(`Baris ${rowNum}: Kode Sub-SLS tidak terisi`);
+        if (!fullKode || fullKode.length !== 16 || !fullKode.startsWith('3602')) {
+          invalidDetails.push(`Baris ${rowNum}: Kode Sub-SLS tidak valid (${fullKode})`);
           return;
-        }
-        if (fullKode.length !== 16) {
-          invalidDetails.push(`Baris ${rowNum}: Kode Sub-SLS '${fullKode}' tidak 16 digit`);
-          return;
-        }
-        if (!fullKode.startsWith('3602')) {
-          invalidDetails.push(`Baris ${rowNum}: Kode Sub-SLS '${fullKode}' bukan wilayah Kab. Lebak (harus 3602)`);
-          return;
-        }
-
-        // 2. Validasi Email PPL / PML jika terisi
-        if (emailppl && emailppl.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailppl)) {
-          invalidDetails.push(`Baris ${rowNum}: Format email PPL '${emailppl}' kurang tepat`);
-        }
-        if (emailpml && emailpml.includes('@') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailpml)) {
-          invalidDetails.push(`Baris ${rowNum}: Format email PML '${emailpml}' kurang tepat`);
         }
 
         parsedImportRows.push({
@@ -553,7 +747,6 @@ function handleImportFileSelect(e) {
         });
       });
 
-      // Render Label & Log Validasi Modal
       const label = document.getElementById('importFileLabel');
       if (label) {
         label.innerHTML = `File Siap: <strong style="color:#16a34a">${parsedImportRows.length} baris valid</strong>` +
@@ -565,14 +758,11 @@ function handleImportFileSelect(e) {
         log.classList.remove('hidden');
         if (invalidDetails.length > 0) {
           log.className = 'alert alert-warning mt-3';
-          log.style.fontSize = '0.8rem';
-          log.style.maxHeight = '150px';
-          log.style.overflowY = 'auto';
           log.innerHTML = `<strong>⚠️ Catatan Validasi Excel (${invalidDetails.length} Peringatan):</strong><br>` +
-            invalidDetails.map(d => `• ${d}`).join('<br>');
+            invalidDetails.slice(0, 5).map(d => `• ${d}`).join('<br>');
         } else {
           log.className = 'alert alert-success mt-3';
-          log.innerHTML = `<strong>✅ Seluruh ${parsedImportRows.length} data penugasan lulus validasi!</strong><br>Klik 'Proses Impor' untuk menyimpan ke database.`;
+          log.innerHTML = `<strong>✅ Seluruh ${parsedImportRows.length} data penugasan lulus validasi!</strong><br>Klik 'Proses Impor' untuk memperbarui penugasan Termin 2.`;
         }
       }
 
@@ -592,54 +782,45 @@ async function processImportFile() {
   const btn = document.getElementById('btnProsesImport');
   if (btn) {
     btn.disabled = true;
-    btn.textContent = 'Memproses Impor...';
+    btn.textContent = 'Memproses Impor Termin 2...';
   }
 
-  const BATCH_SIZE = 500;
-  let successCount = 0;
-
   try {
-    for (let i = 0; i < parsedImportRows.length; i += BATCH_SIZE) {
-      const chunk = parsedImportRows.slice(i, i + BATCH_SIZE);
-      
-      if (btn) {
-        btn.textContent = `Memproses ${Math.min(i + BATCH_SIZE, parsedImportRows.length)} / ${parsedImportRows.length}...`;
+    // Ambil profiles untuk mapping email/sobatid -> user_id
+    const { data: allProfiles } = await db.from('profiles').select('id, email_ref, sobatid, role');
+    const profileMap = {};
+    (allProfiles || []).forEach(p => {
+      if (p.email_ref) profileMap[p.email_ref.toLowerCase().trim()] = p.id;
+      if (p.sobatid) profileMap[String(p.sobatid).trim()] = p.id;
+    });
+
+    const payload = [];
+    parsedImportRows.forEach(r => {
+      const emailPpl = (r.emailppl || '').toLowerCase().trim();
+      const uid = profileMap[emailPpl];
+      if (uid) {
+        payload.push({
+          kode_sls: r.kode_sub_sls,
+          user_id: uid,
+          status: 'aktif',
+          user_id_asal: uid,
+          updated_at: new Date().toISOString()
+        });
       }
+    });
 
-      const { data: batchCount, error } = await db.rpc('update_subsls_petugas_batch', {
-        p_rows: chunk
-      });
-
-      if (!error) {
-        successCount += (batchCount ?? chunk.length);
-      } else {
-        console.warn('Batch RPC error, falling back to row-by-row for chunk:', error);
-        for (const r of chunk) {
-          const { error: singleErr } = await db.rpc('update_subsls_petugas', {
-            p_kode_subsls: r.kode_sub_sls,
-            p_email_ppl: r.emailppl,
-            p_email_pml: r.emailpml
-          });
-          if (!singleErr) successCount++;
-        }
-      }
+    const BATCH_SIZE = 500;
+    for (let i = 0; i < payload.length; i += BATCH_SIZE) {
+      const chunk = payload.slice(i, i + BATCH_SIZE);
+      const { error } = await db.from('user_sls_termin2').upsert(chunk, { onConflict: 'kode_sls' });
+      if (error) throw error;
     }
 
-    const log = document.getElementById('importResultLog');
-    if (log) {
-      log.className = 'alert alert-success mt-3';
-      log.innerHTML = `<strong>✅ Impor Berhasil Disimpan!</strong><br>Sebanyak <strong>${successCount}</strong> dari ${parsedImportRows.length} data penugasan berhasil di-update ke database.`;
-      log.classList.remove('hidden');
-    }
-
-    if (typeof showToast !== 'undefined') {
-      showToast(`Impor Penugasan berhasil (${successCount} data)`, 'success');
-    }
-
-    await loadKelolaData();
-
+    alert(`✅ Berhasil memperbarui ${payload.length} penugasan Termin 2!`);
+    closeImportModal();
+    loadKelolaData();
   } catch (err) {
-    alert('Gagal memproses impor: ' + err.message);
+    alert('Gagal impor: ' + err.message);
   } finally {
     if (btn) {
       btn.disabled = false;
@@ -648,52 +829,3 @@ async function processImportFile() {
   }
 }
 
-/**
- * Download Template Excel Penugasan SLS
- */
-function downloadKelolaTemplate() {
-  if (typeof XLSX === 'undefined') {
-    alert('Library XLSX belum dimuat.');
-    return;
-  }
-
-  const sampleRows = [
-    {
-      'kdprov': '36',
-      'kdkab': '02',
-      'kdkec': '011',
-      'kddesa': '001',
-      'kdsls': '0001',
-      'kdsubsls': '00',
-      'emailpml': 'mayang.juwita00@gmail.com',
-      'emailppl': 'nazwanazarina0608@gmail.com'
-    },
-    {
-      'kdprov': '36',
-      'kdkab': '02',
-      'kdkec': '011',
-      'kddesa': '001',
-      'kdsls': '0002',
-      'kdsubsls': '00',
-      'emailpml': 'mayang.juwita00@gmail.com',
-      'emailppl': 'petugas2@gmail.com'
-    }
-  ];
-
-  const ws = XLSX.utils.json_to_sheet(sampleRows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Template Penugasan SLS');
-
-  ws['!cols'] = [
-    { wch: 8 },  // kdprov
-    { wch: 8 },  // kdkab
-    { wch: 8 },  // kdkec
-    { wch: 8 },  // kddesa
-    { wch: 10 }, // kdsls
-    { wch: 10 }, // kdsubsls
-    { wch: 30 }, // emailpml
-    { wch: 30 }  // emailppl
-  ];
-
-  XLSX.writeFile(wb, `Template_Penugasan_Petugas_SLS_SE2026.xlsx`);
-}
