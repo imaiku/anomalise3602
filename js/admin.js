@@ -246,6 +246,7 @@ function showSection(sectionId, updateHash = true) {
     if (typeof loadKelolaData === 'function') loadKelolaData();
   }
   if (sectionId === 'berkas-lainnya') {
+    loadBAPPKecamatanFilter();
     (async () => {
       try {
         const { count } = await db.from('user_sls_termin2').select('*', { count: 'exact', head: true });
@@ -2849,23 +2850,46 @@ function refreshCurrentBapp() {
   loadBAPPData();
 }
 
-// Load Kecamatan to BAPP filter
+// Load Kecamatan to BAPP filter & BAST card filters (Sorted by Kode Kecamatan)
 async function loadBAPPKecamatanFilter() {
   try {
-    const { data, error } = await db.from('wilayah_kec').select('kode_kec, nmkec').order('nmkec');
+    const { data, error } = await db.from('wilayah_kec').select('kode_kec, nmkec').order('kode_kec');
     if (error) throw error;
     const filterSelect = document.getElementById('bappKecamatanFilter');
-    if (!filterSelect) return;
-    // Clear and keep default option
-    filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
+    const bastPplSel = document.getElementById('bastPplKecFilter');
+    const bastPmlSel = document.getElementById('bastPmlKecFilter');
+
+    if (filterSelect) filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
+    if (bastPplSel) bastPplSel.innerHTML = '<option value="">Semua Kecamatan</option>';
+    if (bastPmlSel) bastPmlSel.innerHTML = '<option value="">Semua Kecamatan</option>';
+
     data.forEach(k => {
-      const opt = document.createElement('option');
-      opt.value = k.kode_kec;
-      opt.textContent = `${k.kode_kec} - ${k.nmkec}`;
-      filterSelect.appendChild(opt);
+      const localCode = k.kode_kec ? k.kode_kec.slice(-3) : '';
+      const optText = `[${localCode}] ${k.nmkec}`;
+
+      if (filterSelect) {
+        const opt = document.createElement('option');
+        opt.value = k.kode_kec;
+        opt.textContent = `${k.kode_kec} - ${k.nmkec}`;
+        filterSelect.appendChild(opt);
+      }
+
+      if (bastPplSel) {
+        const opt = document.createElement('option');
+        opt.value = k.kode_kec;
+        opt.textContent = optText;
+        bastPplSel.appendChild(opt);
+      }
+
+      if (bastPmlSel) {
+        const opt = document.createElement('option');
+        opt.value = k.kode_kec;
+        opt.textContent = optText;
+        bastPmlSel.appendChild(opt);
+      }
     });
   } catch (err) {
-    console.error('Error loading BAPP kecamatan filter:', err);
+    console.error('Error loading BAPP/BAST kecamatan filter:', err);
   }
 }
 
@@ -10847,15 +10871,15 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
     return;
   }
 
-  const eligibleOfficers = (allUsers || []).filter(u => u.is_active && eligibleIds.has(u.id) && (roleFilter === 'all' || u.role === roleFilter));
-  const roleLabel = roleFilter === 'ppl' ? 'PPL ' : (roleFilter === 'pml' ? 'PML ' : '');
-
-  if (eligibleOfficers.length === 0) {
-    showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST pada Gelombang ${gelombang}.`, 'warning');
-    return;
+  // Ambil pilihan filter kecamatan dari card bersangkutan
+  let selectedKec = '';
+  if (roleFilter === 'ppl') {
+    selectedKec = document.getElementById('bastPplKecFilter')?.value || '';
+  } else if (roleFilter === 'pml') {
+    selectedKec = document.getElementById('bastPmlKecFilter')?.value || '';
   }
 
-  showToast(`Memproses BAST ${roleLabel}Termin II Gelombang ${gelombang} (${eligibleOfficers.length} petugas)...`, 'info');
+  const roleLabel = roleFilter === 'ppl' ? 'PPL ' : (roleFilter === 'pml' ? 'PML ' : '');
 
   loadJsPDF(async () => {
     const { jsPDF } = window.jspdf;
@@ -10866,22 +10890,32 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
       indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #10b981; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
       document.body.appendChild(indicator);
     }
-    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat data BAST...`;
 
     try {
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      await registerBookmanFont(pdf);
-
       let bastOfficers = await fetchBASTData(gelombang);
       if (roleFilter !== 'all') {
         bastOfficers = bastOfficers.filter(o => o.role === roleFilter);
       }
 
+      // Filter per kecamatan jika dipilih
+      if (selectedKec) {
+        bastOfficers = bastOfficers.filter(o => {
+          const kCode = o.kode_kec || (o.breakdownRows && o.breakdownRows[0]?.kdKec) || '';
+          return kCode === selectedKec;
+        });
+      }
+
       if (bastOfficers.length === 0) {
-        showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST.`, 'warning');
+        const kecInfo = selectedKec ? ` di kecamatan terpilih` : '';
+        showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST${kecInfo} pada Gelombang ${gelombang}.`, 'warning');
         indicator.remove();
         return;
       }
+
+      indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat font Bookman...`;
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
 
       const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
       const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
@@ -10898,7 +10932,8 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
       indicator.innerHTML = `✓ Selesai membuat dokumen BAST ${roleLabel}!`;
 
       const filenameRole = roleFilter !== 'all' ? `_${roleFilter}` : '';
-      const pdfFileName = `bast${filenameRole}_termin2_gelombang_${gelombang}.pdf`;
+      const kecSuffix = selectedKec ? `_kec_${selectedKec.slice(-3)}` : '';
+      const pdfFileName = `bast${filenameRole}_termin2_gelombang_${gelombang}${kecSuffix}.pdf`;
       if (isDownload) {
         pdf.save(pdfFileName);
       } else {
