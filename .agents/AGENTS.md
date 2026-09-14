@@ -7,4 +7,9 @@ The document dates (tanggal surat) for each wave (gelombang) in Termin 1 are con
 - **Gelombang 3**: 28 Juli 2026 (Lebak, 28 Juli 2026)
 - **Gelombang 4**: 10 Agustus 2026 (Lebak, 10 Agustus 2026)
 
-*Note: Tanggal surat untuk Termin 2 akan ditentukan kemudian.*
+## Sensus Ekonomi 2026 - Wave Document Dates Termin 2 (Tanggal Surat Gelombang Termin 2)
+The document dates (tanggal surat) for each wave (gelombang) in Termin 2 are configured as follows:
+- **Gelombang 1**: 11 September 2026 (Lebak, 11 September 2026)
+- **Gelombang 2**: 14 September 2026 (Lebak, 14 September 2026)
+- **Gelombang 3**: 15 September 2026 (Lebak, 15 September 2026)
+- **Gelombang 4**: *Akan ditentukan kemudian*

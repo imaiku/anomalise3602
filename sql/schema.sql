@@ -219,6 +219,7 @@ CREATE TABLE public.honorarium_hold (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id      UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   gelombang    INT CHECK (gelombang IN (1, 2, 3, 4)),
+  termin       INT NOT NULL DEFAULT 1 CHECK (termin IN (1, 2)),
   alasan       TEXT NOT NULL,
   ditahan_oleh UUID REFERENCES public.profiles(id),
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),

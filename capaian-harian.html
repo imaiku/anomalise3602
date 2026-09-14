@@ -227,45 +227,30 @@
         let headerRowIdx = -1;
         let colKode = -1, colPrelist = -1, colBaru = -1, colHasilVerif = -1;
 
-        for (let r = 0; r < Math.min(10, raw.length); r++) {
-          const row = raw[r].map(c => String(c || '').toLowerCase().trim());
-          const kIdx = row.findIndex(c => c === 'kode' || c.includes('kode'));
-          if (kIdx !== -1) {
-            headerRowIdx = r;
-            break;
-          }
-        }
-
-        if (headerRowIdx === -1) {
-          throw new Error('Header kolom "Kode" tidak ditemukan pada File 1.');
-        }
-
-        const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
-        colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
-        colPrelist = headers.findIndex(c => c.includes('prelist'));
-        colBaru = headers.findIndex(c => c.includes('baru'));
-        colHasilVerif = headers.findIndex(c => c.includes('hasil verifikasi') || c.includes('hasilverif') || c.includes('verifikasi'));
-
-        // Fallback jika baris header terbagi dua baris
-        if (colPrelist === -1 || colHasilVerif === -1) {
-          const headersNext = (raw[headerRowIdx + 1] || []).map(c => String(c || '').toLowerCase().trim());
-          if (colPrelist === -1) colPrelist = headersNext.findIndex(c => c.includes('prelist'));
-          if (colBaru === -1) colBaru = headersNext.findIndex(c => c.includes('baru'));
-          if (colHasilVerif === -1) colHasilVerif = headersNext.findIndex(c => c.includes('hasil verifikasi') || c.includes('verifikasi'));
-        }
-
         file1Data = new Map();
-        for (let r = headerRowIdx + 1; r < raw.length; r++) {
+        // Data dimulai dari baris ke-7 (0-indexed: index 6)
+        for (let r = 6; r < raw.length; r++) {
           const row = raw[r];
-          const rawKode = cleanKode(row[colKode]);
-          // HANYA ambil yang 16 digit Sub-SLS dan Lebak (3602)
+          if (!row || row.length === 0) continue;
+
+          // Kode SLS di Kolom A (index 0)
+          const rawKode = cleanKode(row[0]);
+
           if (rawKode.length === 16 && rawKode.startsWith('3602')) {
+            const prelist = parseInt(row[2]) || 0;       // Kolom C
+            const baru = parseInt(row[3]) || 0;          // Kolom D
+            const hasilverif = parseInt(row[4]) || 0;    // Kolom E
+
             file1Data.set(rawKode, {
-              prelist: parseInt(row[colPrelist]) || 0,
-              baru: parseInt(row[colBaru]) || 0,
-              hasilverif: parseInt(row[colHasilVerif]) || 0
+              prelist: prelist,
+              baru: baru,
+              hasilverif: hasilverif
             });
           }
+        }
+
+        if (file1Data.size === 0) {
+          throw new Error('Tidak ditemukan baris dengan Kode Sub-SLS 16-digit (Kolom A) mulai baris ke-7.');
         }
 
         document.getElementById('statusFile1').innerHTML = `✅ Terbaca: <strong>${file1Data.size} Sub-SLS 16-Digit</strong> (${file.name})`;
@@ -285,36 +270,30 @@
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const raw = parseExcelRows(sheet);
 
-        let headerRowIdx = -1;
-        for (let r = 0; r < Math.min(10, raw.length); r++) {
-          const row = raw[r].map(c => String(c || '').toLowerCase().trim());
-          const kIdx = row.findIndex(c => c === 'kode' || c.includes('kode'));
-          if (kIdx !== -1) {
-            headerRowIdx = r;
-            break;
-          }
-        }
-
-        if (headerRowIdx === -1) {
-          throw new Error('Header kolom "Kode" tidak ditemukan pada File 2.');
-        }
-
-        const headers = raw[headerRowIdx].map(c => String(c || '').toLowerCase().trim());
-        const colKode = headers.findIndex(c => c === 'kode' || c.includes('kode'));
-        const colTarget = headers.findIndex(c => c.includes('target'));
-        const colPct = headers.findIndex(c => c.includes('persentase') || c.includes('%') || c.includes('selesai'));
-
         file2Data = new Map();
-        for (let r = headerRowIdx + 1; r < raw.length; r++) {
+        // Data dimulai dari baris ke-10 (0-indexed: index 9)
+        for (let r = 9; r < raw.length; r++) {
           const row = raw[r];
-          const rawKode = cleanKode(row[colKode]);
+          if (!row || row.length === 0) continue;
+
+          // Kode SLS di Kolom A (index 0)
+          const rawKode = cleanKode(row[0]);
+
           if (rawKode.length === 16 && rawKode.startsWith('3602')) {
-            let pctVal = parseFloat(String(row[colPct]).replace('%', '').replace(',', '.').trim()) || 0;
+            const targetsls = parseInt(row[2]) || 0;       // Kolom C
+            const jumlah_selesai = parseInt(row[3]) || 0;  // Kolom D
+            const sls_selesai = targetsls > 0 ? parseFloat(((jumlah_selesai / targetsls) * 100).toFixed(2)) : 0;
+
             file2Data.set(rawKode, {
-              targetsls: parseInt(row[colTarget]) || 0,
-              sls_selesai: pctVal
+              targetsls: targetsls,
+              jumlah_selesai: jumlah_selesai,
+              sls_selesai: sls_selesai
             });
           }
+        }
+
+        if (file2Data.size === 0) {
+          throw new Error('Tidak ditemukan baris dengan Kode Sub-SLS 16-digit (Kolom A) mulai baris ke-10.');
         }
 
         document.getElementById('statusFile2').innerHTML = `✅ Terbaca: <strong>${file2Data.size} Sub-SLS 16-Digit</strong> (${file.name})`;
