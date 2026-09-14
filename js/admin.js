@@ -4438,7 +4438,7 @@ function printBAPP(rows) {
               updates.crop_top_uninstall = resUn.top;
               updates.crop_bottom_uninstall = resUn.bottom;
               const f = allBappUploads.find(x => x.id === r.id);
-              if (f) { f.crop_top_uninstall = resUn.top; f.crop_bottom_uninstall = resUn.bottom; }
+              if (f) { f.crop_top_uninstall = resUn.top; f.crop_bottom = resUn.bottom; }
             }
           } catch (e) {
             console.warn('OCR Uninstall gagal untuk id:', r.id, e);
@@ -10879,35 +10879,6 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
         showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST.`, 'warning');
         indicator.remove();
         return;
-      }
-
-      // --- Auto OCR Check untuk BAST: Cek jika screenshot_uninstall belum di-OCR (crop 0 / null) ---
-      const needsOcrUninstall = (o) => {
-        const top = o.crop_top_uninstall;
-        const bot = o.crop_bottom_uninstall;
-        return o.screenshot_uninstall && (top === undefined || top === null || parseFloat(top) === 0 || bot === undefined || bot === null || parseFloat(bot) === 0);
-      };
-
-      const unOcredBast = bastOfficers.filter(needsOcrUninstall);
-      if (unOcredBast.length > 0) {
-        await new Promise(resolve => loadTesseract(resolve));
-        for (let i = 0; i < unOcredBast.length; i++) {
-          const o = unOcredBast[i];
-          indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Menjalankan OCR uninstall otomatis (${i + 1}/${unOcredBast.length})...`;
-          try {
-            const resUn = await runSilentOcrAutoDetectUninstall(o.screenshot_uninstall);
-            if (resUn) {
-              o.crop_top_uninstall = resUn.top;
-              o.crop_bottom_uninstall = resUn.bottom;
-              await db.from('bapp_uploads_t2').update({
-                crop_top_uninstall: resUn.top,
-                crop_bottom_uninstall: resUn.bottom
-              }).eq('id', o.id || o.profile_id);
-            }
-          } catch (e) {
-            console.warn('OCR BAST Uninstall gagal untuk:', o.nama, e);
-          }
-        }
       }
 
       const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
