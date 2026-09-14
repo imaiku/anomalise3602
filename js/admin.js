@@ -3968,7 +3968,8 @@ async function buildBappT2SingleDocument(pdf, r, ttdYulianBase64, ttdNingBase64,
     const rawNo = noEntry.no_spk || noEntry.no_sp_pemeriksaan_t1 || '';
     const match = rawNo.match(/\b(\d+)\b/) || rawNo.match(/B-(\d+)/i) || rawNo.match(/^B-([^\/]+)/i);
     const num = match ? match[1] : '';
-    bappNo = num ? `B-${num}/BAPP-II-SE2026/3602/09/2026` : `.../BAPP-II-SE2026/3602/09/2026`;
+    const roleCode = isPml ? 'PML' : 'PPL';
+    bappNo = num ? `B-${num}/BAPP-II-${roleCode}-SE2026/3602/09/2026` : `.../BAPP-II-${roleCode}-SE2026/3602/09/2026`;
   }
 
   let kecamatan = r.wilayah_kec?.nmkec || '';
