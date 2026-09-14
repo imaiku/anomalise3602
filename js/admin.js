@@ -9776,13 +9776,16 @@ async function generateCapaianReportDataT2(gelombang = 1) {
     }
   }
 
+  const eligibleOfficerIds = bappEligibilityMapT2[gelombang] || new Set();
+
   const profileMap = {};
   allOfficers.forEach(p => {
     profileMap[p.id] = p;
   });
 
-  const pmlUsers = allOfficers.filter(u => u.role === 'pml');
-  const pplUsers = allOfficers.filter(u => u.role === 'ppl');
+  // Filter hanya petugas (PML & PPL) yang eligible pada gelombang yang dipilih
+  const pmlUsers = allOfficers.filter(u => u.role === 'pml' && eligibleOfficerIds.has(u.id));
+  const pplUsers = allOfficers.filter(u => u.role === 'ppl' && eligibleOfficerIds.has(u.id));
 
   const getProfileKec = (id) => {
     const codes = userSlsMap[id] || [];
@@ -10226,12 +10229,11 @@ function deriveBastNoSurat(sobatid, role, noEntry) {
   if (noEntry && noEntry.no_sp_pemeriksaan_t2 && noEntry.no_sp_pemeriksaan_t2.trim()) {
     return noEntry.no_sp_pemeriksaan_t2.trim();
   }
-  const xxx = extractNoUrutSurat(noEntry?.no_spk) || extractNoUrutSurat(noEntry?.no_sp_pemeriksaan_t1);
-  if (xxx) {
-    const roleCode = (role || 'ppl').toUpperCase();
-    return `B-${xxx}/BAST-${roleCode}-SE2026/3602/08/2026`;
-  }
-  return '';
+  const rawNo = noEntry?.no_spk || noEntry?.no_sp_pemeriksaan_t1 || '';
+  const match = rawNo.match(/\b(\d+)\b/) || rawNo.match(/B-(\d+)/i) || rawNo.match(/^B-([^\/]+)/i);
+  const num = match ? match[1] : (typeof extractNoUrutSurat === 'function' ? extractNoUrutSurat(rawNo) : '');
+  const roleCode = (role || 'ppl').toUpperCase();
+  return num ? `B-${num}/BAST-${roleCode}-SE2026/3602/09/2026` : `.../BAST-${roleCode}-SE2026/3602/09/2026`;
 }
 
 async function fetchSuperPPLDataT2(gelombang = 1) {
@@ -10912,11 +10914,33 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
 }
 
 async function fetchBASTData(gelombang = 1) {
-  if (!allUsers || allUsers.length === 0) {
-    if (typeof loadUsers === 'function') {
-      await loadUsers();
+  let userProfiles = (allUsers && allUsers.length > 0) ? allUsers : [];
+  if (userProfiles.length === 0) {
+    let fromProf = 0;
+    let hasMoreProf = true;
+    while (hasMoreProf) {
+      const { data: profData, error: profErr } = await db.from('profiles')
+        .select('id, sobatid, nik, nama, role, is_active')
+        .in('role', ['ppl', 'pml'])
+        .eq('is_active', true)
+        .range(fromProf, fromProf + 999);
+      if (profErr || !profData || profData.length === 0) hasMoreProf = false;
+      else {
+        userProfiles = userProfiles.concat(profData);
+        if (profData.length < 1000) hasMoreProf = false;
+        else fromProf += 1000;
+      }
     }
+    allUsers = userProfiles;
   }
+
+  const userById = {};
+  const userBySobat = {};
+  userProfiles.forEach(u => {
+    userById[u.id] = u;
+    if (u.sobatid) userBySobat[String(u.sobatid).trim()] = u;
+  });
+
   await loadBappEligibilityDataT2(true);
   const eligibleIds = bappEligibilityMapT2[gelombang];
   if (!eligibleIds || eligibleIds.size === 0) return [];
@@ -10927,7 +10951,24 @@ async function fetchBASTData(gelombang = 1) {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
   });
 
-  const { data: capaianT2 } = await db.from('capaian_termin2').select('*');
+  // Ambil SEMUA data capaian_termin2 dengan pagination loop
+  let capaianT2 = [];
+  let fromCap = 0;
+  let hasMoreCap = true;
+  while (hasMoreCap) {
+    const { data: capData, error: capErr } = await db.from('capaian_termin2')
+      .select('*')
+      .range(fromCap, fromCap + 999);
+    if (capErr) { console.error('Error fetching capaian_termin2:', capErr); break; }
+    if (capData && capData.length > 0) {
+      capaianT2 = capaianT2.concat(capData);
+      if (capData.length < 1000) hasMoreCap = false;
+      else fromCap += 1000;
+    } else {
+      hasMoreCap = false;
+    }
+  }
+
   const targetMap = {};
   const hasilMap = {};
   (capaianT2 || []).forEach(c => {
@@ -10935,7 +10976,25 @@ async function fetchBASTData(gelombang = 1) {
     hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
   });
 
-  const { data: userSlsT2 } = await db.from('user_sls_termin2').select('user_id, kode_sls, user_id_asal').eq('status', 'aktif');
+  // Ambil SEMUA data user_sls_termin2 dengan pagination loop agar tidak terpotong batas 1000
+  let userSlsT2 = [];
+  let fromSls = 0;
+  let hasMoreSls = true;
+  while (hasMoreSls) {
+    const { data: slsData, error: slsErr } = await db.from('user_sls_termin2')
+      .select('user_id, kode_sls, user_id_asal')
+      .eq('status', 'aktif')
+      .range(fromSls, fromSls + 999);
+    if (slsErr) { console.error('Error fetching user_sls_termin2:', slsErr); break; }
+    if (slsData && slsData.length > 0) {
+      userSlsT2 = userSlsT2.concat(slsData);
+      if (slsData.length < 1000) hasMoreSls = false;
+      else fromSls += 1000;
+    } else {
+      hasMoreSls = false;
+    }
+  }
+
   const userSlsMap = {};
   const userAsalMap = {};
   (userSlsT2 || []).forEach(us => {
@@ -10944,25 +11003,15 @@ async function fetchBASTData(gelombang = 1) {
     if (us.user_id_asal) userAsalMap[us.user_id] = us.user_id_asal;
   });
 
-  const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
-  const pmlToPpl = {};
-  const pplToPml = {};
-  (rels || []).forEach(r => {
-    if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
-    pmlToPpl[r.pml_id].push(r.ppl_id);
-    pplToPml[r.ppl_id] = r.pml_id;
-  });
+  // Fetch Master Wilayah Kecamatan dan Desa
+  const { data: kecList } = await db.from('wilayah_kec').select('kode_kec, nmkec');
+  const { data: desaList } = await db.from('wilayah_desa').select('kode_desa, kode_kec, nmdesa');
+  const kecMap = {};
+  (kecList || []).forEach(k => { kecMap[k.kode_kec] = k.nmkec; });
+  const desaMap = {};
+  (desaList || []).forEach(d => { desaMap[d.kode_desa] = d.nmdesa; });
 
-  // Hubungkan replacement PPL ke PML pembinanya
-  Object.keys(userAsalMap).forEach(pplId => {
-    const asalId = userAsalMap[pplId];
-    const pmlId = pplToPml[asalId];
-    if (pmlId && pmlToPpl[pmlId] && !pmlToPpl[pmlId].includes(pplId)) {
-      pmlToPpl[pmlId].push(pplId);
-    }
-  });
-
-  const officers = (allUsers || []).filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml') && eligibleIds.has(u.id));
+  const officers = userProfiles.filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml') && eligibleIds.has(u.id));
 
   const officerIds = officers.map(o => o.id);
   const bappUploadMap = {};
@@ -10971,28 +11020,115 @@ async function fetchBASTData(gelombang = 1) {
     const sliceIds = officerIds.slice(i, i + chunkSize);
     const { data: bappT2Uploads, error } = await db
       .from('bapp_uploads_t2')
-      .select('id, screenshot_uninstall, crop_top_uninstall, crop_bottom_uninstall')
-      .in('id', sliceIds);
+      .select('id, profile_id, kode_kec, screenshot_uninstall, crop_top_uninstall, crop_bottom_uninstall')
+      .in('profile_id', sliceIds);
     if (!error && bappT2Uploads) {
       bappT2Uploads.forEach(b => {
-        bappUploadMap[b.id] = b;
+        bappUploadMap[b.profile_id] = b;
       });
     }
   }
 
   const result = [];
 
-  officers.forEach(u => {
+  for (let i = 0; i < officers.length; i++) {
+    const u = officers[i];
     let slsCodes = [];
+    const breakdownRows = [];
+    let totalSls = 0;
+
     if (u.role === 'ppl') {
       slsCodes = userSlsMap[u.id] || [];
-    } else {
-      const pplIds = pmlToPpl[u.id] || [];
-      const setCodes = new Set(userSlsMap[u.id] || []);
-      pplIds.forEach(pid => {
-        (userSlsMap[pid] || []).forEach(c => setCodes.add(c));
+      totalSls = slsCodes.length;
+
+      const agg = {};
+      slsCodes.forEach(code => {
+        const kdKec = code.substring(0, 7);
+        const kdDesa = code.substring(0, 10);
+        const key = `${kdKec}_${kdDesa}`;
+        if (!agg[key]) {
+          agg[key] = {
+            kdKec: kdKec,
+            kdKecLocal: kdKec.slice(-3),
+            nmKec: kecMap[kdKec] || '',
+            kdDesa: kdDesa,
+            nmDesa: desaMap[kdDesa] || '',
+            kdDesaLocal: kdDesa.slice(-3),
+            count: 0
+          };
+        }
+        agg[key].count++;
       });
-      slsCodes = Array.from(setCodes);
+      Object.values(agg).forEach(r => breakdownRows.push(r));
+    } else {
+      // PML: Ambil daftar PPL binaan dari RPC get_rekapitulasi_pml
+      let supervisedPpls = [];
+      try {
+        const { data: rekapPml } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: u.id });
+        if (rekapPml && rekapPml.length > 0) {
+          supervisedPpls = rekapPml;
+        }
+      } catch (e) {
+        console.warn('Gagal panggil get_rekapitulasi_pml:', e);
+      }
+
+      const allPmlCodes = [];
+
+      supervisedPpls.forEach(r => {
+        const pplProf = (r.ppl_id && userById[r.ppl_id]) || (r.sobatid_ppl && userBySobat[String(r.sobatid_ppl).trim()]) || {};
+        const pplId = pplProf.id || r.ppl_id;
+        const pCodes = pplId ? (userSlsMap[pplId] || []) : [];
+        allPmlCodes.push(...pCodes);
+
+        const agg = {};
+        pCodes.forEach(code => {
+          const kdKec = code.substring(0, 7);
+          const kdDesa = code.substring(0, 10);
+          const key = `${kdKec}_${kdDesa}`;
+          if (!agg[key]) {
+            agg[key] = {
+              namaPpl: pplProf.nama || r.nama_ppl || '—',
+              kdKec: kdKec,
+              kdKecLocal: kdKec.slice(-3),
+              nmKec: kecMap[kdKec] || '',
+              kdDesa: kdDesa,
+              nmDesa: desaMap[kdDesa] || '',
+              kdDesaLocal: kdDesa.slice(-3),
+              count: 0
+            };
+          }
+          agg[key].count++;
+        });
+        Object.values(agg).forEach(row => breakdownRows.push(row));
+      });
+
+      if (supervisedPpls.length === 0) {
+        const pCodes = userSlsMap[u.id] || [];
+        allPmlCodes.push(...pCodes);
+        const agg = {};
+        pCodes.forEach(code => {
+          const kdKec = code.substring(0, 7);
+          const kdDesa = code.substring(0, 10);
+          const key = `${kdKec}_${kdDesa}`;
+          if (!agg[key]) {
+            agg[key] = {
+              namaPpl: u.nama || '—',
+              kdKec: kdKec,
+              kdKecLocal: kdKec.slice(-3),
+              nmKec: kecMap[kdKec] || '',
+              kdDesa: kdDesa,
+              nmDesa: desaMap[kdDesa] || '',
+              kdDesaLocal: kdDesa.slice(-3),
+              count: 0
+            };
+          }
+          agg[key].count++;
+        });
+        Object.values(agg).forEach(row => breakdownRows.push(row));
+      }
+
+      slsCodes = allPmlCodes;
+      totalSls = slsCodes.length;
     }
 
     let tgt = 0, real = 0;
@@ -11006,23 +11142,40 @@ async function fetchBASTData(gelombang = 1) {
     const finalNoBast = deriveBastNoSurat(u.sobatid, u.role, noEntry);
     const bData = bappUploadMap[u.id] || {};
 
+    const finalTarget = totalSls || tgt || 0;
+    const finalReal = totalSls || real || 0;
+    const officerKdKec = (breakdownRows && breakdownRows[0]?.kdKec) || bData.kode_kec || (slsCodes[0] ? slsCodes[0].substring(0, 7) : '') || '';
+
     result.push({
       nama: u.nama,
       nik: u.nik,
       sobatid: u.sobatid,
       role: u.role,
-      kecamatan: u.kecamatan || '',
+      kode_kec: officerKdKec,
+      kecamatan: u.kecamatan || kecMap[officerKdKec] || '',
       no_spk: noEntry.no_spk || '',
       no_bast: finalNoBast,
-      target: tgt,
-      realisasi: real,
+      target: finalTarget,
+      realisasi: finalReal,
+      totalSls: finalTarget,
+      breakdownRows: breakdownRows,
       screenshot_uninstall: bData.screenshot_uninstall || null,
-      crop_top_uninstall: bData.crop_top_uninstall || null,
-      crop_bottom_uninstall: bData.crop_bottom_uninstall || null
+      crop_top_uninstall: (bData.crop_top_uninstall !== undefined && bData.crop_top_uninstall !== null) ? parseFloat(bData.crop_top_uninstall) : 0,
+      crop_bottom_uninstall: (bData.crop_bottom_uninstall !== undefined && bData.crop_bottom_uninstall !== null) ? parseFloat(bData.crop_bottom_uninstall) : 0
     });
-  });
+  }
 
-  result.sort((a, b) => (a.role === 'ppl' ? -1 : 1) || (a.kecamatan || '').localeCompare(b.kecamatan || '') || (a.nama || '').localeCompare(b.nama || ''));
+  // Sort by Kode Kecamatan then by Nama Petugas
+  result.sort((a, b) => {
+    const kecA = a.kode_kec || (a.breakdownRows && a.breakdownRows[0]?.kdKec) || '';
+    const kecB = b.kode_kec || (b.breakdownRows && b.breakdownRows[0]?.kdKec) || '';
+    const compKec = kecA.localeCompare(kecB);
+    if (compKec !== 0) return compKec;
+
+    const nameA = a.nama || '';
+    const nameB = b.nama || '';
+    return nameA.localeCompare(nameB);
+  });
   return result;
 }
 
@@ -11033,6 +11186,8 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
   const roleTitleWithKec = isPml
     ? (cleanKec ? `Pemeriksa Lapangan Sensus Ekonomi 2026 Kecamatan ${cleanKec}` : "Pemeriksa Lapangan Sensus Ekonomi 2026")
     : (cleanKec ? `Petugas Lapangan Sensus Ekonomi 2026 Kecamatan ${cleanKec}` : "Petugas Lapangan Sensus Ekonomi 2026");
+
+  const totalSlsCount = officer.totalSls || officer.target || officer.realisasi || 0;
 
   // Load Ning signature if not passed
   if (!ttdNingBase64) {
@@ -11055,7 +11210,19 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
     ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
   }
 
+  // Tanggal terbilang BAST Termin 2
+  const TANGGAL_TERBILANG_BAST_T2 = {
+    1: "Jumat, tanggal sebelas, bulan September, tahun dua ribu dua puluh enam (11-09-2026)",
+    2: "Senin, tanggal empat belas, bulan September, tahun dua ribu dua puluh enam (14-09-2026)",
+    3: "Selasa, tanggal lima belas, bulan September, tahun dua ribu dua puluh enam (15-09-2026)",
+    4: "Rabu, tanggal enam belas, bulan September, tahun dua ribu dua puluh enam (16-09-2026)"
+  };
+
+  const bastNo = officer.no_bast || deriveBastNoSurat(officer.sobatid, officer.role, { no_spk: officer.no_spk });
+
+  // =========================================================================
   // --- HALAMAN 1 (PORTRAIT A4) ---
+  // =========================================================================
   pdf.setLineHeightFactor(1.0);
   pdf.setFont("Bookman", "bold");
   pdf.setFontSize(12);
@@ -11068,13 +11235,12 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
     pdf.text("SENSUS EKONOMI 2026", 105, 35, { align: "center" });
   }
 
-  const bastNo = officer.no_bast || (typeof deriveBastNoSurat === 'function' ? deriveBastNoSurat(officer.sobatid, officer.role, officer) : null) || `.../BAST-SE2026/.../${gelombang}/2026`;
   pdf.setFont("Bookman", "normal");
   pdf.setFontSize(12);
   pdf.text(`Nomor: ${bastNo}`, 105, 42, { align: "center" });
 
   let y = 52;
-  const dateSpelled = TANGGAL_TERBILANG_BAPP_T2[gelombang] || TANGGAL_TERBILANG_BAPP_T2[1];
+  const dateSpelled = TANGGAL_TERBILANG_BAST_T2[gelombang] || TANGGAL_TERBILANG_BAST_T2[1];
   const intro = `Pada hari ini ${dateSpelled}, berdasarkan Perjanjian Kerja pada Badan Pusat Statistik Kabupaten Lebak Nomor: ${officer.no_spk || '...'} , bertempat di Lebak, kami yang bertanda tangan di bawah ini:`;
   const introLines = drawRichJustifiedText(pdf, intro, 25, y, 160, 5);
   y += introLines * 5 + 3;
@@ -11084,15 +11250,17 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
   const valueX = 56;
   const lh = 5;
 
+  // PIHAK PERTAMA
   pdf.text("1.", 25, y);
   pdf.text("Nama", labelX, y); pdf.text(":", colonX, y); pdf.text("NING SRI LESTARI", valueX, y); y += lh;
   pdf.text("NIP", labelX, y); pdf.text(":", colonX, y); pdf.text("198107062002122002", valueX, y); y += lh;
-  const pihak1Teks = "PPK BPS Kabupaten Lebak bertindak untuk dan atas nama BPS Kabupaten Lebak, selanjutnya disebut sebagai PIHAK PERTAMA.";
-  const wrapPPK = pdf.splitTextToSize(pihak1Teks, 185 - valueX);
-  pdf.text("Jabatan", labelX, y); pdf.text(":", colonX, y);
-  drawRichJustifiedText(pdf, pihak1Teks, valueX, y, 185 - valueX, lh);
-  y += wrapPPK.length * lh + 2;
+  pdf.text("Jabatan", labelX, y); pdf.text(":", colonX, y); pdf.text("PPK BPS Kabupaten Lebak", valueX, y); y += lh;
+  const pihak1Teks = "bertindak untuk dan atas nama BPS Kabupaten Lebak, selanjutnya disebut sebagai PIHAK PERTAMA.";
+  const wrapPihak1 = pdf.splitTextToSize(pihak1Teks, 185 - labelX);
+  drawRichJustifiedText(pdf, pihak1Teks, labelX, y, 185 - labelX, lh);
+  y += wrapPihak1.length * lh + 3;
 
+  // PIHAK KEDUA
   pdf.text("2.", 25, y);
   pdf.text("Nama", labelX, y); pdf.text(":", colonX, y); pdf.text((officer.nama || "").toUpperCase(), valueX, y); y += lh;
   pdf.text("NIK", labelX, y); pdf.text(":", colonX, y); pdf.text(officer.nik || ".....................................", valueX, y); y += lh;
@@ -11108,17 +11276,17 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
   y += 5;
 
   const pasal = isPml ? [
-    `PIHAK KEDUA telah melaksanakan seluruh pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${officer.no_spk || '...'}, sesuai dengan target pekerjaan yang ditetapkan sebesar ${officer.target || 0} SLS/Sub-SLS selama pendataan 15 Juni 2026 sampai dengan 31 Agustus 2026.`,
+    `PIHAK KEDUA telah melaksanakan seluruh pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${officer.no_spk || '...'}, sesuai dengan target pekerjaan yang ditetapkan sebesar ${totalSlsCount} SLS/Sub-SLS selama pendataan 15 Juni 2026 sampai dengan 31 Agustus 2026.`,
     `PIHAK KEDUA telah menyelesaikan seluruh pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 berdasarkan hasil pemeriksaan dan evaluasi pekerjaan sebagaimana tercantum dalam lampiran.`,
     `Berdasarkan angka 2 tersebut di atas, PIHAK KEDUA menyerahkan seluruh hasil pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 kepada PIHAK PERTAMA, dan PIHAK PERTAMA menerima hasil pekerjaan tersebut yang telah sesuai dengan seharusnya;`,
-    `Pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${officer.realisasi || officer.target || 0} SLS/Sub-SLS.`,
+    `Pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${totalSlsCount} SLS/Sub-SLS.`,
     `Pekerjaaan pemeriksaan sebagaimana dimaksud pada angka 4 yang memerlukan pemeriksaan lanjutan, akan dilakukan pengecekan, perubahan, dan/atau kunjungan kembali ke lapangan merujuk pada perjanjian yang ditandatangani oleh PARA PIHAK.`,
     `PIHAK KEDUA menghapus Aplikasi FASIH dan data hasil Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 pada perangkat handphone PIHAK KEDUA disaksikan oleh pegawai BPS Kabupaten/Kota yang ditunjuk oleh PIHAK PERTAMA.`
   ] : [
-    `PIHAK KEDUA telah melaksanakan seluruh pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${officer.no_spk || '...'}, sesuai dengan target pekerjaan yang ditetapkan sebesar ${officer.target || 0} SLS/Sub-SLS selama pendataan 15 Juni 2026 sampai dengan 31 Agustus 2026.`,
+    `PIHAK KEDUA telah melaksanakan seluruh pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${officer.no_spk || '...'}, sesuai dengan target pekerjaan yang ditetapkan sebesar ${totalSlsCount} SLS/Sub-SLS selama pendataan 15 Juni 2026 sampai dengan 31 Agustus 2026.`,
     `PIHAK KEDUA telah menyelesaikan seluruh pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 berdasarkan hasil pemeriksaan dan evaluasi pekerjaan sebagaimana tercantum dalam lampiran.`,
     `Berdasarkan angka 2 tersebut di atas, PIHAK KEDUA menyerahkan seluruh hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 kepada PIHAK PERTAMA, dan PIHAK PERTAMA menerima hasil pekerjaan tersebut yang telah sesuai dengan seharusnya;`,
-    `Hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${officer.realisasi || officer.target || 0} SLS/Sub-SLS.`,
+    `Hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${totalSlsCount} SLS/Sub-SLS.`,
     `Hasil pekerjaan pendataan sebagaimana dimaksud pada angka 4 yang memerlukan pemeriksaan lanjutan, akan dilakukan pengecekan, perubahan, dan/atau kunjungan kembali ke lapangan merujuk pada perjanjian yang ditandatangani oleh PARA PIHAK.`,
     `PIHAK KEDUA menghapus Aplikasi FASIH dan data hasil Pendataan Lapangan Sensus Ekonomi 2026 pada perangkat handphone PIHAK KEDUA disaksikan oleh pegawai BPS Kabupaten/Kota yang ditunjuk oleh PIHAK PERTAMA.`
   ];
@@ -11131,7 +11299,9 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
     y += linesCount * 4.5 + 1.5;
   });
 
+  // =========================================================================
   // --- HALAMAN 2 (PORTRAIT A4 PENUTUP & TTD) ---
+  // =========================================================================
   pdf.addPage('a4', 'portrait');
 
   pdf.setFont('Bookman', 'normal');
@@ -11150,31 +11320,288 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
   pdf.text("PIHAK PERTAMA,", 155, ttdY, { align: "center" });
 
   if (ttdNingBase64) {
-    pdf.addImage(ttdNingBase64, 'PNG', 140, ttdY + 6, 35, 20);
+    pdf.addImage(ttdNingBase64, 'PNG', 131, ttdY + 2, 48, 24);
   }
 
-  pdf.text(`(${officer.nama || ""})`.toUpperCase(), 55, ttdY + 34, { align: "center" });
-  pdf.text("(NING SRI LESTARI)", 155, ttdY + 34, { align: "center" });
+  pdf.text(`(${officer.nama || ""})`.toUpperCase(), 55, ttdY + 28, { align: "center" });
+  pdf.text("(NING SRI LESTARI)", 155, ttdY + 28, { align: "center" });
 
-  // --- HALAMAN 4 (LANDSCAPE A4 LAMPIRAN BAST) ---
+  // =========================================================================
+  // --- HALAMAN 3 (LANDSCAPE A4 LAMPIRAN I - TABEL URAIAN) ---
+  // =========================================================================
+  pdf.addPage('a4', 'landscape');
+
+  pdf.setFont('Bookman', 'normal');
+  pdf.setFontSize(11);
+  pdf.text('-3-', 148.5, 12, { align: 'center' });
+
+  pdf.text('LAMPIRAN', 148.5, 22, { align: 'center' });
+  pdf.text('BERITA ACARA SERAH TERIMA PEKERJAAN', 148.5, 27, { align: 'center' });
+  const lampRoleTitle = isPml ? "PEMERIKSA LAPANGAN SENSUS EKONOMI 2026" : "PETUGAS LAPANGAN SENSUS EKONOMI 2026";
+  pdf.text(lampRoleTitle, 148.5, 32, { align: 'center' });
+  pdf.text('PADA BADAN PUSAT STATISTIK KABUPATEN LEBAK', 148.5, 37, { align: 'center' });
+  pdf.text(`NOMOR: ${bastNo}`, 148.5, 42, { align: 'center' });
+
+  pdf.text('I. DAFTAR URAIAN PEKERJAAN, WAKTU PENYELESAIAN, TARGET PEKERJAAN, REALISASI PEKERJAAN DAN NILAI PERJANJIAN', 20, 50);
+
+  // Tabel 6 Kolom
+  const tX = 20;
+  const tY = 54;
+  const colW = [72, 38, 52, 50, 45]; // total = 257mm (from X=20 to X=277)
+
+  pdf.setFont('Bookman', 'normal');
+
+  // Col 0: Uraian Pekerjaan (span 2 row, h=14)
+  pdf.rect(tX, tY, colW[0], 14);
+  pdf.text("Uraian Pekerjaan", tX + colW[0] / 2, tY + 8, { align: "center" });
+
+  // Col 1: Waktu Penyelesaian (span 2 row, h=14)
+  pdf.rect(tX + colW[0], tY, colW[1], 14);
+  const wrapWaktu = pdf.splitTextToSize("Waktu Penyelesaian", colW[1] - 4);
+  pdf.text(wrapWaktu, tX + colW[0] + colW[1] / 2, tY + 6, { align: "center" });
+
+  // Col 2: Target Pekerjaan (header atas h=7)
+  pdf.rect(tX + colW[0] + colW[1], tY, colW[2], 7);
+  pdf.text("Target Pekerjaan", tX + colW[0] + colW[1] + colW[2] / 2, tY + 5, { align: "center" });
+  // Sub-kolom Target: Presentase (22mm) & Volume (30mm)
+  pdf.rect(tX + colW[0] + colW[1], tY + 7, 22, 7);
+  pdf.text("Presentase", tX + colW[0] + colW[1] + 11, tY + 11.5, { align: "center" });
+  pdf.rect(tX + colW[0] + colW[1] + 22, tY + 7, 30, 7);
+  pdf.text("Volume", tX + colW[0] + colW[1] + 22 + 15, tY + 11.5, { align: "center" });
+
+  // Col 3: Realisasi Pekerjaan (span 2 row, h=14)
+  const xCol3 = tX + colW[0] + colW[1] + colW[2];
+  pdf.rect(xCol3, tY, colW[3], 14);
+  const wrapReal = pdf.splitTextToSize("Realisasi Pekerjaan", colW[3] - 4);
+  pdf.text(wrapReal, xCol3 + colW[3] / 2, tY + 6, { align: "center" });
+
+  // Col 4: Nilai Perjanjian (span 2 row, h=14)
+  const xCol4 = xCol3 + colW[3];
+  pdf.rect(xCol4, tY, colW[4], 14);
+  const wrapNilai = pdf.splitTextToSize("Nilai Perjanjian", colW[4] - 4);
+  pdf.text(wrapNilai, xCol4 + colW[4] / 2, tY + 6, { align: "center" });
+
+  // Baris Nomor Kolom (1) s/d (6) h=5
+  const numY = tY + 14;
+  pdf.setFont('Bookman', 'normal');
+  pdf.rect(tX, numY, colW[0], 5);
+  pdf.text("(1)", tX + colW[0] / 2, numY + 3.5, { align: "center" });
+
+  pdf.rect(tX + colW[0], numY, colW[1], 5);
+  pdf.text("(2)", tX + colW[0] + colW[1] / 2, numY + 3.5, { align: "center" });
+
+  pdf.rect(tX + colW[0] + colW[1], numY, 22, 5);
+  pdf.text("(3)", tX + colW[0] + colW[1] + 11, numY + 3.5, { align: "center" });
+
+  pdf.rect(tX + colW[0] + colW[1] + 22, numY, 30, 5);
+  pdf.text("(4)", tX + colW[0] + colW[1] + 22 + 15, numY + 3.5, { align: "center" });
+
+  pdf.rect(xCol3, numY, colW[3], 5);
+  pdf.text("(5)", xCol3 + colW[3] / 2, numY + 3.5, { align: "center" });
+
+  pdf.rect(xCol4, numY, colW[4], 5);
+  pdf.text("(6)", xCol4 + colW[4] / 2, numY + 3.5, { align: "center" });
+
+  // Baris Isi Data (h=18)
+  const dataY = numY + 5;
+  const dataH = 18;
+
+  // (1) Uraian
+  pdf.rect(tX, dataY, colW[0], dataH);
+  const uraianTeks = isPml
+    ? "Melakukan pemeriksaan hasil pendataan lapangan door to door Sensus Ekonomi 2026 termin I dan termin II"
+    : "Melakukan pendataan lapangan door to door Sensus Ekonomi 2026 termin I dan termin II";
+  const wrapUraian = pdf.splitTextToSize(uraianTeks, colW[0] - 6);
+  pdf.text(wrapUraian, tX + 3, dataY + 5);
+
+  // (2) Waktu
+  pdf.rect(tX + colW[0], dataY, colW[1], dataH);
+  const wrapWaktuVal = pdf.splitTextToSize("15 Juni 2026 -\n31 Agustus 2026", colW[1] - 4);
+  pdf.text(wrapWaktuVal, tX + colW[0] + colW[1] / 2, dataY + 7, { align: "center" });
+
+  // (3) Presentase Target
+  pdf.rect(tX + colW[0] + colW[1], dataY, 22, dataH);
+  pdf.text("100%", tX + colW[0] + colW[1] + 11, dataY + 9, { align: "center" });
+
+  // (4) Volume Target
+  pdf.rect(tX + colW[0] + colW[1] + 22, dataY, 30, dataH);
+  const wrapVolTgt = pdf.splitTextToSize(`${totalSlsCount}\nSLS/Sub-SLS`, 28);
+  pdf.text(wrapVolTgt, tX + colW[0] + colW[1] + 22 + 15, dataY + 7, { align: "center" });
+
+  // (5) Realisasi Pekerjaan
+  pdf.rect(xCol3, dataY, colW[3], dataH);
+  const realisasiTeks = `Telah mencapai target pekerjaan sebesar ${totalSlsCount} SLS/Sub-SLS`;
+  const wrapRealVal = pdf.splitTextToSize(realisasiTeks, colW[3] - 6);
+  pdf.text(wrapRealVal, xCol3 + 3, dataY + 6);
+
+  // (6) Nilai Perjanjian (Nominal Baris Data)
+  pdf.rect(xCol4, dataY, colW[4], dataH);
+  const nilaiNominal = isPml ? "Rp 12.232.500,00" : "Rp 11.610.000,00";
+  const nilaiTerbilang = isPml
+    ? "Terbilang: Dua belas juta dua ratus tiga puluh dua ribu lima ratus rupiah"
+    : "Terbilang: Sebelas juta enam ratus sepuluh ribu rupiah";
+  pdf.text(nilaiNominal, xCol4 + colW[4] / 2, dataY + 9, { align: "center" });
+
+  // Baris Terakhir (Span Kolom 1-5 berisi Terbilang, Kolom 6 berisi Nominal)
+  const botRowY = dataY + dataH;
+  const botRowH = 9;
+  const span1to5W = colW[0] + colW[1] + colW[2] + colW[3];
+
+  pdf.rect(tX, botRowY, span1to5W, botRowH);
+  pdf.text(nilaiTerbilang, tX + 3, botRowY + 6);
+
+  pdf.rect(xCol4, botRowY, colW[4], botRowH);
+  pdf.text(nilaiNominal, xCol4 + colW[4] / 2, botRowY + 6, { align: "center" });
+
+  // =========================================================================
+  // --- HALAMAN 4 (LANDSCAPE A4 LAMPIRAN II.A - DAFTAR WILAYAH / PETUGAS) ---
+  // =========================================================================
   pdf.addPage('a4', 'landscape');
 
   pdf.setFont('Bookman', 'normal');
   pdf.setFontSize(11);
   pdf.text('-4-', 148.5, 12, { align: 'center' });
 
-  pdf.setFont('Bookman', 'normal');
-  pdf.setFontSize(11);
-  pdf.text('LAMPIRAN', 148.5, 17, { align: 'center' });
-  pdf.text('BERITA ACARA SERAH TERIMA PEKERJAAN', 148.5, 22, { align: 'center' });
-  const lampRoleTitle = isPml ? "PEMERIKSA LAPANGAN SENSUS EKONOMI 2026" : "PETUGAS LAPANGAN SENSUS EKONOMI 2026";
-  pdf.text(lampRoleTitle, 148.5, 27, { align: 'center' });
-  pdf.text('PADA BADAN PUSAT STATISTIK KABUPATEN LEBAK', 148.5, 32, { align: 'center' });
-  pdf.text(`NOMOR: ${bastNo}`, 148.5, 37, { align: 'center' });
+  pdf.text('II. BUKTI PENYELESAIAN PEKERJAAN', 20, 22);
+  if (isPml) {
+    pdf.text('A. DAFTAR PETUGAS DAN WILAYAH KERJA', 20, 28);
+  } else {
+    pdf.text('A. DAFTAR WILAYAH KERJA', 20, 28);
+  }
+
+  const p4X = 20;
+  let p4Y = 33;
+  const p4Rows = officer.breakdownRows || [];
+
+  if (isPml) {
+    // PML Table (5 Cols): No (12), Nama Petugas (70), [Kode] Kec (60), [Kode] Desa (60), Jml SLS (55) -> total = 257
+    const cW = [12, 70, 60, 60, 55];
+    const rowH = 7;
+
+    // Header
+    pdf.rect(p4X, p4Y, cW[0], 10);
+    pdf.text("No", p4X + cW[0] / 2, p4Y + 6, { align: "center" });
+
+    pdf.rect(p4X + cW[0], p4Y, cW[1], 10);
+    const wrapNmPet = pdf.splitTextToSize("Nama Petugas Lapangan Sensus", cW[1] - 4);
+    pdf.text(wrapNmPet, p4X + cW[0] + cW[1] / 2, p4Y + 4, { align: "center" });
+
+    pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], 10);
+    const wrapKec = pdf.splitTextToSize("[Kode] KECAMATAN/DISTRIK", cW[2] - 4);
+    pdf.text(wrapKec, p4X + cW[0] + cW[1] + cW[2] / 2, p4Y + 4, { align: "center" });
+
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], 10);
+    const wrapDesa = pdf.splitTextToSize("[Kode] DESA", cW[3] - 4);
+    pdf.text(wrapDesa, p4X + cW[0] + cW[1] + cW[2] + cW[3] / 2, p4Y + 6, { align: "center" });
+
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2] + cW[3], p4Y, cW[4], 10);
+    const wrapJml = pdf.splitTextToSize("Jumlah SLS/Sub-SLS", cW[4] - 4);
+    pdf.text(wrapJml, p4X + cW[0] + cW[1] + cW[2] + cW[3] + cW[4] / 2, p4Y + 6, { align: "center" });
+
+    p4Y += 10;
+    // Col numbers
+    pdf.rect(p4X, p4Y, cW[0], 5);
+    pdf.text("(1)", p4X + cW[0] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0], p4Y, cW[1], 5);
+    pdf.text("(2)", p4X + cW[0] + cW[1] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], 5);
+    pdf.text("(3)", p4X + cW[0] + cW[1] + cW[2] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], 5);
+    pdf.text("(4)", p4X + cW[0] + cW[1] + cW[2] + cW[3] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2] + cW[3], p4Y, cW[4], 5);
+    pdf.text("(5)", p4X + cW[0] + cW[1] + cW[2] + cW[3] + cW[4] / 2, p4Y + 3.5, { align: "center" });
+
+    p4Y += 5;
+    if (p4Rows.length === 0) {
+      pdf.rect(p4X, p4Y, 257, rowH);
+      pdf.text("—", p4X + 128.5, p4Y + 5, { align: "center" });
+      p4Y += rowH;
+    } else {
+      p4Rows.forEach((r, idx) => {
+        pdf.rect(p4X, p4Y, cW[0], rowH);
+        pdf.text(`${idx + 1}.`, p4X + cW[0] / 2, p4Y + 5, { align: "center" });
+
+        pdf.rect(p4X + cW[0], p4Y, cW[1], rowH);
+        pdf.text((r.namaPpl || "—").toUpperCase(), p4X + cW[0] + 3, p4Y + 5);
+
+        pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], rowH);
+        pdf.text(`[${r.kdKecLocal || r.kdKec?.slice(-3) || ''}] ${r.nmKec.toUpperCase()}`, p4X + cW[0] + cW[1] + 3, p4Y + 5);
+
+        pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], rowH);
+        pdf.text(`[${r.kdDesaLocal || r.kdDesa?.slice(-3) || ''}] ${r.nmDesa.toUpperCase()}`, p4X + cW[0] + cW[1] + cW[2] + 3, p4Y + 5);
+
+        pdf.rect(p4X + cW[0] + cW[1] + cW[2] + cW[3], p4Y, cW[4], rowH);
+        pdf.text(String(r.count || 0), p4X + cW[0] + cW[1] + cW[2] + cW[3] + cW[4] / 2, p4Y + 5, { align: "center" });
+
+        p4Y += rowH;
+      });
+    }
+  } else {
+    // PPL Table (4 Cols): No (15), [Kode] Kec (80), [Kode] Desa (80), Jml SLS (82) -> total = 257
+    const cW = [15, 80, 80, 82];
+    const rowH = 7;
+
+    // Header
+    pdf.rect(p4X, p4Y, cW[0], 10);
+    pdf.text("No", p4X + cW[0] / 2, p4Y + 6, { align: "center" });
+
+    pdf.rect(p4X + cW[0], p4Y, cW[1], 10);
+    const wrapKec = pdf.splitTextToSize("[Kode] KECAMATAN/DISTRIK", cW[1] - 4);
+    pdf.text(wrapKec, p4X + cW[0] + cW[1] / 2, p4Y + 4, { align: "center" });
+
+    pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], 10);
+    const wrapDesa = pdf.splitTextToSize("[Kode] DESA", cW[2] - 4);
+    pdf.text(wrapDesa, p4X + cW[0] + cW[1] + cW[2] / 2, p4Y + 6, { align: "center" });
+
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], 10);
+    const wrapJml = pdf.splitTextToSize("Jumlah SLS/sub-SLS", cW[3] - 4);
+    pdf.text(wrapJml, p4X + cW[0] + cW[1] + cW[2] + cW[3] / 2, p4Y + 6, { align: "center" });
+
+    p4Y += 10;
+    // Col numbers
+    pdf.rect(p4X, p4Y, cW[0], 5);
+    pdf.text("(1)", p4X + cW[0] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0], p4Y, cW[1], 5);
+    pdf.text("(2)", p4X + cW[0] + cW[1] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], 5);
+    pdf.text("(3)", p4X + cW[0] + cW[1] + cW[2] / 2, p4Y + 3.5, { align: "center" });
+    pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], 5);
+    pdf.text("(4)", p4X + cW[0] + cW[1] + cW[2] + cW[3] / 2, p4Y + 3.5, { align: "center" });
+
+    p4Y += 5;
+    if (p4Rows.length === 0) {
+      pdf.rect(p4X, p4Y, 257, rowH);
+      pdf.text("—", p4X + 128.5, p4Y + 5, { align: "center" });
+      p4Y += rowH;
+    } else {
+      p4Rows.forEach((r, idx) => {
+        pdf.rect(p4X, p4Y, cW[0], rowH);
+        pdf.text(`${idx + 1}.`, p4X + cW[0] / 2, p4Y + 5, { align: "center" });
+
+        pdf.rect(p4X + cW[0], p4Y, cW[1], rowH);
+        pdf.text(`[${r.kdKecLocal || r.kdKec?.slice(-3) || ''}] ${r.nmKec.toUpperCase()}`, p4X + cW[0] + 3, p4Y + 5);
+
+        pdf.rect(p4X + cW[0] + cW[1], p4Y, cW[2], rowH);
+        pdf.text(`[${r.kdDesaLocal || r.kdDesa?.slice(-3) || ''}] ${r.nmDesa.toUpperCase()}`, p4X + cW[0] + cW[1] + 3, p4Y + 5);
+
+        pdf.rect(p4X + cW[0] + cW[1] + cW[2], p4Y, cW[3], rowH);
+        pdf.text(String(r.count || 0), p4X + cW[0] + cW[1] + cW[2] + cW[3] / 2, p4Y + 5, { align: "center" });
+
+        p4Y += rowH;
+      });
+    }
+  }
+
+  // =========================================================================
+  // --- HALAMAN 5 (LANDSCAPE A4 LAMPIRAN II.B - SCREENSHOT UNINSTALL & TTD) ---
+  // =========================================================================
+  pdf.addPage('a4', 'landscape');
 
   pdf.setFont('Bookman', 'normal');
   pdf.setFontSize(11);
-  pdf.text('BUKTI PENYELESAIAN PEKERJAAN KECAMATAN ' + (cleanKec ? cleanKec.toUpperCase() : '.........................'), 20, 44);
+  pdf.text('-5-', 148.5, 12, { align: 'center' });
+
+  pdf.text('B. Screenshoot Aplikasi Fasih', 20, 22);
 
   const prepareCroppedImage = (src, topOff, botOff) => {
     return new Promise((resolve) => {
@@ -11182,15 +11609,15 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
       const img = new Image();
       img.src = src;
       img.onload = () => {
-        const topOffset = (topOff !== undefined && topOff !== null) ? parseFloat(topOff) : 8.0;
+        const topOffset = (topOff !== undefined && topOff !== null) ? parseFloat(topOff) : 0.0;
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const origW = img.naturalWidth;
         const origH = img.naturalHeight;
 
         // Kunci skala 1:1 persegi (cropHeight = origW)
-        const cropHeight = Math.min(origW, origH - (origH * (topOffset / 100)));
         const startY = origH * (topOffset / 100);
+        const cropHeight = Math.min(origW, origH - startY);
         canvas.width = origW;
         canvas.height = cropHeight;
         ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
@@ -11200,14 +11627,14 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
     });
   };
 
-  // Render 1 Screenshot Bukti Uninstall FASIH (Strict 1:1 Square)
+  // Render 1 Screenshot Bukti Uninstall FASIH (Strict 1:1 Square 75x75mm)
   const res = await prepareCroppedImage(officer.screenshot_uninstall, officer.crop_top_uninstall, officer.crop_bottom_uninstall);
   if (res) {
-    const squareSize = 75.0; // mm (Bujur sangkar presisi 75x75mm di landscape A4)
+    const squareSize = 75.0;
     const imgWidth = squareSize;
     const imgHeight = squareSize;
     const imgX = (297 - imgWidth) / 2;
-    const imgY = 46.0;
+    const imgY = 28.0;
     pdf.addImage(res.base64, 'PNG', imgX, imgY, imgWidth, imgHeight);
     pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
   } else {
@@ -11215,34 +11642,43 @@ async function buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang 
     const imgWidth = squareSize;
     const imgHeight = squareSize;
     const imgX = (297 - imgWidth) / 2;
-    const imgY = 46.0;
+    const imgY = 28.0;
     pdf.rect(imgX, imgY, imgWidth, imgHeight, 'D');
     pdf.setFont('Bookman', 'italic');
     pdf.setFontSize(10);
     pdf.text('[Bukti Uninstall FASIH Tidak Tersedia]', 148.5, imgY + 37.5, { align: 'center' });
   }
 
-  const sigY2 = 125.0;
+  // --- TANDA TANGAN 3 PIHAK SEJAJAR (HALAMAN 5) ---
+  // Layout: 
+  // Kiri: 'Mengetahui,' di (sigY - 5), lalu 'Ketua Tim Pelaksana...' sejajar di sigY
+  // Tengah: 'PIHAK KEDUA,' sejajar di sigY
+  // Kanan: 'PIHAK PERTAMA,' sejajar di sigY
+  const sigY = 120.0;
+  const nameY = sigY + 32.0; // Baris nama sejajar presisi di Y = 152mm
+
   pdf.setFont('Bookman', 'normal');
   pdf.setFontSize(11);
-  pdf.text('PIHAK KEDUA,', 70, sigY2, { align: 'center' });
-  pdf.text('PIHAK PERTAMA,', 227, sigY2, { align: 'center' });
 
-  if (ttdNingBase64) {
-    const ttdX = 202;
-    pdf.addImage(ttdNingBase64, 'PNG', ttdX, sigY2 + 2, 45, 22);
-  }
+  // 1. Kolom Kiri: Mengetahui / Ketua Tim Pelaksana
+  pdf.text('Mengetahui,', 65, sigY - 5, { align: 'center' });
+  pdf.text('Ketua Tim Pelaksana selaku', 65, sigY, { align: 'center' });
+  pdf.text('Pemeriksa Pekerjaan,', 65, sigY + 5, { align: 'center' });
   if (ttdYulianBase64) {
-    const ttdX = 138;
-    pdf.addImage(ttdYulianBase64, 'PNG', ttdX, sigY2 + 28, 20, 28);
+    pdf.addImage(ttdYulianBase64, 'PNG', 56, sigY + 6, 18, 24);
   }
+  pdf.text('(YULIAN SARWO EDI)', 65, nameY, { align: 'center' });
 
-  pdf.text(`(${officer.nama || ""})`.toUpperCase(), 70, sigY2 + 25, { align: 'center' });
-  pdf.text('(NING SRI LESTARI)', 227, sigY2 + 25, { align: 'center' });
+  // 2. Kolom Tengah: PIHAK KEDUA (Petugas Lapangan / Pemeriksa Lapangan)
+  pdf.text('PIHAK KEDUA,', 148.5, sigY, { align: 'center' });
+  pdf.text(`(${officer.nama || ''})`.toUpperCase(), 148.5, nameY, { align: 'center' });
 
-  pdf.text('Mengetahui,', 148.5, sigY2 + 25, { align: 'center' });
-  pdf.text('Ketua Tim Pelaksana selaku Pemeriksa Pekerjaan,', 148.5, sigY2 + 30, { align: 'center' });
-  pdf.text('(YULIAN SARWO EDI)', 148.5, sigY2 + 55, { align: 'center' });
+  // 3. Kolom Kanan: PIHAK PERTAMA (PPK - Ning Sri Lestari)
+  pdf.text('PIHAK PERTAMA,', 232, sigY, { align: 'center' });
+  if (ttdNingBase64) {
+    pdf.addImage(ttdNingBase64, 'PNG', 209, sigY + 4, 46, 25);
+  }
+  pdf.text('(NING SRI LESTARI)', 232, nameY, { align: 'center' });
 }
 
 /**
