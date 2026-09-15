@@ -4089,16 +4089,16 @@ async function buildBappT2SingleDocument(pdf, r, ttdYulianBase64, ttdNingBase64,
   y += 5;
 
   const klausa = isPml ? [
-    `PIHAK KEDUA telah melaksanakan pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${spkNo}, sesuai dengan target pekerjaan termin II yang ditetapkan sebesar ${targetCount || jmlSls} SLS/Sub-SLS.`,
+    `PIHAK KEDUA telah melaksanakan pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${spkNo}, sesuai dengan target pekerjaan termin II yang ditetapkan sebesar ${targetCount} SLS/Sub-SLS.`,
     `PIHAK KEDUA telah menyelesaikan pekerjaan termin II Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 berdasarkan hasil pemeriksaan dan evaluasi pekerjaan sebagaimana tercantum dalam lampiran.`,
     `Berdasarkan angka 2 tersebut di atas, PIHAK KEDUA menyerahkan hasil pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 kepada PIHAK PERTAMA, dan PIHAK PERTAMA menerima hasil pekerjaan tersebut yang telah sesuai dengan seharusnya;`,
-    `Pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${realisasiCount || targetCount || jmlSls} SLS/Sub-SLS.`,
+    `Pekerjaan Pemeriksaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen pemeriksaan hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${realisasiCount} SLS/Sub-SLS.`,
     `Pekerjaan pemeriksaan sebagaimana dimaksud pada angka 4 yang memerlukan pemeriksaan lanjutan, akan dilakukan pengecekan, perubahan, dan/atau kunjungan kembali ke lapangan merujuk pada perjanjian yang ditandatangani oleh PARA PIHAK.`
   ] : [
-    `PIHAK KEDUA telah melaksanakan pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${spkNo}, sesuai dengan target pekerjaan termin II yang ditetapkan sebesar ${targetCount || jmlSls} SLS/Sub-SLS.`,
+    `PIHAK KEDUA telah melaksanakan pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 pada Badan Pusat Statistik Kabupaten Lebak berdasarkan Perjanjian Kerja Nomor: ${spkNo}, sesuai dengan target pekerjaan termin II yang ditetapkan sebesar ${targetCount} SLS/Sub-SLS.`,
     `PIHAK KEDUA telah menyelesaikan pekerjaan termin II Pendataan Lapangan Sensus Ekonomi 2026 berdasarkan hasil pemeriksaan dan evaluasi pekerjaan sebagaimana tercantum dalam lampiran.`,
     `Berdasarkan angka 2 tersebut di atas, PIHAK KEDUA menyerahkan hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 kepada PIHAK PERTAMA, dan PIHAK PERTAMA menerima hasil pekerjaan tersebut yang telah sesuai dengan seharusnya;`,
-    `Hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${realisasiCount || targetCount || jmlSls} SLS/Sub-SLS.`,
+    `Hasil pekerjaan Pendataan Lapangan Sensus Ekonomi 2026 sebagaimana dimaksud dalam angka 3, berupa dokumen hasil Pendataan Lapangan Sensus Ekonomi 2026, sejumlah ${realisasiCount} SLS/Sub-SLS.`,
     `Hasil pekerjaan pendataan sebagaimana dimaksud pada angka 4 yang memerlukan pemeriksaan lanjutan, akan dilakukan pengecekan, perubahan, dan/atau kunjungan kembali ke lapangan merujuk pada perjanjian yang ditandatangani oleh PARA PIHAK.`
   ];
 
@@ -4230,12 +4230,12 @@ async function buildBappT2SingleDocument(pdf, r, ttdYulianBase64, ttdNingBase64,
 
   // (4) Volume Target
   pdf.rect(tX + colW[0] + colW[1] + 22, dataY, 30, dataH);
-  const wrapVolTgt = pdf.splitTextToSize(`${targetCount || jmlSls}\nSLS/Sub-SLS`, 28);
+  const wrapVolTgt = pdf.splitTextToSize(`${targetCount}\nSLS/Sub-SLS`, 28);
   pdf.text(wrapVolTgt, tX + colW[0] + colW[1] + 22 + 15, dataY + 7, { align: "center" });
 
   // (5) Realisasi Pekerjaan
   pdf.rect(xCol3, dataY, colW[3], dataH);
-  const realisasiTeks = `Telah mencapai target pekerjaan sebesar ${realisasiCount || targetCount || jmlSls} SLS/Sub-SLS`;
+  const realisasiTeks = `Telah mencapai target pekerjaan sebesar ${realisasiCount} SLS/Sub-SLS`;
   const wrapRealVal = pdf.splitTextToSize(realisasiTeks, colW[3] - 6);
   pdf.text(wrapRealVal, xCol3 + 3, dataY + 6);
 
