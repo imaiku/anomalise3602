@@ -10265,7 +10265,22 @@ async function fetchSuperPPLDataT2(gelombang = 1) {
   const eligibleIds = bappEligibilityMapT2[gelombang];
   if (!eligibleIds || eligibleIds.size === 0) return [];
 
-  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2');
+  let noSurats = [];
+  let fromNo = 0;
+  let hasMoreNo = true;
+  while (hasMoreNo) {
+    const { data: noData, error: noErr } = await db.from('no_surat_se')
+      .select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2')
+      .range(fromNo, fromNo + 999);
+    if (noErr) { console.error('Error fetching no_surat_se:', noErr); break; }
+    if (noData && noData.length > 0) {
+      noSurats = noSurats.concat(noData);
+      if (noData.length < 1000) hasMoreNo = false;
+      else fromNo += 1000;
+    } else {
+      hasMoreNo = false;
+    }
+  }
   const noSuratMap = {};
   (noSurats || []).forEach(n => {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
@@ -10482,7 +10497,22 @@ async function fetchSuperPMLDataT2(gelombang = 1) {
   const eligibleIds = bappEligibilityMapT2[gelombang];
   if (!eligibleIds || eligibleIds.size === 0) return [];
 
-  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t2');
+  let noSurats = [];
+  let fromNo = 0;
+  let hasMoreNo = true;
+  while (hasMoreNo) {
+    const { data: noData, error: noErr } = await db.from('no_surat_se')
+      .select('sobatid, no_spk, no_sp_pemeriksaan_t2')
+      .range(fromNo, fromNo + 999);
+    if (noErr) { console.error('Error fetching no_surat_se:', noErr); break; }
+    if (noData && noData.length > 0) {
+      noSurats = noSurats.concat(noData);
+      if (noData.length < 1000) hasMoreNo = false;
+      else fromNo += 1000;
+    } else {
+      hasMoreNo = false;
+    }
+  }
   const noSuratMap = {};
   (noSurats || []).forEach(n => {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
@@ -10980,7 +11010,22 @@ async function fetchBASTData(gelombang = 1) {
   const eligibleIds = bappEligibilityMapT2[gelombang];
   if (!eligibleIds || eligibleIds.size === 0) return [];
 
-  const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2');
+  let noSurats = [];
+  let fromNo = 0;
+  let hasMoreNo = true;
+  while (hasMoreNo) {
+    const { data: noData, error: noErr } = await db.from('no_surat_se')
+      .select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2')
+      .range(fromNo, fromNo + 999);
+    if (noErr) { console.error('Error fetching no_surat_se:', noErr); break; }
+    if (noData && noData.length > 0) {
+      noSurats = noSurats.concat(noData);
+      if (noData.length < 1000) hasMoreNo = false;
+      else fromNo += 1000;
+    } else {
+      hasMoreNo = false;
+    }
+  }
   const noSuratMap = {};
   (noSurats || []).forEach(n => {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
@@ -11852,7 +11897,22 @@ async function loadBastNoSuratTable() {
   if (tbody) tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:2rem"><span class="spinner"></span> Memuat nomor surat BAST...</td></tr>';
 
   try {
-    const { data: noSurats } = await db.from('no_surat_se').select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2');
+    let noSurats = [];
+    let fromNo = 0;
+    let hasMoreNo = true;
+    while (hasMoreNo) {
+      const { data: noData, error: noErr } = await db.from('no_surat_se')
+        .select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2')
+        .range(fromNo, fromNo + 999);
+      if (noErr) { console.error('Error fetching no_surat_se:', noErr); break; }
+      if (noData && noData.length > 0) {
+        noSurats = noSurats.concat(noData);
+        if (noData.length < 1000) hasMoreNo = false;
+        else fromNo += 1000;
+      } else {
+        hasMoreNo = false;
+      }
+    }
     const map = {};
     (noSurats || []).forEach(n => {
       if (n.sobatid) map[String(n.sobatid).trim()] = n;
