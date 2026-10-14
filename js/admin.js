@@ -2858,10 +2858,12 @@ async function loadBAPPKecamatanFilter() {
     const filterSelect = document.getElementById('bappKecamatanFilter');
     const bastPplSel = document.getElementById('bastPplKecFilter');
     const bastPmlSel = document.getElementById('bastPmlKecFilter');
+    const bastKecSel = document.getElementById('bastKecamatanFilter');
 
     if (filterSelect) filterSelect.innerHTML = '<option value="">Semua Kecamatan</option>';
     if (bastPplSel) bastPplSel.innerHTML = '<option value="">Semua Kecamatan</option>';
     if (bastPmlSel) bastPmlSel.innerHTML = '<option value="">Semua Kecamatan</option>';
+    if (bastKecSel) bastKecSel.innerHTML = '<option value="">Semua Kecamatan</option>';
 
     data.forEach(k => {
       const localCode = k.kode_kec ? k.kode_kec.slice(-3) : '';
@@ -2886,6 +2888,13 @@ async function loadBAPPKecamatanFilter() {
         opt.value = k.kode_kec;
         opt.textContent = optText;
         bastPmlSel.appendChild(opt);
+      }
+
+      if (bastKecSel) {
+        const opt = document.createElement('option');
+        opt.value = k.kode_kec;
+        opt.textContent = optText;
+        bastKecSel.appendChild(opt);
       }
     });
   } catch (err) {
@@ -10858,10 +10867,341 @@ async function loadBAPPT2Data() {
 }
 
 /**
- * 7. BAST (BERITA ACARA SERAH TERIMA) FUNCTIONS
+ * BAST TABLE MODAL HANDLERS & STATE
  */
+let allBastTableData = [];
+let filteredBastTableData = [];
+let currentBastPage = 1;
+let bastPageSize = 10;
+let selectedBastIds = new Set();
+let bastSortColumn = 'nama';
+let bastSortDirection = 'asc';
+
+async function openBastTableModal(roleFilter = 'all', gelombang = 1) {
+  const modal = document.getElementById('bastTableModal');
+  if (modal) modal.classList.add('open');
+  
+  const gelSel = document.getElementById('bastGelombangFilter');
+  if (gelSel) gelSel.value = String(gelombang);
+
+  const roleSel = document.getElementById('bastRoleFilter');
+  if (roleSel) roleSel.value = roleFilter === 'all' ? '' : roleFilter;
+
+  selectedBastIds.clear();
+  updateBastSelectedUI();
+  await loadBastTableData();
+}
+
+function closeBastTableModal() {
+  const modal = document.getElementById('bastTableModal');
+  if (modal) modal.classList.remove('open');
+}
+
+async function loadBastTableData() {
+  const tbody = document.getElementById('bastTableBody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:2rem;color:var(--text-muted)"><div class="spinner" style="margin:0 auto"></div></td></tr>';
+  }
+  try {
+    if (typeof loadBappEligibilityDataT2 === 'function') {
+      await loadBappEligibilityDataT2();
+    }
+
+    const selectCols = 'id, profile_id, kode_kec, crop_top_uninstall, crop_bottom_uninstall, screenshot_uninstall, created_at, profiles:profile_id(nama, role, nik, sobatid), wilayah_kec:kode_kec(nmkec)';
+
+    let allData = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    while (hasMore) {
+      const { data, error } = await db
+        .from('bapp_uploads_t2')
+        .select(selectCols)
+        .order('created_at', { ascending: false })
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      if (error) throw error;
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        if (data.length < pageSize) {
+          hasMore = false;
+        } else {
+          page++;
+        }
+      } else {
+        hasMore = false;
+      }
+    }
+
+    allBastTableData = allData.map(b => ({
+      id: b.profile_id || b.id,
+      upload_id: b.id,
+      nama: b.profiles?.nama || '—',
+      sobatid: b.profiles?.sobatid || '—',
+      nik: b.profiles?.nik || '—',
+      role: b.profiles?.role || '—',
+      kode_kec: b.kode_kec || '',
+      kecamatan: b.wilayah_kec?.nmkec || '—',
+      created_at: b.created_at ? formatDate(b.created_at, true) : '—',
+      raw_created_at: b.created_at,
+      screenshot: b.screenshot || null,
+      crop_top: b.crop_top,
+      crop_bottom: b.crop_bottom,
+      screenshot_uninstall: b.screenshot_uninstall || null,
+      crop_top_uninstall: b.crop_top_uninstall,
+      crop_bottom_uninstall: b.crop_bottom_uninstall
+    }));
+
+    currentBastPage = 1;
+    filterBastTable();
+  } catch (err) {
+    console.error("Error loading BAST table data:", err);
+    showToast("Gagal memuat data tabel BAST: " + err.message, 'error');
+    if (tbody) {
+      tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--error)">Gagal memuat: ${err.message}</td></tr>`;
+    }
+  }
+}
+
+function filterBastTable() {
+  const search = (document.getElementById('bastSearchName')?.value || '').toLowerCase().trim();
+  const kec = document.getElementById('bastKecamatanFilter')?.value || '';
+  const role = document.getElementById('bastRoleFilter')?.value || '';
+  const gelVal = document.getElementById('bastGelombangFilter')?.value || '';
+
+  filteredBastTableData = allBastTableData.filter(item => {
+    if (role && item.role.toLowerCase() !== role.toLowerCase()) return false;
+    if (kec && item.kode_kec !== kec && !item.kecamatan.toLowerCase().includes(kec.toLowerCase())) return false;
+    if (gelVal && gelVal !== 'all') {
+      const gNum = parseInt(gelVal);
+      const eligibleSet = bappEligibilityMapT2[gNum];
+      if (!eligibleSet || !eligibleSet.has(item.id)) return false;
+    }
+    if (search) {
+      const matchName = item.nama.toLowerCase().includes(search);
+      const matchSobat = item.sobatid.toLowerCase().includes(search);
+      if (!matchName && !matchSobat) return false;
+    }
+    return true;
+  });
+
+  // Sorting
+  filteredBastTableData.sort((a, b) => {
+    let valA = a[bastSortColumn] || '';
+    let valB = b[bastSortColumn] || '';
+    if (typeof valA === 'string') valA = valA.toLowerCase();
+    if (typeof valB === 'string') valB = valB.toLowerCase();
+    if (valA < valB) return bastSortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return bastSortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  renderBastTable();
+}
+
+function sortBastTable(col) {
+  if (bastSortColumn === col) {
+    bastSortDirection = bastSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    bastSortColumn = col;
+    bastSortDirection = 'asc';
+  }
+  const icon = document.getElementById(`sort-bast-${col}`);
+  if (icon) icon.textContent = bastSortDirection === 'asc' ? '▲' : '▼';
+  filterBastTable();
+}
+
+function changeBastPageSize() {
+  const sel = document.getElementById('bastPageSizeSelect');
+  if (sel) {
+    bastPageSize = sel.value === 'all' ? filteredBastTableData.length : parseInt(sel.value);
+    currentBastPage = 1;
+    renderBastTable();
+  }
+}
+
+function toggleSelectAllBast(checked) {
+  if (checked) {
+    filteredBastTableData.forEach(item => selectedBastIds.add(item.id));
+  } else {
+    selectedBastIds.clear();
+  }
+  renderBastTable();
+  updateBastSelectedUI();
+}
+
+function toggleBastItemSelect(id, checked) {
+  if (checked) selectedBastIds.add(id);
+  else selectedBastIds.delete(id);
+  updateBastSelectedUI();
+}
+
+function updateBastSelectedUI() {
+  const countSpan = document.getElementById('selectedBastCount');
+  const btnPrev = document.getElementById('btnBastPreviewSelected');
+  const btnPrint = document.getElementById('btnBastPrintSelected');
+  const count = selectedBastIds.size;
+  if (countSpan) countSpan.textContent = count;
+  if (btnPrev) btnPrev.style.display = count > 0 ? 'inline-flex' : 'none';
+  if (btnPrint) btnPrint.style.display = count > 0 ? 'inline-flex' : 'none';
+
+  const selectAll = document.getElementById('selectAllBast');
+  if (selectAll && filteredBastTableData.length > 0) {
+    selectAll.checked = filteredBastTableData.every(item => selectedBastIds.has(item.id));
+  }
+}
+
+function renderBastTable() {
+  const tbody = document.getElementById('bastTableBody');
+  const countEl = document.getElementById('bastTableCount');
+  if (countEl) countEl.textContent = `Total: ${filteredBastTableData.length} petugas`;
+
+  if (!tbody) return;
+  if (filteredBastTableData.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:2rem;color:var(--text-muted)">Tidak ada data petugas yang cocok dengan filter.</td></tr>';
+    renderBastPagination(0);
+    return;
+  }
+
+  const startIdx = (currentBastPage - 1) * bastPageSize;
+  const pageItems = filteredBastTableData.slice(startIdx, startIdx + bastPageSize);
+
+  let html = '';
+  pageItems.forEach(item => {
+    const isChecked = selectedBastIds.has(item.id);
+    const roleBadge = item.role === 'pml' ? '<span class="role-badge role-pml">PML</span>' : '<span class="role-badge role-ppl">PPL</span>';
+    const timeText = item.created_at || '—';
+
+    // Single Screenshot Uninstall Crop button (since BAST focuses on Uninstall proof)
+    const cropBtn = item.screenshot_uninstall
+      ? `<button class="btn btn-secondary btn-sm" onclick="openCropModalForProfile('${item.id}', 'uninstall')" style="display:inline-flex;align-items:center;gap:0.25rem;padding:0.25rem 0.5rem">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+          </svg> Edit Crop
+         </button>`
+      : `<span class="badge badge-warning" style="font-size:0.7rem">⚠ Belum Uninstall</span>`;
+
+    html += `
+      <tr>
+        <td style="text-align:center">
+          <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleBastItemSelect('${item.id}', this.checked)">
+        </td>
+        <td style="font-weight:600">${escHtml(item.nama)}</td>
+        <td style="font-family:monospace">${escHtml(item.sobatid)}</td>
+        <td>${roleBadge}</td>
+        <td>${escHtml(item.kecamatan)}</td>
+        <td style="color:var(--text-muted)">${timeText}</td>
+        <td style="text-align:center;white-space:nowrap;display:flex;gap:0.35rem;justify-content:center">
+          ${cropBtn}
+          <button class="btn btn-primary btn-sm" onclick="previewBastSingle('${item.id}')" style="padding:0.25rem 0.5rem; font-size:0.72rem; background:linear-gradient(135deg, #10b981, #059669)">Preview</button>
+          <button class="btn btn-secondary btn-sm" onclick="downloadBastSingle('${item.id}')" style="padding:0.25rem 0.5rem; font-size:0.72rem">Unduh</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  tbody.innerHTML = html;
+  renderBastPagination(filteredBastTableData.length);
+}
+
+function renderBastPagination(totalItems) {
+  const pag = document.getElementById('bastPagination');
+  if (!pag) return;
+  if (bastPageSize === 'all') { pag.innerHTML = ''; return; }
+  const totalPages = Math.ceil(totalItems / parseInt(bastPageSize));
+  if (totalPages <= 1) {
+    pag.innerHTML = '';
+    return;
+  }
+  const firstBtn = `<button class="page-btn" onclick="gotoBastPage(1)" ${currentBastPage === 1 ? 'disabled' : ''} title="Halaman pertama"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg></button>`;
+  const prevBtn = `<button class="page-btn" onclick="gotoBastPage(${currentBastPage - 1})" ${currentBastPage === 1 ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg></button>`;
+  const nextBtn = `<button class="page-btn" onclick="gotoBastPage(${currentBastPage + 1})" ${currentBastPage === totalPages ? 'disabled' : ''}><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg></button>`;
+  const lastBtn = `<button class="page-btn" onclick="gotoBastPage(${totalPages})" ${currentBastPage === totalPages ? 'disabled' : ''} title="Halaman terakhir"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m13 17 5-5-5-5"/><path d="m6 17 5-5-5-5"/></svg></button>`;
+  
+  const delta = 3;
+  const range = [];
+  for (let i = Math.max(1, currentBastPage - delta); i <= Math.min(totalPages, currentBastPage + delta); i++) range.push(i);
+  let pageButtons = '';
+  if (range[0] > 1) {
+    pageButtons += `<button class="page-btn" onclick="gotoBastPage(1)">1</button>`;
+    if (range[0] > 2) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+  }
+  range.forEach(p => {
+    pageButtons += `<button class="page-btn ${p === currentBastPage ? 'active' : ''}" onclick="gotoBastPage(${p})">${p}</button>`;
+  });
+  if (range[range.length - 1] < totalPages) {
+    if (range[range.length - 1] < totalPages - 1) pageButtons += `<span style="padding:0 0.25rem;color:var(--text-subtle)">...</span>`;
+    pageButtons += `<button class="page-btn" onclick="gotoBastPage(${totalPages})">${totalPages}</button>`;
+  }
+  pag.innerHTML = firstBtn + prevBtn + pageButtons + nextBtn + lastBtn;
+}
+
+function gotoBastPage(p) {
+  if (bastPageSize === 'all') return;
+  const totalPages = Math.ceil(filteredBastTableData.length / parseInt(bastPageSize));
+  if (p < 1 || p > totalPages) return;
+  currentBastPage = p;
+  renderBastTable();
+}
+
+async function previewBastSingle(profileId) {
+  const gelVal = document.getElementById('bastGelombangFilter')?.value || '1';
+  const gelombang = parseInt(gelVal) || 1;
+  generateBASTAction(gelombang, false, 'single', [profileId]);
+}
+
+async function downloadBastSingle(profileId) {
+  const gelVal = document.getElementById('bastGelombangFilter')?.value || '1';
+  const gelombang = parseInt(gelVal) || 1;
+  generateBASTAction(gelombang, true, 'single', [profileId]);
+}
+
+async function previewBastSelected() {
+  if (selectedBastIds.size === 0) {
+    showToast("Pilih setidaknya satu petugas dari tabel.", 'warning');
+    return;
+  }
+  const gelVal = document.getElementById('bastGelombangFilter')?.value || '1';
+  const gelombang = parseInt(gelVal) || 1;
+  generateBASTAction(gelombang, false, 'selected', Array.from(selectedBastIds));
+}
+
+async function downloadBastSelected() {
+  if (selectedBastIds.size === 0) {
+    showToast("Pilih setidaknya satu petugas dari tabel.", 'warning');
+    return;
+  }
+  const gelVal = document.getElementById('bastGelombangFilter')?.value || '1';
+  const gelombang = parseInt(gelVal) || 1;
+  generateBASTAction(gelombang, true, 'selected', Array.from(selectedBastIds));
+}
+
 /**
- * 7. BAST (BERITA ACARA SERAH TERIMA) FUNCTIONS
+ * Open Crop Modal for profile from BAST Table
+ */
+async function openCropModalForProfile(profileId, type = 'capaian') {
+  try {
+    const { data: bData } = await db.from('bapp_uploads_t2').select('*').eq('profile_id', profileId).maybeSingle();
+    if (!bData) {
+      showToast("Data unggahan BAPP untuk petugas ini tidak ditemukan.", 'warning');
+      return;
+    }
+    const imgSrc = type === 'uninstall' ? bData.screenshot_uninstall : bData.screenshot;
+    if (!imgSrc) {
+      showToast(`Gambar screenshot ${type} belum diunggah.`, 'warning');
+      return;
+    }
+
+    if (typeof openCropModal === 'function') {
+      openCropModal(bData, type);
+    }
+  } catch (err) {
+    console.error("Gagal membuka crop modal:", err);
+    showToast("Gagal membuka modal crop: " + err.message, 'error');
+  }
+}
+
+/**
+ * GENERATE & FETCH BAST DATA (OPTIMIZED SCOPING)
  */
 async function previewBAST(gelombang = 1) {
   generateBASTAction(gelombang, false, 'all');
@@ -10887,21 +11227,31 @@ async function downloadBASTPML(gelombang = 1) {
   generateBASTAction(gelombang, true, 'pml');
 }
 
-async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter = 'all') {
+async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter = 'all', targetProfileIds = null) {
   if (!allUsers || allUsers.length === 0) {
     if (typeof loadUsers === 'function') {
       await loadUsers();
     }
   }
   await loadBappEligibilityDataT2(true);
-  const eligibleIds = bappEligibilityMapT2[gelombang];
+
+  let eligibleIds = new Set();
+  if (gelombang === 'all' || !gelombang) {
+    [1, 2, 3].forEach(g => {
+      const setG = bappEligibilityMapT2[g] || new Set();
+      setG.forEach(id => eligibleIds.add(id));
+    });
+  } else {
+    const gNum = parseInt(gelombang) || 1;
+    eligibleIds = bappEligibilityMapT2[gNum] || new Set();
+  }
 
   if (!eligibleIds || eligibleIds.size === 0) {
-    showToast(`Belum ada petugas eligible pada Gelombang ${gelombang} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
+    const gelLabel = (gelombang === 'all' || !gelombang) ? 'Semua Gelombang' : `Gelombang ${gelombang}`;
+    showToast(`Belum ada petugas eligible pada ${gelLabel} Termin 2. Silakan upload capaian FASIH terlebih dahulu.`, 'warning');
     return;
   }
 
-  // Ambil pilihan filter kecamatan dari card bersangkutan
   let selectedKec = '';
   if (roleFilter === 'ppl') {
     selectedKec = document.getElementById('bastPplKecFilter')?.value || '';
@@ -10923,12 +11273,11 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
     indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat data BAST...`;
 
     try {
-      let bastOfficers = await fetchBASTData(gelombang);
-      if (roleFilter !== 'all') {
+      let bastOfficers = await fetchBASTData(gelombang, targetProfileIds);
+      if (roleFilter !== 'all' && roleFilter !== 'single' && roleFilter !== 'selected') {
         bastOfficers = bastOfficers.filter(o => o.role === roleFilter);
       }
 
-      // Filter per kecamatan jika dipilih
       if (selectedKec) {
         bastOfficers = bastOfficers.filter(o => {
           const kCode = o.kode_kec || (o.breakdownRows && o.breakdownRows[0]?.kdKec) || '';
@@ -10938,8 +11287,9 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
 
       if (bastOfficers.length === 0) {
         const kecInfo = selectedKec ? ` di kecamatan terpilih` : '';
-        showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST${kecInfo} pada Gelombang ${gelombang}.`, 'warning');
-        indicator.remove();
+        const gelLabel = (gelombang === 'all' || !gelombang) ? 'Semua Gelombang' : `Gelombang ${gelombang}`;
+        showToast(`Tidak ada petugas ${roleLabel}eligible untuk dicetak BAST${kecInfo} pada ${gelLabel}.`, 'warning');
+        if (indicator) indicator.remove();
         return;
       }
 
@@ -10952,24 +11302,27 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
 
       for (let i = 0; i < bastOfficers.length; i++) {
         const officer = bastOfficers[i];
+        const itemGel = officer.gelombang || (parseInt(gelombang) || 1);
         indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat BAST ${roleLabel}(${i + 1}/${bastOfficers.length})...`;
         if (i > 0) pdf.addPage("a4", "portrait");
-        await buildBASTSingleDocument(pdf, officer, ttdYulianBase64, gelombang, ttdNingBase64);
+        await buildBASTSingleDocument(pdf, officer, ttdYulianBase64, itemGel, ttdNingBase64);
       }
 
       indicator.style.borderColor = '#10b981';
       indicator.style.color = '#10b981';
       indicator.innerHTML = `✓ Selesai membuat dokumen BAST ${roleLabel}!`;
 
-      const filenameRole = roleFilter !== 'all' ? `_${roleFilter}` : '';
+      const filenameRole = (roleFilter !== 'all' && roleFilter !== 'single' && roleFilter !== 'selected') ? `_${roleFilter}` : '';
       const kecSuffix = selectedKec ? `_kec_${selectedKec.slice(-3)}` : '';
-      const pdfFileName = `bast${filenameRole}_termin2_gelombang_${gelombang}${kecSuffix}.pdf`;
+      const singleSuffix = (targetProfileIds && targetProfileIds.length === 1) ? `_${bastOfficers[0]?.nama?.replace(/\s+/g, '_') || 'petugas'}` : '';
+      const pdfFileName = `bast${filenameRole}${singleSuffix}_termin2_gelombang_${gelombang}${kecSuffix}.pdf`;
+
       if (isDownload) {
         pdf.save(pdfFileName);
       } else {
         openPdfSafely(pdf, pdfFileName);
       }
-      setTimeout(() => { indicator.remove(); }, 2000);
+      setTimeout(() => { if (indicator) indicator.remove(); }, 2000);
     } catch (err) {
       console.error('Failed to generate BAST:', err);
       showToast('Gagal membuat BAST: ' + err.message, 'error');
@@ -10978,25 +11331,23 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
   });
 }
 
-async function fetchBASTData(gelombang = 1) {
+async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
   let userProfiles = (allUsers && allUsers.length > 0) ? allUsers : [];
   if (userProfiles.length === 0) {
-    let fromProf = 0;
-    let hasMoreProf = true;
-    while (hasMoreProf) {
-      const { data: profData, error: profErr } = await db.from('profiles')
-        .select('id, sobatid, nik, nama, role, is_active')
-        .in('role', ['ppl', 'pml'])
-        .eq('is_active', true)
-        .range(fromProf, fromProf + 999);
-      if (profErr || !profData || profData.length === 0) hasMoreProf = false;
-      else {
-        userProfiles = userProfiles.concat(profData);
-        if (profData.length < 1000) hasMoreProf = false;
-        else fromProf += 1000;
-      }
+    let query = db.from('profiles')
+      .select('id, sobatid, nik, nama, role, is_active, kecamatan')
+      .in('role', ['ppl', 'pml'])
+      .eq('is_active', true);
+    if (targetProfileIds && targetProfileIds.length > 0) {
+      query = query.in('id', targetProfileIds);
     }
-    allUsers = userProfiles;
+    const { data: profData } = await query;
+    userProfiles = profData || [];
+    if (!targetProfileIds) allUsers = userProfiles;
+  }
+
+  if (targetProfileIds && targetProfileIds.length > 0) {
+    userProfiles = userProfiles.filter(u => targetProfileIds.includes(u.id));
   }
 
   const userById = {};
@@ -11007,23 +11358,42 @@ async function fetchBASTData(gelombang = 1) {
   });
 
   await loadBappEligibilityDataT2(true);
-  const eligibleIds = bappEligibilityMapT2[gelombang];
+
+  let eligibleIds = new Set();
+  let officerGelombangMap = {};
+  if (gelombang === 'all' || !gelombang) {
+    [1, 2, 3].forEach(g => {
+      const setG = bappEligibilityMapT2[g] || new Set();
+      setG.forEach(id => {
+        eligibleIds.add(id);
+        if (!officerGelombangMap[id]) officerGelombangMap[id] = g;
+      });
+    });
+  } else {
+    const gNum = parseInt(gelombang) || 1;
+    eligibleIds = bappEligibilityMapT2[gNum] || new Set();
+    eligibleIds.forEach(id => { officerGelombangMap[id] = gNum; });
+  }
+
   if (!eligibleIds || eligibleIds.size === 0) return [];
 
+  // Eligible Officers for this gelombang
+  const officers = userProfiles.filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml') && eligibleIds.has(u.id));
+  if (officers.length === 0) return [];
+
+  const officerIds = officers.map(o => o.id);
+  const sobatIds = officers.map(o => String(o.sobatid).trim()).filter(Boolean);
+
+  // 1. Fetch no_surat_se ONLY for relevant sobatIds
   let noSurats = [];
-  let fromNo = 0;
-  let hasMoreNo = true;
-  while (hasMoreNo) {
-    const { data: noData, error: noErr } = await db.from('no_surat_se')
-      .select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2')
-      .range(fromNo, fromNo + 999);
-    if (noErr) { console.error('Error fetching no_surat_se:', noErr); break; }
-    if (noData && noData.length > 0) {
-      noSurats = noSurats.concat(noData);
-      if (noData.length < 1000) hasMoreNo = false;
-      else fromNo += 1000;
-    } else {
-      hasMoreNo = false;
+  if (sobatIds.length > 0) {
+    const chunkSize = 100;
+    for (let i = 0; i < sobatIds.length; i += chunkSize) {
+      const sliceIds = sobatIds.slice(i, i + chunkSize);
+      const { data: noData } = await db.from('no_surat_se')
+        .select('sobatid, no_spk, no_sp_pemeriksaan_t1, no_sp_pemeriksaan_t2')
+        .in('sobatid', sliceIds);
+      if (noData) noSurats = noSurats.concat(noData);
     }
   }
   const noSuratMap = {};
@@ -11031,47 +11401,32 @@ async function fetchBASTData(gelombang = 1) {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
   });
 
-  // Ambil SEMUA data capaian_termin2 dengan pagination loop
-  let capaianT2 = [];
-  let fromCap = 0;
-  let hasMoreCap = true;
-  while (hasMoreCap) {
-    const { data: capData, error: capErr } = await db.from('capaian_termin2')
-      .select('*')
-      .range(fromCap, fromCap + 999);
-    if (capErr) { console.error('Error fetching capaian_termin2:', capErr); break; }
-    if (capData && capData.length > 0) {
-      capaianT2 = capaianT2.concat(capData);
-      if (capData.length < 1000) hasMoreCap = false;
-      else fromCap += 1000;
-    } else {
-      hasMoreCap = false;
+  // 2. Query user_sls_termin2 ONLY for target officer IDs (and supervised PPLs for PML)
+  let slsQueryIds = [...officerIds];
+  for (const o of officers) {
+    if (o.role === 'pml') {
+      try {
+        const { data: rekapPml } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: o.id });
+        if (rekapPml) {
+          rekapPml.forEach(p => {
+            if (p.ppl_id) slsQueryIds.push(p.ppl_id);
+          });
+        }
+      } catch (e) {}
     }
   }
+  slsQueryIds = Array.from(new Set(slsQueryIds));
 
-  const targetMap = {};
-  const hasilMap = {};
-  (capaianT2 || []).forEach(c => {
-    targetMap[c.kode_subsls] = c.targetsls || 0;
-    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
-  });
-
-  // Ambil SEMUA data user_sls_termin2 dengan pagination loop agar tidak terpotong batas 1000
   let userSlsT2 = [];
-  let fromSls = 0;
-  let hasMoreSls = true;
-  while (hasMoreSls) {
-    const { data: slsData, error: slsErr } = await db.from('user_sls_termin2')
-      .select('user_id, kode_sls, user_id_asal')
-      .eq('status', 'aktif')
-      .range(fromSls, fromSls + 999);
-    if (slsErr) { console.error('Error fetching user_sls_termin2:', slsErr); break; }
-    if (slsData && slsData.length > 0) {
-      userSlsT2 = userSlsT2.concat(slsData);
-      if (slsData.length < 1000) hasMoreSls = false;
-      else fromSls += 1000;
-    } else {
-      hasMoreSls = false;
+  if (slsQueryIds.length > 0) {
+    const chunkSize = 100;
+    for (let i = 0; i < slsQueryIds.length; i += chunkSize) {
+      const sliceIds = slsQueryIds.slice(i, i + chunkSize);
+      const { data: slsData } = await db.from('user_sls_termin2')
+        .select('user_id, kode_sls, user_id_asal')
+        .eq('status', 'aktif')
+        .in('user_id', sliceIds);
+      if (slsData) userSlsT2 = userSlsT2.concat(slsData);
     }
   }
 
@@ -11083,32 +11438,54 @@ async function fetchBASTData(gelombang = 1) {
     if (us.user_id_asal) userAsalMap[us.user_id] = us.user_id_asal;
   });
 
-  // Fetch Master Wilayah Kecamatan dan Desa
+  // 3. Query capaian_termin2 ONLY for relevant kode_subsls
+  const relevantSubSls = [];
+  (userSlsT2 || []).forEach(us => { if (us.kode_sls) relevantSubSls.push(us.kode_sls); });
+
+  let capaianT2 = [];
+  if (relevantSubSls.length > 0) {
+    const chunkSize = 100;
+    for (let i = 0; i < relevantSubSls.length; i += chunkSize) {
+      const sliceSub = relevantSubSls.slice(i, i + chunkSize);
+      const { data: capData } = await db.from('capaian_termin2')
+        .select('kode_subsls, targetsls, hasilverif1, hasilverif2, hasilverif3, hasilverif4')
+        .in('kode_subsls', sliceSub);
+      if (capData) capaianT2 = capaianT2.concat(capData);
+    }
+  }
+
+  const targetMap = {};
+  const hasilMap = {};
+  (capaianT2 || []).forEach(c => {
+    targetMap[c.kode_subsls] = c.targetsls || 0;
+    hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
+  });
+
+  // 4. Fetch bapp_uploads_t2 ONLY for officerIds
+  const bappUploadMap = {};
+  if (officerIds.length > 0) {
+    const chunkSize = 100;
+    for (let i = 0; i < officerIds.length; i += chunkSize) {
+      const sliceIds = officerIds.slice(i, i + chunkSize);
+      const { data: bappT2Uploads } = await db
+        .from('bapp_uploads_t2')
+        .select('id, profile_id, kode_kec, screenshot, crop_top, crop_bottom, screenshot_uninstall, crop_top_uninstall, crop_bottom_uninstall')
+        .in('profile_id', sliceIds);
+      if (bappT2Uploads) {
+        bappT2Uploads.forEach(b => {
+          bappUploadMap[b.profile_id] = b;
+        });
+      }
+    }
+  }
+
+  // 5. Fetch Master Wilayah Kecamatan dan Desa
   const { data: kecList } = await db.from('wilayah_kec').select('kode_kec, nmkec');
   const { data: desaList } = await db.from('wilayah_desa').select('kode_desa, kode_kec, nmdesa');
   const kecMap = {};
   (kecList || []).forEach(k => { kecMap[k.kode_kec] = k.nmkec; });
   const desaMap = {};
   (desaList || []).forEach(d => { desaMap[d.kode_desa] = d.nmdesa; });
-
-  const officers = userProfiles.filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml') && eligibleIds.has(u.id));
-
-  const officerIds = officers.map(o => o.id);
-  const bappUploadMap = {};
-  const chunkSize = 100;
-  for (let i = 0; i < officerIds.length; i += chunkSize) {
-    const sliceIds = officerIds.slice(i, i + chunkSize);
-    const { data: bappT2Uploads, error } = await db
-      .from('bapp_uploads_t2')
-      .select('id, profile_id, kode_kec, screenshot_uninstall, crop_top_uninstall, crop_bottom_uninstall')
-      .in('profile_id', sliceIds);
-    if (!error && bappT2Uploads) {
-      bappT2Uploads.forEach(b => {
-        bappUploadMap[b.profile_id] = b;
-      });
-    }
-  }
-
   const result = [];
 
   for (let i = 0; i < officers.length; i++) {
@@ -11231,6 +11608,7 @@ async function fetchBASTData(gelombang = 1) {
       nik: u.nik,
       sobatid: u.sobatid,
       role: u.role,
+      gelombang: officerGelombangMap[u.id] || (parseInt(gelombang) || 1),
       kode_kec: officerKdKec,
       kecamatan: u.kecamatan || kecMap[officerKdKec] || '',
       no_spk: noEntry.no_spk || '',
@@ -11855,6 +12233,547 @@ function generateCustomBastPDF(isDownload = false) {
       pdf.save(`bast_custom_${(u.nama || '').replace(/\s+/g, '_').toLowerCase()}.pdf`);
     } else {
       window.open(pdf.output('bloburl'), '_blank');
+    }
+  });
+}
+
+/**
+ * =========================================================================
+ * CUSTOM BAST LEMBAR TANDA TANGAN (HALAMAN 5) & RANDOM SCREENSHOT
+ * =========================================================================
+ */
+let customBastScreenshots = [];
+let selectedCustomTtdOfficers = new Map(); // id -> user profile object
+
+async function openCustomBastTtdModal() {
+  if (!adminProfile || adminProfile.role !== 'superadmin') {
+    showToast('Hanya Superadmin yang diperbolehkan mengakses fitur ini.', 'warning');
+    return;
+  }
+  const modal = document.getElementById('customBastTtdModal');
+  if (modal) modal.classList.add('open');
+
+  await loadCustomBastScreenshots();
+  updateCustomTtdSelectedUI();
+  searchCustomTtdOfficers();
+  updateCustomTtdSelectedUI();
+  searchCustomTtdOfficers();
+}
+
+function closeCustomBastTtdModal() {
+  const modal = document.getElementById('customBastTtdModal');
+  if (modal) modal.classList.remove('open');
+}
+
+/**
+ * Screenshot management (Supabase + Local fallback)
+ */
+async function loadCustomBastScreenshots() {
+  const container = document.getElementById('customTtdScreenshotsContainer');
+  if (container) {
+    container.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;font-style:italic"><span class="spinner" style="width:10px;height:10px;display:inline-block"></span> Memuat koleksi screenshot...</span>';
+  }
+
+  try {
+    const { data, error } = await db.from('bast_custom_screenshots')
+      .select('id, title, image_base64, crop_top, crop_bottom, is_active, created_at')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('Tabel bast_custom_screenshots belum tersedia atau error:', error);
+      // Fallback local memory
+      const cached = localStorage.getItem('bast_custom_screenshots_cache');
+      customBastScreenshots = cached ? JSON.parse(cached) : [];
+    } else {
+      customBastScreenshots = data || [];
+    }
+  } catch (e) {
+    console.warn('Error loading custom bast screenshots:', e);
+    const cached = localStorage.getItem('bast_custom_screenshots_cache');
+    customBastScreenshots = cached ? JSON.parse(cached) : [];
+  }
+
+  renderCustomBastScreenshotsUI();
+}
+
+function renderCustomBastScreenshotsUI() {
+  const container = document.getElementById('customTtdScreenshotsContainer');
+  if (!container) return;
+
+  if (customBastScreenshots.length === 0) {
+    container.innerHTML = `
+      <div style="color:var(--text-muted); font-size:0.82rem; font-style:italic; padding:0.5rem 0; display:flex; align-items:center; gap:0.5rem">
+        <span>⚠ Belum ada screenshot default yang diunggah. Silakan klik tombol <strong>"Upload Screenshot"</strong> di atas.</span>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+  customBastScreenshots.forEach((item, idx) => {
+    const title = item.title || `Screenshot #${idx + 1}`;
+    const top = (item.crop_top !== undefined && item.crop_top !== null) ? parseFloat(item.crop_top) : 10.0;
+    const bot = (item.crop_bottom !== undefined && item.crop_bottom !== null) ? parseFloat(item.crop_bottom) : 60.0;
+
+    html += `
+      <div style="flex:0 0 100px; width:100px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.35rem; display:flex; flex-direction:column; align-items:center; position:relative; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+        <div style="width:88px; height:88px; border-radius:4px; overflow:hidden; background:#0f172a; position:relative; border:1px solid rgba(255,255,255,0.1)">
+          <img src="${item.image_base64}" alt="${escHtml(title)}" style="width:100%; height:100%; object-fit:cover;">
+          <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.65); font-size:0.65rem; color:#38bdf8; text-align:center; padding:1px">
+            ${top}% - ${bot}%
+          </div>
+        </div>
+        <div style="font-size:0.68rem; font-weight:600; width:100%; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; text-align:center; margin-top:0.25rem" title="${escHtml(title)}">
+          ${escHtml(title)}
+        </div>
+        <div style="display:flex; gap:0.25rem; margin-top:0.25rem; width:100%; justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="openCropModalForCustomScreenshot('${item.id}')" style="padding:0.15rem 0.35rem; font-size:0.65rem" title="Edit Crop 1:1">
+            Crop
+          </button>
+          <button class="btn btn-secondary btn-sm" onclick="deleteCustomBastScreenshot('${item.id}')" style="padding:0.15rem 0.35rem; font-size:0.65rem; color:#ef4444" title="Hapus Screenshot">
+            ✕
+          </button>
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+async function handleUploadCustomScreenshots(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+
+  const compressAndConvertToBase64 = (file) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxDim = 1200;
+          let w = img.width;
+          let h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = (h / w) * maxDim; w = maxDim; }
+            else { w = (w / h) * maxDim; h = maxDim; }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  showToast(`Mengunggah ${files.length} screenshot...`, 'info');
+
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i];
+    const base64 = await compressAndConvertToBase64(f);
+    const title = f.name.replace(/\.[^/.]+$/, "");
+
+    try {
+      const { data, error } = await db.from('bast_custom_screenshots').insert({
+        title: title,
+        image_base64: base64,
+        crop_top: 10.0,
+        crop_bottom: 60.0,
+        is_active: true
+      }).select().single();
+
+      if (error) {
+        throw error;
+      }
+    } catch (err) {
+      console.warn('Fallback save to local storage for screenshot upload:', err);
+      // Fallback
+      const newId = 'local_' + Date.now() + '_' + i;
+      customBastScreenshots.push({
+        id: newId,
+        title: title,
+        image_base64: base64,
+        crop_top: 10.0,
+        crop_bottom: 60.0,
+        is_active: true
+      });
+      localStorage.setItem('bast_custom_screenshots_cache', JSON.stringify(customBastScreenshots));
+    }
+  }
+
+  event.target.value = '';
+  await loadCustomBastScreenshots();
+  showToast('Screenshot berhasil ditambahkan ke koleksi!', 'success');
+}
+
+async function deleteCustomBastScreenshot(id) {
+  if (!confirm('Hapus screenshot ini dari koleksi default?')) return;
+
+  try {
+    const { error } = await db.from('bast_custom_screenshots').delete().eq('id', id);
+    if (error) throw error;
+  } catch (e) {
+    customBastScreenshots = customBastScreenshots.filter(x => x.id !== id);
+    localStorage.setItem('bast_custom_screenshots_cache', JSON.stringify(customBastScreenshots));
+  }
+
+  await loadCustomBastScreenshots();
+  showToast('Screenshot telah dihapus.', 'info');
+}
+
+/**
+ * Crop Modal khusus untuk Custom Screenshot Default (Rasio 1:1)
+ */
+function openCropModalForCustomScreenshot(screenshotId) {
+  const item = customBastScreenshots.find(x => x.id === screenshotId);
+  if (!item || !item.image_base64) {
+    showToast('Gambar screenshot tidak ditemukan.', 'warning');
+    return;
+  }
+
+  let topVal = (item.crop_top !== undefined && item.crop_top !== null) ? parseFloat(item.crop_top) : 10.0;
+  let botVal = (item.crop_bottom !== undefined && item.crop_bottom !== null) ? parseFloat(item.crop_bottom) : 60.0;
+
+  const modal = document.createElement('div');
+  modal.id = 'custom-screenshot-crop-modal';
+  modal.style = `position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);`;
+  modal.innerHTML = `
+    <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; width: 92%; max-width: 440px; padding: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center;">
+      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem; font-weight: 700;">Edit Crop Screenshot 1:1</h4>
+        <button id="btn-close-sc-crop" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
+      </div>
+
+      <div style="position: relative; width: 220px; height: 320px; background: #0f172a; border-radius: 8px; overflow: hidden; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1);">
+        <img id="sc-crop-preview" src="${item.image_base64}" style="width: 100%; height: 100%; object-fit: contain;">
+        <div id="sc-crop-overlay-top" style="position: absolute; top: 0; left: 0; right: 0; height: ${topVal}%; background: rgba(15, 23, 42, 0.75); border-bottom: 2px dashed #38bdf8;"></div>
+        <div id="sc-crop-overlay-bottom" style="position: absolute; bottom: 0; left: 0; right: 0; height: ${100 - botVal}%; background: rgba(15, 23, 42, 0.75); border-top: 2px dashed #ef4444;"></div>
+      </div>
+
+      <div style="width: 100%; margin-bottom: 16px;">
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+            <span style="color: #cbd5e1;">Batas Atas Crop</span>
+            <span id="sc-label-top" style="color: #38bdf8; font-weight: 700;">${topVal.toFixed(1)}%</span>
+          </div>
+          <input type="range" id="sc-range-top" min="0" max="100" step="0.5" value="${topVal}" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+        </div>
+
+        <div style="margin-bottom: 10px;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+            <span style="color: #cbd5e1;">Batas Bawah Crop</span>
+            <span id="sc-label-bottom" style="color: #ef4444; font-weight: 700;">${botVal.toFixed(1)}%</span>
+          </div>
+          <input type="range" id="sc-range-bottom" min="0" max="100" step="0.5" value="${botVal}" style="width: 100%; accent-color: #ef4444; cursor: pointer;">
+        </div>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 8px; width: 100%;">
+        <button id="btn-cancel-sc-crop" class="btn btn-secondary" style="font-size: 0.82rem; padding: 6px 12px;">Batal</button>
+        <button id="btn-save-sc-crop" class="btn btn-primary" style="font-size: 0.82rem; padding: 6px 16px; background: #0ea5e9; border-color: #0ea5e9;">Simpan Crop</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  const rangeTop = modal.querySelector('#sc-range-top');
+  const rangeBot = modal.querySelector('#sc-range-bottom');
+  const labelTop = modal.querySelector('#sc-label-top');
+  const labelBot = modal.querySelector('#sc-label-bottom');
+  const overlayTop = modal.querySelector('#sc-crop-overlay-top');
+  const overlayBot = modal.querySelector('#sc-crop-overlay-bottom');
+
+  const updateView = () => {
+    let t = parseFloat(rangeTop.value);
+    let b = parseFloat(rangeBot.value);
+    if (t >= b) {
+      t = Math.max(0, b - 5);
+      rangeTop.value = t;
+    }
+    labelTop.textContent = t.toFixed(1) + '%';
+    labelBot.textContent = b.toFixed(1) + '%';
+    overlayTop.style.height = t + '%';
+    overlayBot.style.height = (100 - b) + '%';
+  };
+
+  rangeTop.oninput = updateView;
+  rangeBot.oninput = updateView;
+
+  const closeModal = () => modal.remove();
+  modal.querySelector('#btn-close-sc-crop').onclick = closeModal;
+  modal.querySelector('#btn-cancel-sc-crop').onclick = closeModal;
+
+  modal.querySelector('#btn-save-sc-crop').onclick = async () => {
+    const finalTop = parseFloat(rangeTop.value);
+    const finalBot = parseFloat(rangeBot.value);
+
+    item.crop_top = finalTop;
+    item.crop_bottom = finalBot;
+
+    try {
+      await db.from('bast_custom_screenshots').update({
+        crop_top: finalTop,
+        crop_bottom: finalBot
+      }).eq('id', screenshotId);
+    } catch (e) {
+      localStorage.setItem('bast_custom_screenshots_cache', JSON.stringify(customBastScreenshots));
+    }
+
+    renderCustomBastScreenshotsUI();
+    showToast('Pengaturan crop berhasil disimpan.', 'success');
+    closeModal();
+  };
+}
+
+/**
+ * Officers Search & Selection Queue (Search -> Pick -> Add)
+ */
+function searchCustomTtdOfficers() {
+  const search = (document.getElementById('customTtdSearchName')?.value || '').toLowerCase().trim();
+  const role = document.getElementById('customTtdRoleFilter')?.value || '';
+  const tbody = document.getElementById('customTtdSearchResultsBody');
+  if (!tbody) return;
+
+  const users = (allUsers || []).filter(u => u.is_active && (u.role === 'ppl' || u.role === 'pml'));
+
+  const matches = users.filter(u => {
+    if (role && u.role.toLowerCase() !== role.toLowerCase()) return false;
+    if (search) {
+      const mNama = (u.nama || '').toLowerCase().includes(search);
+      const mSobat = String(u.sobatid || '').toLowerCase().includes(search);
+      const mNik = String(u.nik || '').includes(search);
+      const mKec = (u.kecamatan || '').toLowerCase().includes(search);
+      if (!mNama && !mSobat && !mNik && !mKec) return false;
+    }
+    return true;
+  });
+
+  if (matches.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:1rem; color:var(--text-muted)">Tidak ada petugas yang cocok.</td></tr>';
+    return;
+  }
+
+  // Tampilkan max 25 baris pertama agar ringan
+  const displaySlice = matches.slice(0, 25);
+  let html = '';
+  displaySlice.forEach(u => {
+    const isSelected = selectedCustomTtdOfficers.has(u.id);
+    const roleBadge = u.role === 'pml' ? '<span class="role-badge role-pml" style="font-size:0.7rem">PML</span>' : '<span class="role-badge role-ppl" style="font-size:0.7rem">PPL</span>';
+
+    html += `
+      <tr>
+        <td style="font-weight:600; padding:0.4rem 0.6rem">${escHtml(u.nama)}</td>
+        <td style="font-family:monospace; padding:0.4rem 0.6rem">${escHtml(u.sobatid || '—')}</td>
+        <td style="padding:0.4rem 0.6rem">${roleBadge}</td>
+        <td style="padding:0.4rem 0.6rem">${escHtml(u.kecamatan || '—')}</td>
+        <td style="text-align:center; padding:0.4rem 0.6rem">
+          ${isSelected 
+            ? `<button class="btn btn-secondary btn-sm" onclick="removeCustomTtdOfficer('${u.id}')" style="padding:0.2rem 0.5rem; font-size:0.72rem; color:#ef4444">Batalkan</button>`
+            : `<button class="btn btn-primary btn-sm" onclick="addCustomTtdOfficer('${u.id}')" style="padding:0.2rem 0.5rem; font-size:0.72rem; background:linear-gradient(135deg,#0ea5e9,#0284c7); border-color:#0284c7">+ Pilih</button>`
+          }
+        </td>
+      </tr>
+    `;
+  });
+
+  if (matches.length > 25) {
+    html += `<tr><td colspan="5" style="text-align:center; padding:0.4rem; font-size:0.75rem; color:var(--text-muted)">Menampilkan 25 dari total ${matches.length} petugas. Persempit pencarian untuk hasil lebih spesifik.</td></tr>`;
+  }
+
+  tbody.innerHTML = html;
+}
+
+function addCustomTtdOfficer(userId) {
+  const u = (allUsers || []).find(x => x.id === userId);
+  if (!u) return;
+
+  selectedCustomTtdOfficers.set(userId, u);
+  updateCustomTtdSelectedUI();
+  searchCustomTtdOfficers();
+}
+
+function removeCustomTtdOfficer(userId) {
+  selectedCustomTtdOfficers.delete(userId);
+  updateCustomTtdSelectedUI();
+  searchCustomTtdOfficers();
+}
+
+function clearAllCustomTtdOfficers() {
+  if (selectedCustomTtdOfficers.size === 0) return;
+  selectedCustomTtdOfficers.clear();
+  updateCustomTtdSelectedUI();
+  searchCustomTtdOfficers();
+}
+
+function updateCustomTtdSelectedUI() {
+  const container = document.getElementById('customTtdSelectedChipsContainer');
+  const countBadge = document.getElementById('customTtdSelectedBadge');
+  const btnPrevCount = document.getElementById('btnTtdCountPreview');
+
+  const count = selectedCustomTtdOfficers.size;
+  if (countBadge) countBadge.textContent = `${count} Petugas`;
+  if (btnPrevCount) btnPrevCount.textContent = count;
+
+  if (!container) return;
+
+  if (count === 0) {
+    container.innerHTML = '<span style="color:var(--text-muted); font-size:0.78rem; font-style:italic">Belum ada petugas yang dipilih. Klik tombol "+ Pilih" pada hasil pencarian di atas.</span>';
+    return;
+  }
+
+  let html = '';
+  selectedCustomTtdOfficers.forEach((u, id) => {
+    html += `
+      <div style="background:var(--bg-card); border:1px solid rgba(14,165,233,0.3); border-radius:999px; padding:0.2rem 0.6rem; display:inline-flex; align-items:center; gap:0.4rem; font-size:0.75rem; box-shadow:0 1px 2px rgba(0,0,0,0.05)">
+        <span style="font-weight:600">${escHtml(u.nama)}</span>
+        <span style="color:var(--text-muted); font-size:0.7rem">(${escHtml(u.role?.toUpperCase())} - ${escHtml(u.kecamatan || '—')})</span>
+        <button onclick="removeCustomTtdOfficer('${id}')" style="background:none; border:none; color:#ef4444; font-weight:bold; cursor:pointer; padding:0 2px; font-size:0.85rem; line-height:1" title="Hapus petugas ini">&times;</button>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+/**
+ * Generate PDF Lembar Tanda Tangan BAST (Halaman 5 Only, 1 Halaman per Petugas)
+ */
+async function generateCustomBastTtdPDF(isDownload = false) {
+  if (selectedCustomTtdOfficers.size === 0) {
+    showToast('Pilih setidaknya 1 petugas untuk dicetak.', 'warning');
+    return;
+  }
+
+  if (customBastScreenshots.length === 0) {
+    showToast('Koleksi screenshot default masih kosong! Silakan upload minimal 1 screenshot.', 'warning');
+    return;
+  }
+
+  const officersList = Array.from(selectedCustomTtdOfficers.values());
+
+  loadJsPDF(async () => {
+    const { jsPDF } = window.jspdf;
+
+    let indicator = document.getElementById('auto-crop-bg-indicator');
+    if (!indicator) {
+      indicator = document.createElement('div');
+      indicator.id = 'auto-crop-bg-indicator';
+      indicator.style = `position: fixed; bottom: 24px; right: 24px; background: #1e293b; border: 1px solid #0ea5e9; color: #f8fafc; padding: 14px 20px; border-radius: 12px; z-index: 99999; font-size: 0.85rem; display: flex; align-items: center; gap: 12px;`;
+      document.body.appendChild(indicator);
+    }
+    indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Memuat aset tanda tangan...`;
+
+    try {
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      await registerBookmanFont(pdf);
+
+      const ttdYulianBase64 = await loadImgAsBase64('assets/ttd/yulian.png') || await loadImgAsBase64('assets/yulian_sarwo_edi.png');
+      const ttdNingBase64 = await loadImgAsBase64('assets/ttd/ning sl.png') || await loadImgAsBase64('assets/ning_sri_lestari.png');
+
+      const prepareCroppedImage = (src, topOff, botOff) => {
+        return new Promise((resolve) => {
+          if (!src) return resolve(null);
+          const img = new Image();
+          img.src = src;
+          img.onload = () => {
+            const topOffset = (topOff !== undefined && topOff !== null) ? parseFloat(topOff) : 10.0;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const origW = img.naturalWidth;
+            const origH = img.naturalHeight;
+
+            // Kunci skala 1:1 persegi (cropHeight = origW)
+            const startY = origH * (topOffset / 100);
+            const cropHeight = Math.min(origW, origH - startY);
+            canvas.width = origW;
+            canvas.height = cropHeight;
+            ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
+            resolve({ base64: canvas.toDataURL('image/png') });
+          };
+          img.onerror = () => resolve(null);
+        });
+      };
+
+      for (let i = 0; i < officersList.length; i++) {
+        const officer = officersList[i];
+        indicator.innerHTML = `<span class="spinner" style="width:12px;height:12px;border-width:2px;display:inline-block;"></span> Membuat lembar TTD (${i + 1}/${officersList.length}): ${escHtml(officer.nama)}...`;
+
+        if (i > 0) pdf.addPage('a4', 'landscape');
+
+        // Pilih screenshot secara acak dari koleksi
+        const randomItem = customBastScreenshots[Math.floor(Math.random() * customBastScreenshots.length)];
+        const croppedImg = await prepareCroppedImage(randomItem.image_base64, randomItem.crop_top, randomItem.crop_bottom);
+
+        // Header Lembar (Landscape A4)
+        pdf.setFont('Bookman', 'normal');
+        pdf.setFontSize(11);
+        pdf.text('-5-', 148.5, 12, { align: 'center' });
+
+        pdf.text('B. Screenshoot Aplikasi Fasih', 20, 22);
+
+        // Frame Screenshot 1:1 Square (75x75 mm) di tengah
+        const squareSize = 75.0;
+        const imgX = (297 - squareSize) / 2;
+        const imgY = 28.0;
+
+        if (croppedImg && croppedImg.base64) {
+          pdf.addImage(croppedImg.base64, 'PNG', imgX, imgY, squareSize, squareSize);
+          pdf.rect(imgX, imgY, squareSize, squareSize, 'D');
+        } else {
+          pdf.rect(imgX, imgY, squareSize, squareSize, 'D');
+          pdf.setFont('Bookman', 'italic');
+          pdf.setFontSize(10);
+          pdf.text('[Bukti Uninstall FASIH Tidak Tersedia]', 148.5, imgY + 37.5, { align: 'center' });
+        }
+
+        // Tanda Tangan 3 Pihak Sejajar (Yulian, Petugas, Ning)
+        const sigY = 120.0;
+        const nameY = sigY + 32.0;
+
+        pdf.setFont('Bookman', 'normal');
+        pdf.setFontSize(11);
+
+        // 1. Kolom Kiri: Mengetahui / Ketua Tim Pelaksana
+        pdf.text('Mengetahui,', 65, sigY - 5, { align: 'center' });
+        pdf.text('Ketua Tim Pelaksana selaku', 65, sigY, { align: 'center' });
+        pdf.text('Pemeriksa Pekerjaan,', 65, sigY + 5, { align: 'center' });
+        if (ttdYulianBase64) {
+          pdf.addImage(ttdYulianBase64, 'PNG', 56, sigY + 6, 18, 24);
+        }
+        pdf.text('(YULIAN SARWO EDI)', 65, nameY, { align: 'center' });
+
+        // 2. Kolom Tengah: PIHAK KEDUA (Petugas Terpilih)
+        pdf.text('PIHAK KEDUA,', 148.5, sigY, { align: 'center' });
+        pdf.text(`(${officer.nama || ''})`.toUpperCase(), 148.5, nameY, { align: 'center' });
+
+        // 3. Kolom Kanan: PIHAK PERTAMA (PPK - Ning Sri Lestari)
+        pdf.text('PIHAK PERTAMA,', 232, sigY, { align: 'center' });
+        if (ttdNingBase64) {
+          pdf.addImage(ttdNingBase64, 'PNG', 209, sigY + 4, 46, 25);
+        }
+        pdf.text('(NING SRI LESTARI)', 232, nameY, { align: 'center' });
+      }
+
+      indicator.style.borderColor = '#10b981';
+      indicator.style.color = '#10b981';
+      indicator.innerHTML = `✓ Berhasil membuat ${officersList.length} lembar tanda tangan BAST!`;
+
+      const pdfFileName = `bast_lembar_ttd_custom_${officersList.length}_petugas.pdf`;
+      if (isDownload) {
+        pdf.save(pdfFileName);
+      } else {
+        openPdfSafely(pdf, pdfFileName);
+      }
+      setTimeout(() => { if (indicator) indicator.remove(); }, 2000);
+    } catch (err) {
+      console.error('Failed to generate custom BAST TTD:', err);
+      showToast('Gagal membuat lembar tanda tangan: ' + err.message, 'error');
+      if (indicator) indicator.remove();
     }
   });
 }

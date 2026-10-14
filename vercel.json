@@ -4,7 +4,6 @@
     { "source": "/dashboard", "destination": "/dashboard.html" },
     { "source": "/admin",     "destination": "/admin.html" },
     { "source": "/login",    "destination": "/login.html" },
-    { "source": "/anomali-utp", "destination": "/anomali-utp.html" },
     { "source": "/bapp-pencairan-termin1", "destination": "/bapp-pencairan-termin1.html" },
     { "source": "/bapp-pencairan-termin2", "destination": "/berkas-pencairan-termin2.html" },
     { "source": "/berkas-pencairan-termin2", "destination": "/berkas-pencairan-termin2.html" },
