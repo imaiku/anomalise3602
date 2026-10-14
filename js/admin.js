@@ -12295,19 +12295,19 @@ function renderCustomBastScreenshotsUI() {
     const bot = (item.crop_bottom !== undefined && item.crop_bottom !== null) ? parseFloat(item.crop_bottom) : 60.0;
 
     html += `
-      <div style="flex:0 0 100px; width:100px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.35rem; display:flex; flex-direction:column; align-items:center; position:relative; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
-        <div style="width:88px; height:88px; border-radius:4px; overflow:hidden; background:#0f172a; position:relative; border:1px solid rgba(255,255,255,0.1)">
+      <div style="flex:0 0 110px; width:110px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.35rem; display:flex; flex-direction:column; align-items:center; position:relative; box-shadow:0 1px 3px rgba(0,0,0,0.1)">
+        <div style="width:96px; height:96px; border-radius:4px; overflow:hidden; background:#0f172a; position:relative; border:1px solid rgba(255,255,255,0.1)">
           <img src="${item.image_base64}" alt="${escHtml(title)}" style="width:100%; height:100%; object-fit:cover;">
-          <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.65); font-size:0.65rem; color:#38bdf8; text-align:center; padding:1px">
-            ${top}% - ${bot}%
+          <div style="position:absolute; bottom:0; left:0; right:0; background:rgba(0,0,0,0.7); font-size:0.63rem; color:#10b981; text-align:center; padding:2px; font-weight:600">
+            1:1 (Top: ${top}%)
           </div>
         </div>
         <div style="font-size:0.68rem; font-weight:600; width:100%; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; text-align:center; margin-top:0.25rem" title="${escHtml(title)}">
           ${escHtml(title)}
         </div>
         <div style="display:flex; gap:0.25rem; margin-top:0.25rem; width:100%; justify-content:center">
-          <button class="btn btn-secondary btn-sm" onclick="openCropModalForCustomScreenshot('${item.id}')" style="padding:0.15rem 0.35rem; font-size:0.65rem" title="Edit Crop 1:1">
-            Crop
+          <button class="btn btn-secondary btn-sm" onclick="openCropModalForCustomScreenshot('${item.id}')" style="padding:0.15rem 0.35rem; font-size:0.65rem" title="Edit Crop Rasio 1:1">
+            Crop 1:1
           </button>
           <button class="btn btn-secondary btn-sm" onclick="deleteCustomBastScreenshot('${item.id}')" style="padding:0.15rem 0.35rem; font-size:0.65rem; color:#ef4444" title="Hapus Screenshot">
             ✕
@@ -12406,7 +12406,7 @@ async function deleteCustomBastScreenshot(id) {
 }
 
 /**
- * Crop Modal khusus untuk Custom Screenshot Default (Rasio 1:1)
+ * Crop Modal khusus untuk Custom Screenshot Default (Strict 1:1 Square Lock)
  */
 function openCropModalForCustomScreenshot(screenshotId) {
   const item = customBastScreenshots.find(x => x.id === screenshotId);
@@ -12415,97 +12415,122 @@ function openCropModalForCustomScreenshot(screenshotId) {
     return;
   }
 
-  let topVal = (item.crop_top !== undefined && item.crop_top !== null) ? parseFloat(item.crop_top) : 10.0;
-  let botVal = (item.crop_bottom !== undefined && item.crop_bottom !== null) ? parseFloat(item.crop_bottom) : 60.0;
+  const tempImg = new Image();
+  tempImg.src = item.image_base64;
+  tempImg.onload = () => {
+    const origW = tempImg.naturalWidth;
+    const origH = tempImg.naturalHeight;
 
-  const modal = document.createElement('div');
-  modal.id = 'custom-screenshot-crop-modal';
-  modal.style = `position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);`;
-  modal.innerHTML = `
-    <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; width: 92%; max-width: 440px; padding: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center;">
-      <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem; font-weight: 700;">Edit Crop Screenshot 1:1</h4>
-        <button id="btn-close-sc-crop" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
-      </div>
+    // Hitung berapa persen tinggi yang dibutuhkan agar crop bernilai persegi (lebar = tinggi)
+    const squarePercent = Math.min(100, (origW / origH) * 100);
+    // Batas maksimal posisi atas agar kotak persegi 1:1 tidak melebihi batas bawah gambar
+    const maxTopVal = Math.max(0, 100 - squarePercent);
 
-      <div style="position: relative; width: 220px; height: 320px; background: #0f172a; border-radius: 8px; overflow: hidden; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1);">
-        <img id="sc-crop-preview" src="${item.image_base64}" style="width: 100%; height: 100%; object-fit: contain;">
-        <div id="sc-crop-overlay-top" style="position: absolute; top: 0; left: 0; right: 0; height: ${topVal}%; background: rgba(15, 23, 42, 0.75); border-bottom: 2px dashed #38bdf8;"></div>
-        <div id="sc-crop-overlay-bottom" style="position: absolute; bottom: 0; left: 0; right: 0; height: ${100 - botVal}%; background: rgba(15, 23, 42, 0.75); border-top: 2px dashed #ef4444;"></div>
-      </div>
+    let currentTop = (item.crop_top !== undefined && item.crop_top !== null) ? parseFloat(item.crop_top) : 10.0;
+    if (currentTop > maxTopVal) currentTop = maxTopVal;
+    if (currentTop < 0) currentTop = 0;
 
-      <div style="width: 100%; margin-bottom: 16px;">
-        <div style="margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
-            <span style="color: #cbd5e1;">Batas Atas Crop</span>
-            <span id="sc-label-top" style="color: #38bdf8; font-weight: 700;">${topVal.toFixed(1)}%</span>
+    const modal = document.createElement('div');
+    modal.id = 'custom-screenshot-crop-modal';
+    modal.style = `position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 100000; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(4px);`;
+    modal.innerHTML = `
+      <div style="background: #1e293b; border: 1px solid rgba(255,255,255,0.15); border-radius: 12px; width: 92%; max-width: 440px; padding: 18px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); display: flex; flex-direction: column; align-items: center;">
+        <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+          <div>
+            <h4 style="margin: 0; color: #f8fafc; font-size: 0.95rem; font-weight: 700; display: flex; align-items: center; gap: 6px;">
+              <span>Posisi Crop Persegi 1:1</span>
+              <span style="font-size: 0.68rem; background: rgba(16,185,129,0.2); color: #10b981; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.3)">Terkunci 1:1</span>
+            </h4>
+            <div style="font-size: 0.72rem; color: #94a3b8; margin-top: 2px;">Ukuran crop dikunci persegi. Geser slider untuk mengatur posisi naik-turun.</div>
           </div>
-          <input type="range" id="sc-range-top" min="0" max="100" step="0.5" value="${topVal}" style="width: 100%; accent-color: #38bdf8; cursor: pointer;">
+          <button id="btn-close-sc-crop" style="background: none; border: none; color: #94a3b8; font-size: 1.2rem; cursor: pointer;">&times;</button>
         </div>
 
-        <div style="margin-bottom: 10px;">
-          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
-            <span style="color: #cbd5e1;">Batas Bawah Crop</span>
-            <span id="sc-label-bottom" style="color: #ef4444; font-weight: 700;">${botVal.toFixed(1)}%</span>
+        <!-- Frame Preview -->
+        <div style="position: relative; width: 220px; height: 320px; background: #0f172a; border-radius: 8px; overflow: hidden; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;">
+          <div id="sc-crop-stage" style="position: relative; width: 100%; height: 100%;">
+            <img id="sc-crop-preview" src="${item.image_base64}" style="width: 100%; height: 100%; object-fit: fill; display: block;">
+            
+            <!-- Overlay Gelap Bagian Atas -->
+            <div id="sc-crop-overlay-top" style="position: absolute; top: 0; left: 0; right: 0; height: ${currentTop}%; background: rgba(15, 23, 42, 0.8); border-bottom: 2px solid #10b981;"></div>
+            
+            <!-- Kotak Persegi 1:1 Aktif -->
+            <div id="sc-crop-box-active" style="position: absolute; top: ${currentTop}%; left: 0; right: 0; height: ${squarePercent}%; border: 2px dashed #10b981; pointer-events: none; box-shadow: inset 0 0 12px rgba(16,185,129,0.3); display: flex; align-items: center; justify-content: center;">
+              <span style="background: rgba(15,23,42,0.7); color: #10b981; font-size: 0.7rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; border: 1px solid rgba(16,185,129,0.4)">Area Cetak 1:1 (75x75mm)</span>
+            </div>
+
+            <!-- Overlay Gelap Bagian Bawah -->
+            <div id="sc-crop-overlay-bottom" style="position: absolute; bottom: 0; left: 0; right: 0; height: ${Math.max(0, 100 - (currentTop + squarePercent))}%; background: rgba(15, 23, 42, 0.8); border-top: 2px solid #10b981;"></div>
           </div>
-          <input type="range" id="sc-range-bottom" min="0" max="100" step="0.5" value="${botVal}" style="width: 100%; accent-color: #ef4444; cursor: pointer;">
+        </div>
+
+        <!-- Kontrol Slider Tunggal -->
+        <div style="width: 100%; margin-bottom: 16px;">
+          <div style="margin-bottom: 8px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 4px;">
+              <span style="color: #cbd5e1; font-weight: 600;">Posisi Batas Atas</span>
+              <span id="sc-label-top" style="color: #10b981; font-weight: 700;">${currentTop.toFixed(1)}%</span>
+            </div>
+            <input type="range" id="sc-range-top" min="0" max="${maxTopVal.toFixed(1)}" step="0.5" value="${currentTop}" style="width: 100%; accent-color: #10b981; cursor: pointer;">
+          </div>
+          <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: #64748b;">
+            <span>Paling Atas (0%)</span>
+            <span>Bawah Otomatis: ${(currentTop + squarePercent).toFixed(1)}%</span>
+            <span>Maks (${maxTopVal.toFixed(1)}%)</span>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; width: 100%;">
+          <button id="btn-cancel-sc-crop" class="btn btn-secondary" style="font-size: 0.82rem; padding: 6px 12px;">Batal</button>
+          <button id="btn-save-sc-crop" class="btn btn-primary" style="font-size: 0.82rem; padding: 6px 16px; background: #10b981; border-color: #10b981;">Simpan Crop</button>
         </div>
       </div>
+    `;
+    document.body.appendChild(modal);
 
-      <div style="display: flex; justify-content: flex-end; gap: 8px; width: 100%;">
-        <button id="btn-cancel-sc-crop" class="btn btn-secondary" style="font-size: 0.82rem; padding: 6px 12px;">Batal</button>
-        <button id="btn-save-sc-crop" class="btn btn-primary" style="font-size: 0.82rem; padding: 6px 16px; background: #0ea5e9; border-color: #0ea5e9;">Simpan Crop</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
+    const rangeTop = modal.querySelector('#sc-range-top');
+    const labelTop = modal.querySelector('#sc-label-top');
+    const overlayTop = modal.querySelector('#sc-crop-overlay-top');
+    const cropBox = modal.querySelector('#sc-crop-box-active');
+    const overlayBottom = modal.querySelector('#sc-crop-overlay-bottom');
 
-  const rangeTop = modal.querySelector('#sc-range-top');
-  const rangeBot = modal.querySelector('#sc-range-bottom');
-  const labelTop = modal.querySelector('#sc-label-top');
-  const labelBot = modal.querySelector('#sc-label-bottom');
-  const overlayTop = modal.querySelector('#sc-crop-overlay-top');
-  const overlayBot = modal.querySelector('#sc-crop-overlay-bottom');
+    const updateView = () => {
+      let t = parseFloat(rangeTop.value);
+      if (t > maxTopVal) t = maxTopVal;
+      if (t < 0) t = 0;
 
-  const updateView = () => {
-    let t = parseFloat(rangeTop.value);
-    let b = parseFloat(rangeBot.value);
-    if (t >= b) {
-      t = Math.max(0, b - 5);
-      rangeTop.value = t;
-    }
-    labelTop.textContent = t.toFixed(1) + '%';
-    labelBot.textContent = b.toFixed(1) + '%';
-    overlayTop.style.height = t + '%';
-    overlayBot.style.height = (100 - b) + '%';
-  };
+      labelTop.textContent = t.toFixed(1) + '%';
+      overlayTop.style.height = t + '%';
+      cropBox.style.top = t + '%';
+      overlayBottom.style.height = Math.max(0, 100 - (t + squarePercent)) + '%';
+    };
 
-  rangeTop.oninput = updateView;
-  rangeBot.oninput = updateView;
+    rangeTop.oninput = updateView;
 
-  const closeModal = () => modal.remove();
-  modal.querySelector('#btn-close-sc-crop').onclick = closeModal;
-  modal.querySelector('#btn-cancel-sc-crop').onclick = closeModal;
+    const closeModal = () => modal.remove();
+    modal.querySelector('#btn-close-sc-crop').onclick = closeModal;
+    modal.querySelector('#btn-cancel-sc-crop').onclick = closeModal;
 
-  modal.querySelector('#btn-save-sc-crop').onclick = async () => {
-    const finalTop = parseFloat(rangeTop.value);
-    const finalBot = parseFloat(rangeBot.value);
+    modal.querySelector('#btn-save-sc-crop').onclick = async () => {
+      const finalTop = parseFloat(rangeTop.value);
+      const finalBottom = Math.min(100, finalTop + squarePercent);
 
-    item.crop_top = finalTop;
-    item.crop_bottom = finalBot;
+      item.crop_top = finalTop;
+      item.crop_bottom = finalBottom;
 
-    try {
-      await db.from('bast_custom_screenshots').update({
-        crop_top: finalTop,
-        crop_bottom: finalBot
-      }).eq('id', screenshotId);
-    } catch (e) {
-      localStorage.setItem('bast_custom_screenshots_cache', JSON.stringify(customBastScreenshots));
-    }
+      try {
+        await db.from('bast_custom_screenshots').update({
+          crop_top: finalTop,
+          crop_bottom: finalBottom
+        }).eq('id', screenshotId);
+      } catch (e) {
+        localStorage.setItem('bast_custom_screenshots_cache', JSON.stringify(customBastScreenshots));
+      }
 
-    renderCustomBastScreenshotsUI();
-    showToast('Pengaturan crop berhasil disimpan.', 'success');
-    closeModal();
+      renderCustomBastScreenshotsUI();
+      showToast('Posisi crop persegi 1:1 berhasil disimpan.', 'success');
+      closeModal();
+    };
   };
 }
 
@@ -12666,12 +12691,13 @@ async function generateCustomBastTtdPDF(isDownload = false) {
             const origW = img.naturalWidth;
             const origH = img.naturalHeight;
 
-            // Kunci skala 1:1 persegi (cropHeight = origW)
-            const startY = origH * (topOffset / 100);
-            const cropHeight = Math.min(origW, origH - startY);
-            canvas.width = origW;
-            canvas.height = cropHeight;
-            ctx.drawImage(img, 0, startY, origW, cropHeight, 0, 0, origW, cropHeight);
+            // Kunci skala 1:1 persegi ketat (cropHeight = origW, cropWidth = origW)
+            const maxStartY = Math.max(0, origH - origW);
+            const startY = Math.min(maxStartY, Math.max(0, origH * (topOffset / 100)));
+            const cropDimension = Math.min(origW, origH);
+            canvas.width = cropDimension;
+            canvas.height = cropDimension;
+            ctx.drawImage(img, 0, startY, cropDimension, cropDimension, 0, 0, cropDimension, cropDimension);
             resolve({ base64: canvas.toDataURL('image/png') });
           };
           img.onerror = () => resolve(null);
