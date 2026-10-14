@@ -581,18 +581,14 @@ async function loadBatchHistory() {
     .limit(50);
   const tbody = document.getElementById('historyTableBody');
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--error)">Gagal memuat: ${error.message}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--error)">Gagal memuat: ${error.message}</td></tr>`;
     return;
   }
   if (!data?.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="empty-state-title">Belum ada riwayat upload</div></div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-state-title">Belum ada riwayat upload</div></div></td></tr>`;
     return;
   }
   tbody.innerHTML = data.map(b => {
-    const isCompleted = b.status === 'completed';
-    const rollbackBtn = isCompleted
-      ? `<button class="btn btn-danger btn-sm" onclick="triggerRollback('${b.id}')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; line-height: 1;">Rollback</button>`
-      : `<span style="color:var(--text-muted)">—</span>`;
     return `
       <tr>
         <td><strong>${b.tanggal_data}</strong></td>
@@ -601,7 +597,6 @@ async function loadBatchHistory() {
         <td>${b.jumlah_usaha?.toLocaleString('id') || 0}</td>
         <td style="color:var(--text-muted);font-size:0.8rem">${new Date(b.created_at).toLocaleString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
         <td><span class="status-badge ${b.status === 'completed' ? 'status-kondisi' : b.status === 'failed' ? 'status-reopen' : 'status-pending'}">${b.status}</span></td>
-        <td>${rollbackBtn}</td>
       </tr>`;
   }).join('');
 }
@@ -4705,22 +4700,6 @@ function printBAPP(rows) {
       setTimeout(() => { indicator.remove(); }, 4000);
     }
   });
-}
-
-async function triggerRollback(batchId) {
-  if (!confirm('Apakah Anda yakin ingin membatalkan (rollback) seluruh data dari upload batch ini? Tindakan ini akan menghapus record baru dan mengembalikan status record yang diperbarui.')) {
-    return;
-  }
-  showToast('Memproses rollback batch...', 'info');
-  try {
-    const { data, error } = await db.rpc('rollback_upload_batch', { p_batch_id: batchId });
-    if (error) throw error;
-    showToast(`Rollback berhasil! ${data.deleted_count} data dihapus, ${data.reverted_count} data dikembalikan.`, 'success');
-    await loadBatchHistory();
-  } catch (err) {
-    showToast('Gagal memproses rollback: ' + err.message, 'error');
-    console.error(err);
-  }
 }
 
 // ============================================================

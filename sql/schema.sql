@@ -849,19 +849,20 @@ BEGIN
             updated_at = now()
           WHERE id = v_existing_id;
 
-          -- Selalu catat ke status_history di setiap upload (snapshot keadaan).
-          -- Jika status tidak berubah, status_lama = status_baru (penanda "terdeteksi kembali").
-          -- Jika status berubah, catat perubahannya seperti biasa.
-          INSERT INTO public.status_history (
-            assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
-          ) VALUES (
-            v_existing_id,
-            v_existing_status,
-            CASE WHEN v_target_status != 'belum_ditindaklanjuti' THEN v_target_status ELSE v_existing_status END,
-            'Sistem (Merge)',
-            NULLIF(v_rec.catatan, ''),
-            'merge_otomatis'
-          );
+          -- Catat ke status_history HANYA jika status anomali benar-benar berubah dari file Excel
+          -- Ini mencegah pembengkakan database (overload) akibat snapshot 'terdeteksi kembali' berulang
+          IF v_target_status != 'belum_ditindaklanjuti' AND v_target_status != v_existing_status THEN
+            INSERT INTO public.status_history (
+              assignment_anomali_id, status_lama, status_baru, diubah_oleh_nama, catatan, sumber
+            ) VALUES (
+              v_existing_id,
+              v_existing_status,
+              v_target_status,
+              'Sistem (Merge)',
+              NULLIF(v_rec.catatan, ''),
+              'merge_otomatis'
+            );
+          END IF;
 
           v_updated_count := v_updated_count + 1;
         END IF;
@@ -1418,97 +1419,8 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.release_assignment_sync(VARCHAR) TO anon, authenticated;
 
--- ============================================================
--- ROLLBACK UPLOAD BATCH FUNCTION (ADMIN ONLY)
--- ============================================================
-CREATE OR REPLACE FUNCTION public.rollback_upload_batch(p_batch_id uuid)
-RETURNS jsonb
-SECURITY DEFINER
-AS $$
-DECLARE
-  v_batch_date date;
-  v_batch_status varchar;
-  v_deleted_count int := 0;
-  v_reverted_count int := 0;
-  v_rec record;
-BEGIN
-  -- 1. Check authorization
-  IF NOT EXISTS (
-    SELECT 1 FROM public.profiles
-    WHERE id = auth.uid() AND role IN ('admin', 'superadmin')
-  ) THEN
-    RAISE EXCEPTION 'Unauthorized';
-  END IF;
-
-  -- 2. Dapatkan info batch
-  SELECT tanggal_data, status INTO v_batch_date, v_batch_status
-  FROM public.upload_batches
-  WHERE id = p_batch_id;
-
-  IF v_batch_date IS NULL THEN
-    RAISE EXCEPTION 'Batch tidak ditemukan';
-  END IF;
-
-  IF v_batch_status = 'failed' THEN
-    RAISE EXCEPTION 'Batch ini sudah dibatalkan atau gagal';
-  END IF;
-
-  -- 3. HAPUS record anomali yang baru pertama kali masuk di batch ini
-  -- (first_seen sama dengan tanggal batch dan batch_id sesuai)
-  WITH deleted_rows AS (
-    DELETE FROM public.assignment_anomali
-    WHERE batch_id = p_batch_id
-      AND first_seen = v_batch_date
-    RETURNING id
-  )
-  SELECT count(*) INTO v_deleted_count FROM deleted_rows;
-
-  -- 4. KEMBALIKAN (REVERT) record anomali yang ter-update di batch ini
-  -- Cari log perubahan otomatis di status_history yang terjadi karena batch ini
-  FOR v_rec IN
-    SELECT sh.id AS history_id, sh.assignment_anomali_id, sh.status_lama, sh.status_baru
-    FROM public.status_history sh
-    JOIN public.assignment_anomali aa ON sh.assignment_anomali_id = aa.id
-    WHERE aa.batch_id = p_batch_id
-      AND sh.sumber = 'merge_otomatis'
-      AND aa.first_seen < v_batch_date -- Hanya record lama yang diupdate
-  LOOP
-    -- Revert status ke status lama sebelum update otomatis
-    UPDATE public.assignment_anomali
-    SET status = COALESCE(v_rec.status_lama, 'belum_ditindaklanjuti'),
-        -- Kembalikan last_seen ke tanggal sebelum batch ini
-        last_seen = COALESCE(
-          (SELECT ub.tanggal_data 
-           FROM public.assignment_anomali aa2
-           JOIN public.upload_batches ub ON aa2.batch_id = ub.id
-           WHERE aa2.id = v_rec.assignment_anomali_id AND ub.id != p_batch_id
-           ORDER BY ub.created_at DESC LIMIT 1),
-          first_seen
-        ),
-        updated_at = now()
-    WHERE id = v_rec.assignment_anomali_id;
-
-    -- Hapus entri history merge otomatis tersebut
-    DELETE FROM public.status_history WHERE id = v_rec.history_id;
-    
-    v_reverted_count := v_reverted_count + 1;
-  END LOOP;
-
-  -- 5. Update status batch menjadi failed
-  UPDATE public.upload_batches
-  SET status = 'failed',
-      catatan = COALESCE(catatan, '') || ' (Rolled back by Admin at ' || now()::text || ')'
-  WHERE id = p_batch_id;
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'deleted_count', v_deleted_count,
-    'reverted_count', v_reverted_count
-  );
-END;
-$$ LANGUAGE plpgsql;
-
-GRANT EXECUTE ON FUNCTION public.rollback_upload_batch(uuid) TO anon, authenticated;
+-- Rollback batch function dihilangkan karena snapshot upload mencakup seluruh data (full-dataset)
+DROP FUNCTION IF EXISTS public.rollback_upload_batch(uuid);
 
 -- ============================================================
 -- PETUGAS UB & DOKUMEN UB CONFIG SCHEMA
