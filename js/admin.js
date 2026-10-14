@@ -12225,8 +12225,8 @@ let customBastScreenshots = [];
 let selectedCustomTtdOfficers = new Map(); // id -> user profile object
 
 async function openCustomBastTtdModal() {
-  if (!adminProfile || adminProfile.role !== 'superadmin') {
-    showToast('Hanya Superadmin yang diperbolehkan mengakses fitur ini.', 'warning');
+  if (!adminProfile || !['superadmin', 'admin'].includes(adminProfile.role)) {
+    showToast('Hanya Admin dan Superadmin yang diperbolehkan mengakses fitur ini.', 'warning');
     return;
   }
   const modal = document.getElementById('customBastTtdModal');
