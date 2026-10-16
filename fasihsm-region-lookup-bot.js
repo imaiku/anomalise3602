@@ -33,8 +33,8 @@
     // ──────────────────────────────────────────────────────
     // KONSTANTA
     // ──────────────────────────────────────────────────────
-    const SUPABASE_URL     = 'https://vpbhqemomsewrnrggbmd.supabase.co';
-    const SUPABASE_KEY     = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
+    const SUPABASE_URL     = 'https://ajcsewlvlskzbitvmmdn.supabase.co';
+    const SUPABASE_KEY     = 'sb_publishable_banTQc31Sd-S1x4tQbyTSg_Tk01GmUg';
     const GROUP_ID         = 'a45adac1-e711-4c15-b3f9-1f30fc151565';
     const LEVEL2_FULL_CODE = '3602';  // Kabupaten Lebak
     const FASIH_BASE       = 'https://fasih-sm.bps.go.id/app/api/region/api/v1/region';

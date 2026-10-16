@@ -10,8 +10,8 @@ if (empty($ids)) {
     die("Error: Parameter 'id' tidak ditemukan.");
 }
 
-$supabase_url = 'https://vpbhqemomsewrnrggbmd.supabase.co';
-$supabase_key = 'sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3';
+$supabase_url = 'https://ajcsewlvlskzbitvmmdn.supabase.co';
+$supabase_key = 'sb_publishable_banTQc31Sd-S1x4tQbyTSg_Tk01GmUg';
 
 require 'fpdf.php';
 

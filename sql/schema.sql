@@ -270,7 +270,10 @@ ALTER TABLE public.anomali_ref        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.upload_batches     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assignment_anomali ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.status_history     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.master_wilayah     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wilayah_kec        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wilayah_desa       ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wilayah_sls        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.wilayah_subsls     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.no_surat_se         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.capaian              ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.honorarium_hold     ENABLE ROW LEVEL SECURITY;
@@ -385,8 +388,15 @@ CREATE POLICY "aa_delete_admin" ON public.assignment_anomali FOR DELETE TO authe
 CREATE POLICY "history_select" ON public.status_history FOR SELECT USING (true);
 CREATE POLICY "history_insert" ON public.status_history FOR INSERT TO authenticated WITH CHECK (true);
 
--- MASTER_WILAYAH: public read access
-CREATE POLICY "wilayah_select" ON public.master_wilayah FOR SELECT USING (true);
+-- MASTER_WILAYAH & TABEL WILAYAH: public read access, admin manage
+CREATE POLICY "wilayah_kec_select"    ON public.wilayah_kec    FOR SELECT USING (true);
+CREATE POLICY "wilayah_desa_select"   ON public.wilayah_desa   FOR SELECT USING (true);
+CREATE POLICY "wilayah_sls_select"    ON public.wilayah_sls    FOR SELECT USING (true);
+CREATE POLICY "wilayah_subsls_select" ON public.wilayah_subsls FOR SELECT USING (true);
+CREATE POLICY "wilayah_kec_admin"     ON public.wilayah_kec    FOR ALL TO authenticated USING (get_my_role() IN ('superadmin', 'admin'));
+CREATE POLICY "wilayah_desa_admin"    ON public.wilayah_desa   FOR ALL TO authenticated USING (get_my_role() IN ('superadmin', 'admin'));
+CREATE POLICY "wilayah_sls_admin"     ON public.wilayah_sls    FOR ALL TO authenticated USING (get_my_role() IN ('superadmin', 'admin'));
+CREATE POLICY "wilayah_subsls_admin"  ON public.wilayah_subsls FOR ALL TO authenticated USING (get_my_role() IN ('superadmin', 'admin'));
 
 -- NO_SURAT_SE: select all, admin manage
 CREATE POLICY "no_surat_select" ON public.no_surat_se FOR SELECT USING (true);

@@ -11311,30 +11311,29 @@ async function generateBASTAction(gelombang = 1, isDownload = false, roleFilter 
 }
 
 async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
-  let userProfiles = (allUsers && allUsers.length > 0) ? allUsers : [];
-  if (userProfiles.length === 0) {
-    let query = db.from('profiles')
+  // Ambil atau pastikan seluruh user aktif tersedia untuk lookup nama & sobatid PPL binaan
+  let allActiveUsers = (allUsers && allUsers.length > 0) ? allUsers : [];
+  if (allActiveUsers.length === 0) {
+    const { data: profData } = await db.from('profiles')
       .select('id, sobatid, nik, nama, role, is_active, kecamatan')
       .in('role', ['ppl', 'pml'])
       .eq('is_active', true);
-    if (targetProfileIds && targetProfileIds.length > 0) {
-      query = query.in('id', targetProfileIds);
-    }
-    const { data: profData } = await query;
-    userProfiles = profData || [];
-    if (!targetProfileIds) allUsers = userProfiles;
-  }
-
-  if (targetProfileIds && targetProfileIds.length > 0) {
-    userProfiles = userProfiles.filter(u => targetProfileIds.includes(u.id));
+    allActiveUsers = profData || [];
+    allUsers = allActiveUsers;
   }
 
   const userById = {};
   const userBySobat = {};
-  userProfiles.forEach(u => {
+  allActiveUsers.forEach(u => {
     userById[u.id] = u;
     if (u.sobatid) userBySobat[String(u.sobatid).trim()] = u;
   });
+
+  // Filter petugas yang akan dicetak BAST-nya
+  let userProfiles = allActiveUsers;
+  if (targetProfileIds && targetProfileIds.length > 0) {
+    userProfiles = userProfiles.filter(u => targetProfileIds.includes(u.id));
+  }
 
   await loadBappEligibilityDataT2(true);
 
@@ -11380,22 +11379,31 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
     if (n.sobatid) noSuratMap[String(n.sobatid).trim()] = n;
   });
 
-  // 2. Query user_sls_termin2 ONLY for target officer IDs (and supervised PPLs for PML)
-  let slsQueryIds = [...officerIds];
-  for (const o of officers) {
-    if (o.role === 'pml') {
-      try {
-        const { data: rekapPml } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: o.id });
-        if (rekapPml) {
-          rekapPml.forEach(p => {
-            if (p.ppl_id) slsQueryIds.push(p.ppl_id);
-          });
-        }
-      } catch (e) {}
-    }
+  // 2. Query relasi pml_ppl resmi Termin 2
+  let pmlToPpl = {};
+  let pplToPml = {};
+  try {
+    const { data: rels } = await db.from('pml_ppl').select('pml_id, ppl_id');
+    (rels || []).forEach(r => {
+      if (!pmlToPpl[r.pml_id]) pmlToPpl[r.pml_id] = [];
+      if (!pmlToPpl[r.pml_id].includes(r.ppl_id)) pmlToPpl[r.pml_id].push(r.ppl_id);
+      pplToPml[r.ppl_id] = r.pml_id;
+    });
+  } catch (errRel) {
+    console.warn('Gagal memuat relasi pml_ppl:', errRel);
   }
+
+  // Siapkan daftar ID petugas yang perlu di-query SLS-nya (termasuk seluruh PPL binaan dari PML)
+  let slsQueryIds = [...officerIds];
+  officers.forEach(o => {
+    if (o.role === 'pml') {
+      const pBinaan = pmlToPpl[o.id] || [];
+      pBinaan.forEach(pId => slsQueryIds.push(pId));
+    }
+  });
   slsQueryIds = Array.from(new Set(slsQueryIds));
 
+  // 3. Query user_sls_termin2 untuk seluruh petugas target dan PPL binaan
   let userSlsT2 = [];
   if (slsQueryIds.length > 0) {
     const chunkSize = 100;
@@ -11414,18 +11422,48 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
   (userSlsT2 || []).forEach(us => {
     if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
     userSlsMap[us.user_id].push(us.kode_sls);
-    if (us.user_id_asal) userAsalMap[us.user_id] = us.user_id_asal;
+    if (us.user_id_asal) {
+      userAsalMap[us.user_id] = us.user_id_asal;
+      // Inherit PML pembina dari SLS / user_id_asal jika petugas merupakan PPL pengganti
+      if (pplToPml[us.user_id_asal]) {
+        const pmlId = pplToPml[us.user_id_asal];
+        if (!pmlToPpl[pmlId]) pmlToPpl[pmlId] = [];
+        if (!pmlToPpl[pmlId].includes(us.user_id)) {
+          pmlToPpl[pmlId].push(us.user_id);
+        }
+      }
+    }
   });
 
-  // 3. Query capaian_termin2 ONLY for relevant kode_subsls
+  // Fallback: jika ada petugas target yang tidak memiliki SLS di user_sls_termin2, cek user_sls
+  const missingOfficerSlsIds = officerIds.filter(id => !userSlsMap[id] || userSlsMap[id].length === 0);
+  if (missingOfficerSlsIds.length > 0) {
+    try {
+      const { data: fallbackSls } = await db.from('user_sls')
+        .select('user_id, kode_sls')
+        .eq('status', 'aktif')
+        .in('user_id', missingOfficerSlsIds);
+      (fallbackSls || []).forEach(us => {
+        if (!userSlsMap[us.user_id]) userSlsMap[us.user_id] = [];
+        userSlsMap[us.user_id].push(us.kode_sls);
+      });
+    } catch (e) {
+      console.warn('Fallback query user_sls gagal:', e);
+    }
+  }
+
+  // 4. Query capaian_termin2 ONLY for relevant kode_subsls
   const relevantSubSls = [];
-  (userSlsT2 || []).forEach(us => { if (us.kode_sls) relevantSubSls.push(us.kode_sls); });
+  Object.values(userSlsMap).forEach(codes => {
+    (codes || []).forEach(c => { if (c) relevantSubSls.push(c); });
+  });
 
   let capaianT2 = [];
   if (relevantSubSls.length > 0) {
+    const uniqueSubSls = Array.from(new Set(relevantSubSls));
     const chunkSize = 100;
-    for (let i = 0; i < relevantSubSls.length; i += chunkSize) {
-      const sliceSub = relevantSubSls.slice(i, i + chunkSize);
+    for (let i = 0; i < uniqueSubSls.length; i += chunkSize) {
+      const sliceSub = uniqueSubSls.slice(i, i + chunkSize);
       const { data: capData } = await db.from('capaian_termin2')
         .select('kode_subsls, targetsls, hasilverif1, hasilverif2, hasilverif3, hasilverif4')
         .in('kode_subsls', sliceSub);
@@ -11440,7 +11478,7 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
     hasilMap[c.kode_subsls] = c[`hasilverif${gelombang}`] || 0;
   });
 
-  // 4. Fetch bapp_uploads_t2 ONLY for officerIds
+  // 5. Fetch bapp_uploads_t2 ONLY for officerIds
   const bappUploadMap = {};
   if (officerIds.length > 0) {
     const chunkSize = 100;
@@ -11458,7 +11496,7 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
     }
   }
 
-  // 5. Fetch Master Wilayah Kecamatan dan Desa
+  // 6. Fetch Master Wilayah Kecamatan dan Desa
   const { data: kecList } = await db.from('wilayah_kec').select('kode_kec, nmkec');
   const { data: desaList } = await db.from('wilayah_desa').select('kode_desa, kode_kec, nmdesa');
   const kecMap = {};
@@ -11497,23 +11535,13 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
       });
       Object.values(agg).forEach(r => breakdownRows.push(r));
     } else {
-      // PML: Ambil daftar PPL binaan dari RPC get_rekapitulasi_pml
-      let supervisedPpls = [];
-      try {
-        const { data: rekapPml } = await db.rpc('get_rekapitulasi_pml', { p_pml_id: u.id });
-        if (rekapPml && rekapPml.length > 0) {
-          supervisedPpls = rekapPml;
-        }
-      } catch (e) {
-        console.warn('Gagal panggil get_rekapitulasi_pml:', e);
-      }
-
+      // PML: Ambil daftar PPL binaan dari pemetaan pmlToPpl
+      const supervisedPplIds = pmlToPpl[u.id] || [];
       const allPmlCodes = [];
 
-      supervisedPpls.forEach(r => {
-        const pplProf = (r.ppl_id && userById[r.ppl_id]) || (r.sobatid_ppl && userBySobat[String(r.sobatid_ppl).trim()]) || {};
-        const pplId = pplProf.id || r.ppl_id;
-        const pCodes = pplId ? (userSlsMap[pplId] || []) : [];
+      supervisedPplIds.forEach(pplId => {
+        const pplProf = userById[pplId] || {};
+        const pCodes = userSlsMap[pplId] || [];
         allPmlCodes.push(...pCodes);
 
         const agg = {};
@@ -11523,7 +11551,7 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
           const key = `${kdKec}_${kdDesa}`;
           if (!agg[key]) {
             agg[key] = {
-              namaPpl: pplProf.nama || r.nama_ppl || '—',
+              namaPpl: pplProf.nama || '—',
               kdKec: kdKec,
               kdKecLocal: kdKec.slice(-3),
               nmKec: kecMap[kdKec] || '',
@@ -11538,7 +11566,8 @@ async function fetchBASTData(gelombang = 1, targetProfileIds = null) {
         Object.values(agg).forEach(row => breakdownRows.push(row));
       });
 
-      if (supervisedPpls.length === 0) {
+      // Jika PML tidak memiliki PPL binaan di relasi (misal input mandiri)
+      if (breakdownRows.length === 0) {
         const pCodes = userSlsMap[u.id] || [];
         allPmlCodes.push(...pCodes);
         const agg = {};

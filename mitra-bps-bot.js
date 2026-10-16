@@ -15,8 +15,8 @@
     console.log(LOG_PREFIX + ' Menginisialisasi Bot Mitra BPS (Auto-Recovery & Realtime DB)...', LOG_INFO);
 
     // ─── 0. Konfigurasi Database & Auth ───
-    const SUPABASE_URL = "https://vpbhqemomsewrnrggbmd.supabase.co";
-    const SUPABASE_KEY = "sb_publishable_si2F2abcWGL6uaq9FueJ0Q_eE5nkol3";
+    const SUPABASE_URL = "https://ajcsewlvlskzbitvmmdn.supabase.co";
+    const SUPABASE_KEY = "sb_publishable_banTQc31Sd-S1x4tQbyTSg_Tk01GmUg";
 
     const DEFAULT_AUTH_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODczNDE3NTYsIm4iOiJJcmdpIEZhaHJvemkgUy5Uci5TdGF0LiIsInIiOiIxIiwidHlwZSI6ImFkbWluIiwidW4iOiJpcmdpLmZhaHJvemkiLCJ3IjpbIjM2LTAyIl19.7FvxsaFAj9rIin3dYhOu5vapvKmieY2nGmwn2G4Ri_w";
 
